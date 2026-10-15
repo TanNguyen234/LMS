@@ -32,7 +32,7 @@ export const CoursesPage: React.FC = () => {
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newCredits, setNewCredits] = useState(3);
-  const [selectedLecturerId, setSelectedLecturerId] = useState<number>(0);
+  const [selectedLecturerId, setSelectedLecturerId] = useState<string | number>('');
   const [submitting, setSubmitting] = useState(false);
 
   const fetchCourses = async () => {

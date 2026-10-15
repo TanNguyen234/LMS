@@ -18,7 +18,7 @@ import type { Course, Module, Lesson, Enrollment, User } from '../types';
 
 export const CourseDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const courseId = Number(id);
+  const courseId = id || '';
   const { user } = useAuth();
 
   const [course, setCourse] = useState<Course | null>(null);
@@ -36,14 +36,14 @@ export const CourseDetailPage: React.FC = () => {
   const [newModuleDesc, setNewModuleDesc] = useState('');
 
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
-  const [selectedModuleId, setSelectedModuleId] = useState<number>(0);
+  const [selectedModuleId, setSelectedModuleId] = useState<string | number>('');
   const [newLessonTitle, setNewLessonTitle] = useState('');
   const [newLessonType, setNewLessonType] = useState<'TEXT' | 'VIDEO' | 'DOCUMENT'>('TEXT');
   const [newLessonBody, setNewLessonBody] = useState('');
   const [newLessonMedia, setNewLessonMedia] = useState('');
 
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState<number>(0);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | number>('');
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -60,12 +60,22 @@ export const CourseDetailPage: React.FC = () => {
       }
 
       if (user?.role === 'ADMIN' || user?.role === 'LECTURER') {
-        const enrollData = await api.getCourseEnrollments(courseId);
-        setEnrollments(enrollData);
+        try {
+          const enrollData = await api.getCourseEnrollments(courseId);
+          setEnrollments(enrollData);
+        } catch (e) {
+          console.warn('Could not fetch enrollments:', e);
+        }
 
-        const allStudents = await api.getUsers('STUDENT', true);
-        setStudents(allStudents);
-        if (allStudents.length > 0) setSelectedStudentId(allStudents[0].id);
+        if (user?.role === 'ADMIN') {
+          try {
+            const allStudents = await api.getUsers('STUDENT', true);
+            setStudents(allStudents);
+            if (allStudents.length > 0) setSelectedStudentId(allStudents[0].id as any);
+          } catch (e) {
+            console.warn('Could not fetch student list:', e);
+          }
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Không thể tải thông tin khóa học.');
@@ -142,17 +152,6 @@ export const CourseDetailPage: React.FC = () => {
     }
   };
 
-  const handleStudentSelfEnroll = async () => {
-    if (!user) return;
-    try {
-      await api.enrollStudent(courseId, user.id);
-      alert('Ghi danh thành công!');
-      fetchCourseData();
-    } catch (err: any) {
-      alert('Lỗi: ' + err.message);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -194,14 +193,7 @@ export const CourseDetailPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            {user?.role === 'STUDENT' ? (
-              <button
-                onClick={handleStudentSelfEnroll}
-                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition"
-              >
-                Đăng ký vào lớp này
-              </button>
-            ) : (
+            {user?.role !== 'STUDENT' && (
               <>
                 <button
                   onClick={() => setIsModuleModalOpen(true)}
@@ -216,7 +208,7 @@ export const CourseDetailPage: React.FC = () => {
                       alert('Vui lòng tạo ít nhất 1 chương học trước khi thêm bài giảng.');
                       return;
                     }
-                    setSelectedModuleId(modules[0].id);
+                    setSelectedModuleId(modules[0].id as any);
                     setIsLessonModalOpen(true);
                   }}
                   className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"

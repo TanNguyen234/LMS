@@ -1,14 +1,21 @@
 export type UserRole = 'ADMIN' | 'LECTURER' | 'STUDENT';
 
 export interface User {
-  id: number;
-  username: string;
+  userId: string;
+  id: string | number;
   email: string;
+  fullName: string;
   full_name: string;
+  username?: string;
   role: UserRole;
+  isActive: boolean;
   is_active: boolean;
+  studentCode?: string | null;
+  staffCode?: string | null;
+  createdAt: string;
   created_at: string;
-  updated_at: string;
+  updatedAt?: string;
+  updated_at?: string;
 }
 
 export interface AuthResponse {
@@ -17,20 +24,29 @@ export interface AuthResponse {
   user: User;
 }
 
-export type CourseStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type CourseStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED' | 'PUBLISHED';
 
 export interface Course {
-  id: number;
+  courseId: string;
+  id: string | number;
+  courseCode: string;
   code: string;
   title: string;
   description?: string;
   credits: number;
   status: CourseStatus;
-  lecturer_id: number;
+  lecturerId: string;
+  lecturer_id: string | number;
+  lecturerName?: string;
   lecturer_name?: string;
+  lecturerEmail?: string;
   lecturer_email?: string;
+  semester?: string;
+  academicYear?: string;
+  createdAt: string;
   created_at: string;
-  updated_at: string;
+  updatedAt?: string;
+  updated_at?: string;
   enrolled_count?: number;
   modules_count?: number;
 }
@@ -38,89 +54,149 @@ export interface Course {
 export type EnrollmentStatus = 'ACTIVE' | 'DROPPED' | 'COMPLETED';
 
 export interface Enrollment {
-  id: number;
-  student_id: number;
-  course_id: number;
+  enrollmentId: string;
+  id: string | number;
+  studentId: string;
+  student_id: string | number;
+  courseId: string;
+  course_id: string | number;
+  studentName?: string;
   student_name?: string;
+  studentEmail?: string;
   student_email?: string;
+  courseTitle?: string;
   course_title?: string;
+  courseCode?: string;
   course_code?: string;
   status: EnrollmentStatus;
+  enrolledAt: string;
   enrolled_at: string;
-  completed_at?: string;
+  finalScore?: number | null;
 }
 
 export interface Lesson {
-  id: number;
-  module_id: number;
+  lessonId: string;
+  id: string | number;
+  moduleId: string;
+  module_id: string | number;
   title: string;
-  content_type: 'TEXT' | 'VIDEO' | 'DOCUMENT';
+  contentType?: 'TEXT' | 'VIDEO' | 'DOCUMENT';
+  content_type?: 'TEXT' | 'VIDEO' | 'DOCUMENT';
+  contentHtml?: string;
   content_body?: string;
+  materialUrl?: string;
   media_url?: string;
+  isPublished: boolean;
   is_published: boolean;
-  order_index: number;
+  sortOrder: number;
+  order_index?: number;
+  estimatedMinutes?: number;
+  createdAt: string;
   created_at: string;
 }
 
 export interface Module {
-  id: number;
-  course_id: number;
+  moduleId: string;
+  id: string | number;
+  courseId: string;
+  course_id: string | number;
   title: string;
   description?: string;
-  order_index: number;
+  sortOrder: number;
+  order_index?: number;
+  isPublished?: boolean;
+  createdAt: string;
   created_at: string;
   lessons: Lesson[];
 }
 
 export interface Assignment {
-  id: number;
-  course_id: number;
+  assignmentId: string;
+  id: string | number;
+  courseId: string;
+  course_id: string | number;
+  courseTitle?: string;
   course_title?: string;
+  courseCode?: string;
   course_code?: string;
   title: string;
   description?: string;
+  dueAt: string;
   due_date: string;
+  maxScore: number;
   max_score: number;
+  allowLate?: boolean;
+  status?: string;
+  createdAt: string;
   created_at: string;
   submissions_count?: number;
   my_submission?: Submission;
 }
 
 export interface Submission {
-  id: number;
-  assignment_id: number;
-  student_id: number;
+  submissionId: string;
+  id: string | number;
+  assignmentId: string;
+  assignment_id: string | number;
+  studentId: string;
+  student_id: string | number;
+  studentName?: string;
   student_name?: string;
+  studentEmail?: string;
   student_email?: string;
+  contentText?: string;
   submission_text?: string;
+  fileUrl?: string;
   attachment_url?: string;
+  status?: string;
+  submittedAt: string;
   submitted_at: string;
+  updatedAt?: string;
   grade?: Grade;
 }
 
 export interface QuizQuestion {
-  id: number;
-  quiz_id: number;
+  questionId: string;
+  id: string | number;
+  quizId: string;
+  quiz_id: string | number;
+  questionText: string;
   question_text: string;
+  questionType: string;
   question_type: string;
+  score: number;
   points: number;
+  sortOrder?: number;
+  optionsJson?: string;
   options: Array<{
     id: string | number;
     text: string;
   }>;
+  correctAnswer?: string;
   correct_option_id?: string | number;
 }
 
 export interface Quiz {
-  id: number;
-  course_id: number;
+  quizId: string;
+  id: string | number;
+  courseId: string;
+  course_id: string | number;
+  courseTitle?: string;
   course_title?: string;
+  courseCode?: string;
   course_code?: string;
   title: string;
   description?: string;
+  timeLimitMinutes: number;
   duration_minutes: number;
   max_score: number;
+  startAt?: string;
+  endAt?: string;
+  maxAttempts?: number;
+  passingScore?: number;
+  isPublished: boolean;
   is_published: boolean;
+  createdAt: string;
   created_at: string;
   questions?: QuizQuestion[];
   questions_count?: number;
@@ -128,40 +204,65 @@ export interface Quiz {
 }
 
 export interface QuizAttempt {
-  id: number;
-  quiz_id: number;
-  student_id: number;
+  attemptId: string;
+  id: string | number;
+  quizId: string;
+  quiz_id: string | number;
+  studentId: string;
+  student_id: string | number;
+  attemptNo?: number;
   score: number;
+  startedAt: string;
   started_at: string;
+  submittedAt?: string;
   submitted_at?: string;
+  status?: string;
 }
 
 export interface Grade {
-  id: number;
-  enrollment_id: number;
-  student_id?: number;
+  gradeId: string;
+  id: string | number;
+  courseId: string;
+  course_id: string | number;
+  studentId: string;
+  student_id: string | number;
+  studentName?: string;
   student_name?: string;
-  course_id?: number;
+  studentCode?: string;
+  courseTitle?: string;
   course_title?: string;
+  courseCode?: string;
   course_code?: string;
-  source_type: 'ASSIGNMENT' | 'QUIZ' | 'MIDTERM' | 'FINAL';
-  source_id: number;
+  sourceType: 'ASSIGNMENT' | 'QUIZ' | 'MANUAL';
+  source_type?: 'ASSIGNMENT' | 'QUIZ' | 'MIDTERM' | 'FINAL' | 'MANUAL';
+  sourceId: string;
+  source_id?: string | number;
+  itemTitle?: string;
   score: number;
+  maxScore: number;
   max_score: number;
-  weight_percent: number;
+  weightPercent?: number;
+  weight_percent?: number;
   feedback?: string;
+  gradedBy?: string;
+  gradedAt: string;
   graded_at: string;
   graded_by_name?: string;
 }
 
 export interface Notification {
-  id: number;
-  user_id: number;
+  notificationId: string;
+  id: string | number;
+  userId: string;
+  user_id: string | number;
   title: string;
   message: string;
   type: string;
+  isRead: boolean;
   is_read: boolean;
+  relatedUrl?: string;
   link_url?: string;
+  createdAt: string;
   created_at: string;
 }
 

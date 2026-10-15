@@ -28,7 +28,7 @@ export const NotificationsPage: React.FC = () => {
     fetchNotifications();
   }, []);
 
-  const handleMarkAsRead = async (id: number) => {
+  const handleMarkAsRead = async (id: string | number) => {
     try {
       await api.markNotificationRead(id);
       setNotifications((prev) =>

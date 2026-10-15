@@ -127,22 +127,22 @@ export const LoginPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => handleQuickLogin('nguyen.van.a@university.edu.vn')}
+                onClick={() => handleQuickLogin('lecturer1@university.edu.vn')}
                 className="p-2 rounded-xl border border-blue-200 hover:bg-blue-50 text-left transition flex flex-col items-center text-center"
               >
                 <BookOpen className="w-4 h-4 text-blue-600 mb-1" />
                 <span className="text-xs font-bold text-blue-900 block">Lecturer</span>
-                <span className="text-[10px] text-blue-500 truncate w-full">Thầy An</span>
+                <span className="text-[10px] text-blue-500 truncate w-full">TS. Nam</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickLogin('sv.tran.b@university.edu.vn')}
+                onClick={() => handleQuickLogin('student1@university.edu.vn')}
                 className="p-2 rounded-xl border border-emerald-200 hover:bg-emerald-50 text-left transition flex flex-col items-center text-center"
               >
                 <User className="w-4 h-4 text-emerald-600 mb-1" />
                 <span className="text-xs font-bold text-emerald-900 block">Student</span>
-                <span className="text-[10px] text-emerald-500 truncate w-full">Bình</span>
+                <span className="text-[10px] text-emerald-500 truncate w-full">Nguyễn An</span>
               </button>
             </div>
             <p className="text-[11px] text-slate-400 text-center mt-3">

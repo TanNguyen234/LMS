@@ -71,10 +71,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   // Auth
-  async login(formData: FormData): Promise<AuthResponse> {
+  async login(credentials: { email: string; password: string } | FormData | { username: string; password: string }): Promise<AuthResponse> {
+    let payload: any;
+    if (credentials instanceof FormData) {
+      const email = credentials.get('email') || credentials.get('username');
+      const password = credentials.get('password');
+      payload = { email: String(email || ''), password: String(password || '') };
+    } else if ('username' in credentials) {
+      payload = { email: (credentials as any).username, password: credentials.password };
+    } else {
+      payload = credentials;
+    }
     return request<AuthResponse>('/auth/login', {
       method: 'POST',
-      body: formData,
+      body: JSON.stringify(payload),
     });
   },
 
@@ -83,238 +93,607 @@ export const api = {
   },
 
   // Users (Admin)
-  async getUsers(role?: string, activeOnly = false): Promise<User[]> {
+  async getUsers(role?: string, _activeOnly = false): Promise<User[]> {
     const params = new URLSearchParams();
     if (role) params.set('role', role);
-    if (activeOnly) params.set('active_only', 'true');
+    params.set('pageSize', '100');
     const query = params.toString() ? `?${params.toString()}` : '';
-    return request<User[]>(`/users${query}`);
+    const res = await request<any>(`/users${query}`);
+    const items: User[] = Array.isArray(res) ? res : (res?.items || []);
+    return items.map((u: any) => ({
+      ...u,
+      id: u.userId,
+      username: u.studentCode || u.staffCode || u.email.split('@')[0],
+      full_name: u.fullName,
+      is_active: u.isActive,
+      created_at: u.createdAt,
+    }));
   },
 
   async createUser(userData: {
-    username: string;
+    username?: string;
     email: string;
-    full_name: string;
+    full_name?: string;
+    fullName?: string;
     role: string;
     password?: string;
   }): Promise<User> {
-    return request<User>('/users', {
+    const payload = {
+      email: userData.email,
+      fullName: userData.fullName || userData.full_name || userData.username || 'User',
+      role: userData.role.toUpperCase(),
+      password: userData.password || 'Demo@123',
+    };
+    const res = await request<any>('/users', {
       method: 'POST',
-      body: JSON.stringify(userData),
+      body: JSON.stringify(payload),
     });
+    return {
+      ...res,
+      id: res.userId,
+      full_name: res.fullName,
+      is_active: res.isActive,
+      created_at: res.createdAt,
+    };
   },
 
-  async toggleUserStatus(userId: number): Promise<User> {
-    return request<User>(`/users/${userId}/status`, {
+  async toggleUserStatus(userId: string | number, currentActive = true): Promise<User> {
+    const res = await request<any>(`/users/${userId}/status`, {
       method: 'PATCH',
+      body: JSON.stringify({ isActive: !currentActive }),
     });
+    return {
+      ...res,
+      id: res.userId,
+      full_name: res.fullName,
+      is_active: res.isActive,
+    };
   },
 
   // Courses
-  async getCourses(status?: string, lecturerId?: number): Promise<Course[]> {
+  async getCourses(status?: string, lecturerId?: string | number): Promise<Course[]> {
     const params = new URLSearchParams();
     if (status) params.set('status', status);
-    if (lecturerId) params.set('lecturer_id', lecturerId.toString());
+    if (lecturerId) params.set('lecturerId', String(lecturerId));
     const query = params.toString() ? `?${params.toString()}` : '';
-    return request<Course[]>(`/courses${query}`);
+    const res = await request<Course[]>(`/courses${query}`);
+    return (res || []).map((c: any) => ({
+      ...c,
+      id: c.courseId,
+      code: c.courseCode,
+      lecturer_id: c.lecturerId,
+      lecturer_name: c.lecturerName,
+      created_at: c.createdAt,
+    }));
   },
 
-  async getCourse(courseId: number): Promise<Course> {
-    return request<Course>(`/courses/${courseId}`);
+  async getCourse(courseId: string | number): Promise<Course> {
+    const c = await request<any>(`/courses/${courseId}`);
+    return {
+      ...c,
+      id: c.courseId,
+      code: c.courseCode,
+      lecturer_id: c.lecturerId,
+      lecturer_name: c.lecturerName,
+      created_at: c.createdAt,
+    };
   },
 
   async createCourse(courseData: {
-    code: string;
+    code?: string;
+    courseCode?: string;
     title: string;
     description?: string;
     credits: number;
-    lecturer_id: number;
+    lecturer_id?: string | number;
+    lecturerId?: string | number;
+    semester?: string;
+    academicYear?: string;
+    status?: string;
   }): Promise<Course> {
-    return request<Course>('/courses', {
+    const payload = {
+      courseCode: courseData.courseCode || courseData.code,
+      title: courseData.title,
+      description: courseData.description,
+      credits: courseData.credits,
+      lecturerId: courseData.lecturerId || courseData.lecturer_id,
+      semester: courseData.semester || 'HK1',
+      academicYear: courseData.academicYear || '2026-2027',
+      status: courseData.status || 'ACTIVE',
+    };
+    const c = await request<any>('/courses', {
       method: 'POST',
-      body: JSON.stringify(courseData),
+      body: JSON.stringify(payload),
     });
+    return {
+      ...c,
+      id: c.courseId,
+      code: c.courseCode,
+      lecturer_id: c.lecturerId,
+      lecturer_name: c.lecturerName,
+      created_at: c.createdAt,
+    };
   },
 
-  async updateCourse(courseId: number, courseData: Partial<Course>): Promise<Course> {
-    return request<Course>(`/courses/${courseId}`, {
+  async updateCourse(courseId: string | number, courseData: Partial<Course>): Promise<Course> {
+    const payload = {
+      title: courseData.title,
+      description: courseData.description,
+      credits: courseData.credits,
+      semester: courseData.semester,
+      academicYear: courseData.academicYear,
+      status: courseData.status,
+      lecturerId: courseData.lecturerId || courseData.lecturer_id,
+    };
+    const c = await request<any>(`/courses/${courseId}`, {
       method: 'PUT',
-      body: JSON.stringify(courseData),
+      body: JSON.stringify(payload),
     });
+    return {
+      ...c,
+      id: c.courseId,
+      code: c.courseCode,
+      lecturer_id: c.lecturerId,
+      lecturer_name: c.lecturerName,
+    };
   },
 
-  async deleteCourse(courseId: number): Promise<{ message: string }> {
-    return request<{ message: string }>(`/courses/${courseId}`, {
-      method: 'DELETE',
+  async deleteCourse(courseId: string | number): Promise<{ message: string }> {
+    return request<{ message: string }>(`/courses/${courseId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'ARCHIVED' }),
     });
   },
 
   // Enrollments
-  async getCourseEnrollments(courseId: number): Promise<Enrollment[]> {
-    return request<Enrollment[]>(`/courses/${courseId}/enrollments`);
+  async getCourseEnrollments(courseId: string | number): Promise<Enrollment[]> {
+    const res = await request<any[]>(`/courses/${courseId}/enrollments`);
+    return (res || []).map((e: any) => ({
+      ...e,
+      id: e.enrollmentId,
+      student_id: e.studentId,
+      course_id: e.courseId,
+      student_name: e.studentName,
+      student_email: e.studentEmail,
+      enrolled_at: e.enrolledAt,
+    }));
   },
 
-  async enrollStudent(courseId: number, studentId: number): Promise<Enrollment> {
-    return request<Enrollment>(`/courses/${courseId}/enrollments`, {
+  async enrollStudent(courseId: string | number, studentId: string | number): Promise<Enrollment> {
+    const res = await request<any>(`/courses/${courseId}/enrollments`, {
       method: 'POST',
-      body: JSON.stringify({ student_id: studentId }),
+      body: JSON.stringify({ studentId: String(studentId) }),
     });
+    return {
+      ...res,
+      id: res.enrollmentId,
+      student_id: res.studentId,
+      course_id: res.courseId,
+      student_name: res.studentName,
+      student_email: res.studentEmail,
+      enrolled_at: res.enrolledAt,
+    };
   },
 
-  async updateEnrollmentStatus(courseId: number, enrollmentId: number, status: string): Promise<Enrollment> {
-    return request<Enrollment>(`/courses/${courseId}/enrollments/${enrollmentId}`, {
+  async updateEnrollmentStatus(courseId: string | number, enrollmentId: string | number, status: string): Promise<Enrollment> {
+    const res = await request<any>(`/courses/${courseId}/enrollments/${enrollmentId}`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
+    return {
+      ...res,
+      id: res.enrollmentId,
+      student_id: res.studentId,
+      course_id: res.courseId,
+      status: res.status,
+    };
   },
 
   // Content (Modules & Lessons)
-  async getCourseModules(courseId: number): Promise<Module[]> {
-    return request<Module[]>(`/courses/${courseId}/modules`);
+  async getCourseModules(courseId: string | number): Promise<Module[]> {
+    const res = await request<any[]>(`/courses/${courseId}/modules`);
+    return (res || []).map((m: any) => ({
+      ...m,
+      id: m.moduleId,
+      course_id: m.courseId,
+      order_index: m.sortOrder,
+      created_at: m.createdAt,
+      lessons: (m.lessons || []).map((l: any) => ({
+        ...l,
+        id: l.lessonId,
+        module_id: l.moduleId,
+        order_index: l.sortOrder,
+        content_body: l.contentHtml,
+        media_url: l.materialUrl,
+        is_published: l.isPublished,
+        created_at: l.createdAt,
+      })),
+    }));
   },
 
-  async createModule(courseId: number, data: { title: string; description?: string; order_index?: number }): Promise<Module> {
-    return request<Module>(`/courses/${courseId}/modules`, {
+  async createModule(courseId: string | number, data: { title: string; description?: string; order_index?: number; sortOrder?: number }): Promise<Module> {
+    const payload = {
+      title: data.title,
+      description: data.description,
+      sortOrder: data.sortOrder || data.order_index || 1,
+      isPublished: true,
+    };
+    const res = await request<any>(`/courses/${courseId}/modules`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
+    return {
+      ...res,
+      id: res.moduleId,
+      course_id: res.courseId,
+      order_index: res.sortOrder,
+      lessons: [],
+    };
   },
 
-  async createLesson(moduleId: number, data: {
+  async createLesson(moduleId: string | number, data: {
     title: string;
     content_type?: string;
+    contentType?: string;
     content_body?: string;
+    contentHtml?: string;
     media_url?: string;
+    materialUrl?: string;
     order_index?: number;
+    sortOrder?: number;
     is_published?: boolean;
+    isPublished?: boolean;
   }): Promise<Lesson> {
-    return request<Lesson>(`/modules/${moduleId}/lessons`, {
+    const payload = {
+      title: data.title,
+      contentType: data.contentType || data.content_type || 'TEXT',
+      contentHtml: data.contentHtml || data.content_body || '',
+      materialUrl: data.materialUrl || data.media_url,
+      sortOrder: data.sortOrder || data.order_index || 1,
+      isPublished: data.isPublished !== undefined ? data.isPublished : (data.is_published !== undefined ? data.is_published : true),
+      estimatedMinutes: 15,
+    };
+    const res = await request<any>(`/modules/${moduleId}/lessons`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
+    return {
+      ...res,
+      id: res.lessonId,
+      module_id: res.moduleId,
+      order_index: res.sortOrder,
+      content_body: res.contentHtml,
+      media_url: res.materialUrl,
+      is_published: res.isPublished,
+    };
   },
 
-  async getLesson(lessonId: number): Promise<Lesson> {
-    return request<Lesson>(`/lessons/${lessonId}`);
+  async getLesson(lessonId: string | number): Promise<Lesson> {
+    const res = await request<any>(`/lessons/${lessonId}`);
+    return {
+      ...res,
+      id: res.lessonId,
+      module_id: res.moduleId,
+      order_index: res.sortOrder,
+      content_body: res.contentHtml,
+      media_url: res.materialUrl,
+      is_published: res.isPublished,
+    };
   },
 
-  async updateLesson(lessonId: number, data: Partial<Lesson>): Promise<Lesson> {
-    return request<Lesson>(`/lessons/${lessonId}`, {
+  async updateLesson(lessonId: string | number, data: Partial<Lesson>): Promise<Lesson> {
+    const payload = {
+      title: data.title,
+      contentType: data.contentType || data.content_type,
+      contentHtml: data.contentHtml || data.content_body,
+      materialUrl: data.materialUrl || data.media_url,
+      sortOrder: data.sortOrder || data.order_index,
+      isPublished: data.isPublished !== undefined ? data.isPublished : data.is_published,
+    };
+    const res = await request<any>(`/lessons/${lessonId}`, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
-  },
-
-  async uploadLessonAttachment(lessonId: number, file: File): Promise<{ attachment_url: string }> {
-    const formData = new FormData();
-    formData.append('file', file);
-    return request<{ attachment_url: string }>(`/lessons/${lessonId}/attachment`, {
-      method: 'POST',
-      body: formData,
-    });
+    return {
+      ...res,
+      id: res.lessonId,
+      module_id: res.moduleId,
+      order_index: res.sortOrder,
+      content_body: res.contentHtml,
+      media_url: res.materialUrl,
+      is_published: res.isPublished,
+    };
   },
 
   // Assignments & Submissions
-  async getCourseAssignments(courseId: number): Promise<Assignment[]> {
-    return request<Assignment[]>(`/courses/${courseId}/assignments`);
+  async getCourseAssignments(courseId: string | number): Promise<Assignment[]> {
+    const res = await request<any[]>(`/courses/${courseId}/assignments`);
+    return (res || []).map((a: any) => ({
+      ...a,
+      id: a.assignmentId,
+      course_id: a.courseId,
+      due_date: a.dueAt,
+      max_score: a.maxScore,
+      created_at: a.createdAt,
+    }));
   },
 
-  async createAssignment(courseId: number, data: {
+  async createAssignment(courseId: string | number, data: {
     title: string;
     description?: string;
-    due_date: string;
-    max_score: number;
+    due_date?: string;
+    dueAt?: string;
+    max_score?: number;
+    maxScore?: number;
+    allowLate?: boolean;
+    status?: string;
   }): Promise<Assignment> {
-    return request<Assignment>(`/courses/${courseId}/assignments`, {
+    const payload = {
+      title: data.title,
+      description: data.description,
+      dueAt: data.dueAt || data.due_date || new Date(Date.now() + 7 * 86400000).toISOString(),
+      maxScore: data.maxScore !== undefined ? data.maxScore : (data.max_score !== undefined ? data.max_score : 10),
+      allowLate: data.allowLate !== undefined ? data.allowLate : true,
+      status: data.status || 'ACTIVE',
+    };
+    const res = await request<any>(`/courses/${courseId}/assignments`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
+    return {
+      ...res,
+      id: res.assignmentId,
+      course_id: res.courseId,
+      due_date: res.dueAt,
+      max_score: res.maxScore,
+      created_at: res.createdAt,
+    };
   },
 
-  async getAssignmentSubmissions(assignmentId: number): Promise<Submission[]> {
-    return request<Submission[]>(`/assignments/${assignmentId}/submissions`);
+  async getAssignmentSubmissions(assignmentId: string | number): Promise<Submission[]> {
+    const res = await request<any[]>(`/assignments/${assignmentId}/submissions`);
+    return (res || []).map((s: any) => ({
+      ...s,
+      id: s.submissionId,
+      assignment_id: s.assignmentId,
+      student_id: s.studentId,
+      student_name: s.studentName,
+      student_email: s.studentEmail,
+      submission_text: s.contentText,
+      attachment_url: s.fileUrl,
+      submitted_at: s.submittedAt,
+    }));
   },
 
-  async submitAssignment(assignmentId: number, textContent: string, file?: File): Promise<Submission> {
-    const formData = new FormData();
-    formData.append('submission_text', textContent);
-    if (file) {
-      formData.append('file', file);
-    }
-    return request<Submission>(`/assignments/${assignmentId}/submit`, {
-      method: 'POST',
-      body: formData,
+  async submitAssignment(assignmentId: string | number, textContent: string, fileUrl?: string): Promise<Submission> {
+    const payload = {
+      contentText: textContent,
+      fileUrl: fileUrl || null,
+    };
+    const res = await request<any>(`/assignments/${assignmentId}/submission`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     });
+    return {
+      ...res,
+      id: res.submissionId,
+      assignment_id: res.assignmentId,
+      student_id: res.studentId,
+      submission_text: res.contentText,
+      attachment_url: res.fileUrl,
+      submitted_at: res.submittedAt,
+    };
   },
 
-  async gradeSubmission(submissionId: number, data: {
+  async gradeSubmission(submissionId: string | number, data: {
     score: number;
     feedback?: string;
     weight_percent?: number;
+    weightPercent?: number;
   }): Promise<Grade> {
-    return request<Grade>(`/submissions/${submissionId}/grade`, {
-      method: 'POST',
-      body: JSON.stringify(data),
+    const payload = {
+      score: data.score,
+      feedback: data.feedback || '',
+    };
+    const res = await request<any>(`/submissions/${submissionId}/grade`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     });
+    return {
+      ...res,
+      id: res.gradeId,
+      course_id: res.courseId,
+      student_id: res.studentId,
+      max_score: res.maxScore,
+      graded_at: res.gradedAt,
+    };
   },
 
   // Quizzes
-  async getCourseQuizzes(courseId: number): Promise<Quiz[]> {
-    return request<Quiz[]>(`/courses/${courseId}/quizzes`);
+  async getCourseQuizzes(courseId: string | number): Promise<Quiz[]> {
+    const res = await request<any[]>(`/courses/${courseId}/quizzes`);
+    return (res || []).map((q: any) => ({
+      ...q,
+      id: q.quizId,
+      course_id: q.courseId,
+      duration_minutes: q.timeLimitMinutes,
+      is_published: q.isPublished,
+      created_at: q.createdAt,
+    }));
   },
 
-  async getQuiz(quizId: number): Promise<Quiz> {
-    return request<Quiz>(`/quizzes/${quizId}`);
+  async getQuiz(quizId: string | number): Promise<Quiz> {
+    const res = await request<any>(`/quizzes/${quizId}`);
+    return {
+      ...res,
+      id: res.quizId,
+      course_id: res.courseId,
+      duration_minutes: res.timeLimitMinutes,
+      is_published: res.isPublished,
+      created_at: res.createdAt,
+      questions: (res.questions || []).map((qn: any) => {
+        let parsedOpts = [];
+        try {
+          parsedOpts = qn.optionsJson ? JSON.parse(qn.optionsJson) : [];
+        } catch {}
+        return {
+          ...qn,
+          id: qn.questionId,
+          quiz_id: qn.quizId,
+          question_text: qn.questionText,
+          question_type: qn.questionType,
+          points: qn.score,
+          options: parsedOpts,
+        };
+      }),
+    };
   },
 
-  async createQuiz(courseId: number, data: {
+  async createQuiz(courseId: string | number, data: {
     title: string;
     description?: string;
-    duration_minutes: number;
-    max_score: number;
+    duration_minutes?: number;
+    timeLimitMinutes?: number;
+    max_score?: number;
+    passingScore?: number;
     is_published?: boolean;
+    isPublished?: boolean;
   }): Promise<Quiz> {
-    return request<Quiz>(`/courses/${courseId}/quizzes`, {
+    const now = new Date();
+    const end = new Date(Date.now() + 30 * 86400000);
+    const payload = {
+      title: data.title,
+      description: data.description,
+      startAt: now.toISOString(),
+      endAt: end.toISOString(),
+      timeLimitMinutes: data.timeLimitMinutes || data.duration_minutes || 15,
+      maxAttempts: 3,
+      passingScore: data.passingScore || 5.0,
+      isPublished: data.isPublished !== undefined ? data.isPublished : (data.is_published !== undefined ? data.is_published : true),
+    };
+    const res = await request<any>(`/courses/${courseId}/quizzes`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
+    return {
+      ...res,
+      id: res.quizId,
+      course_id: res.courseId,
+      duration_minutes: res.timeLimitMinutes,
+      is_published: res.isPublished,
+      created_at: res.createdAt,
+    };
   },
 
-  async addQuizQuestion(quizId: number, data: {
-    question_text: string;
-    question_type: string;
-    points: number;
-    options: Array<{ id: string | number; text: string }>;
-    correct_option_id: string | number;
+  async addQuizQuestion(quizId: string | number, data: {
+    question_text?: string;
+    questionText?: string;
+    question_type?: string;
+    questionType?: string;
+    points?: number;
+    score?: number;
+    options?: Array<{ id: string | number; text: string }>;
+    optionsJson?: string;
+    correct_option_id?: string | number;
+    correctAnswer?: string;
+    sortOrder?: number;
   }): Promise<QuizQuestion> {
-    return request<QuizQuestion>(`/quizzes/${quizId}/questions`, {
+    const payload = {
+      questionText: data.questionText || data.question_text || '',
+      questionType: data.questionType || data.question_type || 'SINGLE_CHOICE',
+      optionsJson: data.optionsJson || JSON.stringify(data.options || []),
+      correctAnswer: String(data.correctAnswer || data.correct_option_id || 'A'),
+      score: data.score !== undefined ? data.score : (data.points !== undefined ? data.points : 2.5),
+      sortOrder: data.sortOrder || 1,
+    };
+    const res = await request<any>(`/quizzes/${quizId}/questions`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
+    });
+    return {
+      ...res,
+      id: res.questionId,
+      quiz_id: res.quizId,
+      question_text: res.questionText,
+      points: res.score,
+    };
+  },
+
+  async startQuizAttempt(quizId: string | number): Promise<any> {
+    return request<any>(`/quizzes/${quizId}/attempts/start`, {
+      method: 'POST',
     });
   },
 
-  async submitQuiz(quizId: number, answers: Record<string | number, string | number>): Promise<QuizAttempt> {
-    return request<QuizAttempt>(`/quizzes/${quizId}/submit`, {
+  async submitQuiz(quizId: string | number, answers: Record<string | number, string | number>, attemptId?: string): Promise<QuizAttempt> {
+    let targetAttemptId = attemptId;
+    if (!targetAttemptId) {
+      const startRes = await this.startQuizAttempt(quizId);
+      targetAttemptId = startRes.attemptId;
+    }
+    const formattedAnswers: Record<string, string> = {};
+    for (const [k, v] of Object.entries(answers)) {
+      formattedAnswers[String(k)] = String(v);
+    }
+    const res = await request<any>(`/quiz-attempts/${targetAttemptId}/submit`, {
       method: 'POST',
-      body: JSON.stringify({ answers }),
+      body: JSON.stringify({ answers: formattedAnswers }),
     });
+    return {
+      ...res,
+      id: res.attemptId,
+      quiz_id: res.quizId,
+      student_id: res.studentId,
+      score: res.score,
+      started_at: res.startedAt,
+      submitted_at: res.submittedAt,
+    };
   },
 
   // Grades
-  async getMyGrades(): Promise<Grade[]> {
-    return request<Grade[]>('/grades/my');
+  async getMyGrades(courseId?: string | number): Promise<Grade[]> {
+    if (courseId) {
+      const res = await request<any[]>(`/courses/${courseId}/my-grades`);
+      return (res || []).map((g: any) => ({
+        ...g,
+        id: g.gradeId,
+        course_id: g.courseId,
+        student_id: g.studentId,
+        max_score: g.maxScore,
+        graded_at: g.gradedAt,
+      }));
+    }
+    // Return empty array or handle general
+    return [];
   },
 
-  async getCourseGradebook(courseId: number): Promise<Grade[]> {
-    return request<Grade[]>(`/courses/${courseId}/gradebook`);
+  async getCourseGradebook(courseId: string | number): Promise<Grade[]> {
+    const res = await request<any[]>(`/courses/${courseId}/gradebook`);
+    return (res || []).map((g: any) => ({
+      ...g,
+      id: g.gradeId,
+      course_id: g.courseId,
+      student_id: g.studentId,
+      student_name: g.studentName,
+      max_score: g.maxScore,
+      graded_at: g.gradedAt,
+    }));
   },
 
   // Notifications
   async getNotifications(): Promise<Notification[]> {
-    return request<Notification[]>('/notifications');
+    const res = await request<any[]>('/notifications');
+    return (res || []).map((n: any) => ({
+      ...n,
+      id: n.notificationId,
+      user_id: n.userId,
+      is_read: n.isRead,
+      link_url: n.relatedUrl,
+      created_at: n.createdAt,
+    }));
   },
 
-  async markNotificationRead(id: number): Promise<{ message: string }> {
+  async markNotificationRead(id: string | number): Promise<{ message: string }> {
     return request<{ message: string }>(`/notifications/${id}/read`, {
       method: 'PATCH',
     });
@@ -322,12 +701,51 @@ export const api = {
 
   async markAllNotificationsRead(): Promise<{ message: string }> {
     return request<{ message: string }>('/notifications/read-all', {
-      method: 'POST',
+      method: 'PATCH',
     });
   },
 
   // Dashboard
-  async getDashboardStats(): Promise<DashboardStats> {
-    return request<DashboardStats>('/dashboard/stats');
+  async getDashboardStats(role?: string): Promise<DashboardStats> {
+    const userRole = (role || 'STUDENT').toLowerCase();
+    const endpoint = userRole === 'admin' ? '/dashboard/admin' : (userRole === 'lecturer' ? '/dashboard/lecturer' : '/dashboard/student');
+    const res = await request<any>(endpoint);
+    
+    // Fetch notifications for widget
+    let notifs: Notification[] = [];
+    try {
+      notifs = await this.getNotifications();
+    } catch {}
+
+    if (userRole === 'admin') {
+      return {
+        role: 'ADMIN',
+        courses_count: res.totalCourses || 0,
+        students_count: res.totalStudents || 0,
+        lecturers_count: res.totalLecturers || 0,
+        pending_submissions_count: 0,
+        upcoming_assignments_count: 0,
+        recent_notifications: notifs.slice(0, 5),
+      };
+    } else if (userRole === 'lecturer') {
+      return {
+        role: 'LECTURER',
+        courses_count: res.totalCourses || 0,
+        students_count: res.totalStudents || 0,
+        pending_submissions_count: res.pendingSubmissionsCount || 0,
+        upcoming_assignments_count: 0,
+        recent_notifications: notifs.slice(0, 5),
+      };
+    } else {
+      return {
+        role: 'STUDENT',
+        courses_count: res.enrolledCoursesCount || 0,
+        pending_submissions_count: 0,
+        upcoming_assignments_count: (res.upcomingAssignments || []).length,
+        quizzes_count: (res.activeQuizzes || []).length,
+        gpa: res.gpa || 0.0,
+        recent_notifications: notifs.slice(0, 5),
+      };
+    }
   },
 };

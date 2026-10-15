@@ -15,7 +15,7 @@ import type { Quiz, Course } from '../types';
 export const QuizzesPage: React.FC = () => {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState<number>(0);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | number>('');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
 

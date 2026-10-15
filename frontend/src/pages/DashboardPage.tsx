@@ -25,7 +25,7 @@ export const DashboardPage: React.FC = () => {
   useEffect(() => {
     const loadDashboard = async () => {
       try {
-        const statsData = await api.getDashboardStats();
+        const statsData = await api.getDashboardStats(user?.role);
         setStats(statsData);
 
         const coursesData = await api.getCourses();

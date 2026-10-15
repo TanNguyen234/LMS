@@ -10,7 +10,7 @@ import type { Grade, Course } from '../types';
 export const GradesPage: React.FC = () => {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState<number>(0);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | number>('');
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -193,7 +193,7 @@ export const GradesPage: React.FC = () => {
                         </div>
                       )}
                     </td>
-                    <td className="py-3.5 px-4">{getSourceBadge(g.source_type)}</td>
+                    <td className="py-3.5 px-4">{getSourceBadge(g.sourceType || g.source_type || 'ASSIGNMENT')}</td>
                     <td className="py-3.5 px-4">
                       <span className="text-base font-extrabold text-blue-600">{g.score}</span>
                       <span className="text-xs text-slate-400"> / {g.max_score}</span>

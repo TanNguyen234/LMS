@@ -15,7 +15,7 @@ import type { Assignment, Course, Submission } from '../types';
 export const AssignmentsPage: React.FC = () => {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState<number>(0);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | number>('');
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -123,7 +123,7 @@ export const AssignmentsPage: React.FC = () => {
       });
       alert('Đã lưu điểm thành công!');
       // refresh submissions
-      if (selectedAssignment) {
+      if (selectedAssignment && selectedAssignment.id) {
         const subs = await api.getAssignmentSubmissions(selectedAssignment.id);
         setSubmissions(subs);
       }
@@ -137,10 +137,10 @@ export const AssignmentsPage: React.FC = () => {
 
   const handleStudentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!submitAssignmentTarget) return;
+    if (!submitAssignmentTarget || !submitAssignmentTarget.id) return;
     setSubmitting(true);
     try {
-      await api.submitAssignment(submitAssignmentTarget.id, submissionText, submissionFile || undefined);
+      await api.submitAssignment(submitAssignmentTarget.id, submissionText, submissionFile ? submissionFile.name : undefined);
       alert('Nộp bài thành công!');
       setIsSubmitModalOpen(false);
       setSubmissionText('');

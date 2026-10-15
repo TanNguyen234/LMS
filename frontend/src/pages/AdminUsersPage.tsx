@@ -45,10 +45,11 @@ export const AdminUsersPage: React.FC = () => {
     fetchUsers();
   }, [roleFilter]);
 
-  const handleToggleStatus = async (userId: number) => {
+  const handleToggleStatus = async (userId: string | number) => {
     try {
-      const updated = await api.toggleUserStatus(userId);
-      setUsers((prev) => prev.map((u) => (u.id === userId ? updated : u)));
+      const targetUser = users.find((u) => u.id === userId);
+      const updated = await api.toggleUserStatus(userId, targetUser?.isActive);
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
     } catch (err: any) {
       alert('Lỗi cập nhật trạng thái: ' + err.message);
     }
@@ -82,9 +83,9 @@ export const AdminUsersPage: React.FC = () => {
   const filteredUsers = users.filter((u) => {
     const query = search.toLowerCase();
     return (
-      u.full_name.toLowerCase().includes(query) ||
-      u.email.toLowerCase().includes(query) ||
-      u.username.toLowerCase().includes(query)
+      (u.full_name || '').toLowerCase().includes(query) ||
+      (u.email || '').toLowerCase().includes(query) ||
+      (u.username || '').toLowerCase().includes(query)
     );
   });
 
