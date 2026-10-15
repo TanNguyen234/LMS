@@ -111,6 +111,8 @@ def get_assignment_detail(
     """Get single assignment detail."""
     a = get_assignment_or_404(assignment_id, db)
     verify_course_access(a.CourseId, current_user, db)
+    if current_user.Role == "STUDENT" and a.Status == "DRAFT":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found or not published")
     return AssignmentResponse(
         assignmentId=a.AssignmentId,
         courseId=a.CourseId,
@@ -194,6 +196,13 @@ def submit_assignment(
     """
     a = get_assignment_or_404(assignment_id, db)
 
+    # Check assignment status (reject DRAFT or CLOSED)
+    if a.Status in ["DRAFT", "CLOSED"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot submit to an assignment with status '{a.Status}'"
+        )
+
     # Verify active enrollment
     enrollment = db.query(Enrollment).filter(
         Enrollment.CourseId == a.CourseId,
@@ -204,6 +213,13 @@ def submit_assignment(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Student is not actively enrolled in this course"
+        )
+
+    # Validate non-empty content
+    if not (sub_in.contentText and sub_in.contentText.strip()) and not (sub_in.fileUrl and sub_in.fileUrl.strip()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Submission must include text content or file URL"
         )
 
     now = datetime.now(timezone.utc)
@@ -226,6 +242,11 @@ def submit_assignment(
     ).first()
 
     if existing_sub:
+        if existing_sub.Status == "GRADED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot modify a submission that has already been graded"
+            )
         existing_sub.ContentText = sub_in.contentText
         existing_sub.FileUrl = sub_in.fileUrl
         existing_sub.Status = sub_status

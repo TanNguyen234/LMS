@@ -87,6 +87,18 @@ def create_manual_grade(
     if not student or student.Role != "STUDENT":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid student target")
 
+    # Enforce student enrollment in this course
+    enrollment = db.query(Enrollment).filter(
+        Enrollment.CourseId == course_id,
+        Enrollment.StudentId == g_in.studentId,
+        Enrollment.Status == "ACTIVE"
+    ).first()
+    if not enrollment:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Student is not actively enrolled in this course"
+        )
+
     if g_in.score < 0 or g_in.score > g_in.maxScore:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Score must be between 0 and maxScore")
 

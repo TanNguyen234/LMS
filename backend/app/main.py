@@ -72,12 +72,15 @@ def health_check():
     except Exception as e:
         db_ok = False
 
-    return {
+    payload = {
         "status": "healthy" if db_ok else "unhealthy",
         "app": settings.APP_NAME,
         "environment": settings.APP_ENV,
         "database_connected": db_ok
     }
+    if not db_ok:
+        return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=payload)
+    return payload
 
 
 # Include routers under /api

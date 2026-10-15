@@ -456,13 +456,39 @@ def submit_quiz_attempt(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz attempt not found")
     if attempt.StudentId != current_user.UserId:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your quiz attempt")
-    if attempt.Status == "SUBMITTED":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Attempt has already been submitted")
+    if attempt.Status != "IN_PROGRESS":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Attempt cannot be submitted because status is '{attempt.Status}'"
+        )
 
     q = get_quiz_or_404(attempt.QuizId, db)
-    questions = db.query(QuizQuestion).filter(QuizQuestion.QuizId == q.QuizId).all()
 
     now = datetime.now(timezone.utc)
+    end_at = parse_datetime(q.EndAt)
+    started_at = parse_datetime(attempt.StartedAt)
+
+    # Check quiz availability window
+    if now > end_at:
+        attempt.Status = "EXPIRED"
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Quiz availability window has ended. Attempt marked as EXPIRED."
+        )
+
+    # Check time limit with a 60-second grace period for network latency
+    allowed_duration = timedelta(minutes=q.TimeLimitMinutes, seconds=60)
+    if now > started_at + allowed_duration:
+        attempt.Status = "EXPIRED"
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Quiz time limit exceeded. Attempt marked as EXPIRED."
+        )
+
+    questions = db.query(QuizQuestion).filter(QuizQuestion.QuizId == q.QuizId).all()
+
     total_score = 0.0
     max_possible_score = sum(float(qn.Score) for qn in questions)
 
