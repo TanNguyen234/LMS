@@ -58,14 +58,16 @@ D:\Download\LMS\
 
 ## 2. Tài khoản Demo Kiểm thử Hệ thống
 
-Hệ thống đã nạp sẵn dữ liệu mẫu phục vụ hội đồng chấm và đánh giá:
-Mật khẩu mặc định cho tất cả tài khoản là: `Demo@123`
+## 2. Tài khoản Demo Kiểm thử Hệ thống
+
+Hệ thống đã nạp sẵn dữ liệu mẫu chuẩn theo `database/02_seed.sql` phục vụ hội đồng chấm và đánh giá:
+Mật khẩu mặc định cho môi trường phát triển (`APP_ENV=development`) là: `Demo@123`
 
 | Vai trò | Email đăng nhập | Tên hiển thị | Quyền hạn tiêu biểu |
 | :--- | :--- | :--- | :--- |
-| **Quản trị viên (Admin)** | `admin@university.edu.vn` | Quản Trị Viên Hệ Thống | Quản lý người dùng, tạo khóa học, phân công giảng viên, xem báo cáo toàn hệ thống. |
-| **Giảng viên (Lecturer)** | `nguyen.van.a@university.edu.vn` | TS. Nguyễn Văn An | Quản lý khóa học được giao, tạo chương/bài giảng, giao bài tập, chấm điểm, tạo Quiz. |
-| **Sinh viên (Student)** | `sv.tran.b@university.edu.vn` | Trần Văn Bình | Xem bài giảng, tải tài liệu, nộp bài tập trực tuyến, thi trắc nghiệm tính giờ, tra cứu điểm. |
+| **Quản trị viên (Admin)** | `admin@university.edu.vn` | Nguyễn Minh Admin | Quản lý người dùng, tạo khóa học, phân công giảng viên, xem báo cáo toàn hệ thống. |
+| **Giảng viên (Lecturer)** | `lecturer1@university.edu.vn` | TS. Trần Hoàng Nam | Quản lý khóa học được giao, tạo chương/bài giảng, giao bài tập, chấm điểm, tạo Quiz. |
+| **Sinh viên (Student)** | `student1@university.edu.vn` | Nguyễn An | Xem bài giảng, tải tài liệu, nộp bài tập trực tuyến, thi trắc nghiệm tính giờ, tra cứu điểm. |
 
 ---
 
@@ -81,13 +83,11 @@ Mật khẩu mặc định cho tất cả tài khoản là: `Demo@123`
 
 ### Bước 2: Khởi chạy Backend FastAPI
 ```powershell
-cd D:\Download\LMS
+# Từ thư mục gốc dự án:
+python -m pip install -r backend/requirements.txt
 
-# Kích hoạt môi trường ảo Python
-.\backend\venv\Scripts\Activate.ps1
-
-# Chạy server FastAPI
-uvicorn backend.app.main:app --reload --port 8000
+# Khởi chạy server FastAPI
+python -m uvicorn backend.app.main:app --reload --port 8000
 ```
 - API Docs tương tác: `http://127.0.0.1:8000/docs`
 - Kiểm tra sức khỏe hệ thống: `http://127.0.0.1:8000/health`
@@ -95,9 +95,8 @@ uvicorn backend.app.main:app --reload --port 8000
 ### Bước 3: Khởi chạy Frontend React
 Mở một cửa sổ dòng lệnh thứ hai:
 ```powershell
-cd D:\Download\LMS\frontend
-
-# Khởi chạy Vite Dev Server
+cd frontend
+npm ci
 npm run dev
 ```
 - Truy cập trình duyệt tại: `http://localhost:5173`
@@ -110,8 +109,7 @@ npm run dev
 Dự án tích hợp bộ kiểm thử `pytest` tự động xác thực toàn bộ 10 tiêu chí chấp nhận kỹ thuật (AC-01 đến AC-10) theo đặc tả:
 
 ```powershell
-cd D:\Download\LMS
-.\backend\venv\Scripts\pytest.exe -v
+python -m pytest backend/tests -v
 ```
 
 Kết quả thực nghiệm:
@@ -127,23 +125,23 @@ backend/tests/test_acceptance.py::test_ac08_quiz_max_attempts PASSED     [ 80%]
 backend/tests/test_acceptance.py::test_ac09_quiz_secret_protection PASSED [ 90%]
 backend/tests/test_acceptance.py::test_ac10_notification_ownership PASSED [100%]
 
-======================= 10 passed, 0 failed in 6.93s =======================
+======================= 10 passed, 0 failed =======================
 ```
 
 ---
 
 ## 5. Danh mục 13 Hồ sơ Quản lý Dự án (Track A)
 
-1. [01_PROJECT_CHARTER.md](file:///D:/Download/LMS/docs/project-management/01_PROJECT_CHARTER.md) - Điều lệ dự án, mục tiêu SMART, ngân sách 1.2 tỷ VND, 20 tuần thực hiện.
-2. [02_STAKEHOLDER_REGISTER.md](file:///D:/Download/LMS/docs/project-management/02_STAKEHOLDER_REGISTER.md) - Sổ đăng ký các bên liên quan, ma trận Quyền lực - Mức độ quan tâm.
-3. [03_RACI_MATRIX.md](file:///D:/Download/LMS/docs/project-management/03_RACI_MATRIX.md) - Ma trận phân định trách nhiệm RACI cho 8 vai trò nhân sự.
-4. [04_SCOPE_BASELINE_WBS.md](file:///D:/Download/LMS/docs/project-management/04_SCOPE_BASELINE_WBS.md) - Đường cơ sở phạm vi và cấu trúc phân rã công việc WBS cấp 3.
-5. [05_WBS_DICTIONARY.md](file:///D:/Download/LMS/docs/project-management/05_WBS_DICTIONARY.md) - Từ điển WBS chi tiết cho từng gói công việc.
-6. [06_SCHEDULE_CPM_GANTT.md](file:///D:/Download/LMS/docs/project-management/06_SCHEDULE_CPM_GANTT.md) - Tiến độ đường găng CPM, tính toán ES/EF/LS/LF, Float và biểu đồ Gantt.
-7. [07_RESOURCE_AND_BUDGET_BASELINE.md](file:///D:/Download/LMS/docs/project-management/07_RESOURCE_AND_BUDGET_BASELINE.md) - Dự toán chi tiết 8.5 FTEs, phân bổ chi phí nhân sự và hạ tầng.
-8. [08_RISK_REGISTER.md](file:///D:/Download/LMS/docs/project-management/08_RISK_REGISTER.md) - Sổ theo dõi rủi ro định lượng P*I, biện pháp phòng ngừa và ứng phó.
-9. [09_QUALITY_PLAN_AND_GATES.md](file:///D:/Download/LMS/docs/project-management/09_QUALITY_PLAN_AND_GATES.md) - Cổng kiểm soát chất lượng QG1-QG5, phân cấp lỗi và tiêu chuẩn DoD.
-10. [10_COMMUNICATION_PLAN.md](file:///D:/Download/LMS/docs/project-management/10_COMMUNICATION_PLAN.md) - Kế hoạch truyền thông, ma trận báo cáo và quy trình báo động 3 cấp.
-11. [11_CHANGE_MANAGEMENT_PLAN.md](file:///D:/Download/LMS/docs/project-management/11_CHANGE_MANAGEMENT_PLAN.md) - Quy trình kiểm soát thay đổi, hội đồng CCB và biểu mẫu CR.
-12. [12_UAT_AND_ACCEPTANCE_EVIDENCE.md](file:///D:/Download/LMS/docs/project-management/12_UAT_AND_ACCEPTANCE_EVIDENCE.md) - Bằng chứng nghiệm thu UAT cho 10 kịch bản kiểm thử AC-01 -> AC-10.
-13. [13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md](file:///D:/Download/LMS/docs/project-management/13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md) - Biên bản đóng dự án, phân tích EVM (CPI=1.02) và bài học kinh nghiệm.
+1. [01_PROJECT_CHARTER.md](docs/project-management/01_PROJECT_CHARTER.md) - Điều lệ dự án, mục tiêu SMART, ngân sách 1.2 tỷ VND, 20 tuần thực hiện.
+2. [02_STAKEHOLDER_REGISTER.md](docs/project-management/02_STAKEHOLDER_REGISTER.md) - Sổ đăng ký các bên liên quan, ma trận Quyền lực - Mức độ quan tâm.
+3. [03_RACI_MATRIX.md](docs/project-management/03_RACI_MATRIX.md) - Ma trận phân định trách nhiệm RACI cho 8 vai trò nhân sự.
+4. [04_SCOPE_BASELINE_WBS.md](docs/project-management/04_SCOPE_BASELINE_WBS.md) - Đường cơ sở phạm vi và cấu trúc phân rã công việc WBS cấp 3.
+5. [05_WBS_DICTIONARY.md](docs/project-management/05_WBS_DICTIONARY.md) - Từ điển WBS chi tiết cho từng gói công việc.
+6. [06_SCHEDULE_CPM_GANTT.md](docs/project-management/06_SCHEDULE_CPM_GANTT.md) - Tiến độ đường găng CPM, tính toán ES/EF/LS/LF, Float và biểu đồ Gantt.
+7. [07_RESOURCE_AND_BUDGET_BASELINE.md](docs/project-management/07_RESOURCE_AND_BUDGET_BASELINE.md) - Dự toán chi tiết 8.5 FTEs, phân bổ chi phí nhân sự và hạ tầng.
+8. [08_RISK_REGISTER.md](docs/project-management/08_RISK_REGISTER.md) - Sổ theo dõi rủi ro định lượng P*I, biện pháp phòng ngừa và ứng phó.
+9. [09_QUALITY_PLAN_AND_GATES.md](docs/project-management/09_QUALITY_PLAN_AND_GATES.md) - Cổng kiểm soát chất lượng QG1-QG5, phân cấp lỗi và tiêu chuẩn DoD.
+10. [10_COMMUNICATION_PLAN.md](docs/project-management/10_COMMUNICATION_PLAN.md) - Kế hoạch truyền thông, ma trận báo cáo và quy trình báo động 3 cấp.
+11. [11_CHANGE_MANAGEMENT_PLAN.md](docs/project-management/11_CHANGE_MANAGEMENT_PLAN.md) - Quy trình kiểm soát thay đổi, hội đồng CCB và biểu mẫu CR.
+12. [12_UAT_AND_ACCEPTANCE_EVIDENCE.md](docs/project-management/12_UAT_AND_ACCEPTANCE_EVIDENCE.md) - Bằng chứng nghiệm thu UAT cho 10 kịch bản kiểm thử AC-01 -> AC-10.
+13. [13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md](docs/project-management/13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md) - Biên bản đóng dự án, phân tích EVM và bài học kinh nghiệm.

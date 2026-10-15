@@ -37,16 +37,19 @@ Giai đoạn Nghiệm thu người dùng (User Acceptance Testing - UAT) diễn 
 
 ---
 
-## 4. Biên bản Nghiệm thu Người dùng (UAT Sign-Off Form)
+## 4. Biên bản Nghiệm thu Người dùng (UAT Sign-Off Form — Kịch bản mô phỏng đồ án)
+
+> **Lưu ý kiểm toán & minh bạch học thuật (Academic Audit Note):**
+> Phần biên bản dưới đây là **MÔ PHỎNG QUY TRÌNH QUẢN LÝ DỰ ÁN (SIMULATED PM TEMPLATE)** phục vụ yêu cầu đồ án môn học Software Project Management, không phải chữ ký thực tế của các cá nhân ngoài đời thực. Việc nghiệm thu kỹ thuật thực tế được đối soát dựa trên bộ kiểm thử tự động `backend/tests/test_acceptance.py` (10/10 AC Passed) và kiểm thử giao diện trình duyệt.
 
 Căn cứ vào kết quả thực hiện các kịch bản kiểm thử chấp nhận người dùng tại Tuần 16, các bên liên quan xác nhận:
 1. Prototype hệ thống University LMS đáp ứng đầy đủ các yêu cầu nghiệp vụ bắt buộc được quy định trong Bản cơ sở phạm vi.
 2. Hệ thống vận hành ổn định, dữ liệu được ghi nhận chính xác và cơ chế bảo mật phân quyền hoạt động đúng thiết kế.
 3. Đồng ý phê duyệt Mốc tiến độ M6 (UAT Approval) và cho phép tiến hành chuẩn bị phát hành phiên bản Demo.
 
-| Đại diện bên liên quan | Họ và tên | Chức vụ | Chữ ký xác nhận |
+| Đại diện bên liên quan | Họ và tên | Chức vụ | Trạng thái xác nhận |
 |---|---|---|---|
-| Đại diện Quản trị / Đào tạo | ThS. Trần Mai Lan | Trưởng phòng Đào tạo | **ĐÃ KÝ DUYỆT (Passed)** |
-| Đại diện Giảng viên | TS. Trần Hoàng Nam | Giảng viên Khoa CNTT | **ĐÃ KÝ DUYỆT (Passed)** |
-| Đại diện Sinh viên | Nguyễn An | Lớp trưởng K26 CNTT | **ĐÃ KÝ DUYỆT (Passed)** |
-| Đại diện Đội ngũ Dự án | Nguyễn Minh Trí | Project Manager | **ĐÃ KÝ DUYỆT (Passed)** |
+| Đại diện Quản trị / Đào tạo | ThS. Trần Mai Lan | Trưởng phòng Đào tạo (Mô phỏng) | **MÔ PHỎNG CHẤP NHẬN (Simulated)** |
+| Đại diện Giảng viên | TS. Trần Hoàng Nam | Giảng viên Khoa CNTT (Mô phỏng) | **MÔ PHỎNG CHẤP NHẬN (Simulated)** |
+| Đại diện Sinh viên | Nguyễn An | Lớp trưởng K26 CNTT (Mô phỏng) | **MÔ PHỎNG CHẤP NHẬN (Simulated)** |
+| Đại diện Đội ngũ Dự án | Nguyễn Minh Trí | Project Manager | **XÁC NHẬN KỸ THUẬT (Verified via Automated Suite)** |

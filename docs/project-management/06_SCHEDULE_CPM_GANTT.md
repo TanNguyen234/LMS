@@ -25,7 +25,7 @@
 | **ACT-11** | Phát triển module Thi trắc nghiệm (Quizzes) | 4.6 | ACT-10 | 1 | Backend, Frontend | 11 | 12 | 11 | 12 | 0 | **Có (Yes)** |
 | **ACT-12** | Phát triển Sổ điểm, Thông báo & Dashboard | 4.7 | ACT-11 | 1 | Backend, Frontend | 12 | 13 | 12 | 13 | 0 | **Có (Yes)** |
 | **ACT-13** | Kiểm thử tự động & Tích hợp (Pytest API) | 5.1, 5.2 | ACT-12 | 2 | QA Engineer, Dev | 13 | 15 | 13 | 15 | 0 | **Có (Yes)** |
-| **ACT-14** | Triage lỗi & Tối ưu hóa hệ thống | 5.3 | ACT-13 | 1 | Dev, QA | 14 | 15 | 14 | 15 | 0 | Không (No) |
+| **ACT-14** | Triage lỗi & Tối ưu hóa hệ thống | 5.3 | ACT-13 | 1 | Dev, QA | 15 | 16 | 17 | 18 | 2 | Không (No) |
 | **ACT-15** | Thực thi Nghiệm thu người dùng (UAT) | 6.1, 6.2 | ACT-13 | 1 | BA, QA, Users | 15 | 16 | 15 | 16 | 0 | **Có (Yes)** |
 | **ACT-16** | Đào tạo người dùng & Tài liệu hướng dẫn | 6.3 | ACT-15 | 1 | BA, UI/UX | 16 | 17 | 18 | 19 | 2 | Không (No) |
 | **ACT-17** | Triển khai môi trường Demo & Release | 7.1 | ACT-15 | 2 | DevOps, Dev | 16 | 18 | 16 | 18 | 0 | **Có (Yes)** |
@@ -62,6 +62,7 @@ ACT-10 Bài tập & Chấm bài                                   [==]*
 ACT-11 Thi trắc nghiệm                                          [==]*
 ACT-12 Sổ điểm & Dashboard                                          [==]*
 ACT-13 Kiểm thử tự động                                                 [========]*
+ACT-14 Triage & Tối ưu                                                          [====] . . (TF=2)
 ACT-15 Nghiệm thu UAT                                                               [==]*
 ACT-16 Đào tạo & HDSD                                                                   [==] . . (TF=2)
 ACT-17 Triển khai Demo                                                                  [====]*
