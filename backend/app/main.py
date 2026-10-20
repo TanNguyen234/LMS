@@ -73,7 +73,8 @@ def health_check():
         db_ok = False
 
     payload = {
-        "status": "healthy" if db_ok else "unhealthy",
+        "status": "ok" if db_ok else "error",
+        "status_detail": "healthy" if db_ok else "unhealthy",
         "app": settings.APP_NAME,
         "environment": settings.APP_ENV,
         "database_connected": db_ok
