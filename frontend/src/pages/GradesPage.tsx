@@ -10,22 +10,18 @@ import type { Grade, Course } from '../types';
 export const GradesPage: React.FC = () => {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState<string | number>('');
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const init = async () => {
       try {
-        if (user?.role === 'STUDENT') {
-          const myGrades = await api.getMyGrades();
-          setGrades(myGrades);
-        } else {
-          const courseList = await api.getCourses();
-          setCourses(courseList);
-          if (courseList.length > 0) {
-            setSelectedCourseId(courseList[0].id);
-          }
+        setLoading(true);
+        const courseList = await api.getCourses();
+        setCourses(courseList);
+        if (courseList.length > 0) {
+          setSelectedCourseId(String(courseList[0].id));
         }
       } catch (err) {
         console.error(err);
@@ -36,12 +32,17 @@ export const GradesPage: React.FC = () => {
     init();
   }, [user]);
 
-  const fetchCourseGradebook = async () => {
+  const fetchGrades = async () => {
     if (!selectedCourseId) return;
     try {
       setLoading(true);
-      const book = await api.getCourseGradebook(selectedCourseId);
-      setGrades(book);
+      if (user?.role === 'STUDENT') {
+        const myGrades = await api.getMyGrades(selectedCourseId);
+        setGrades(myGrades);
+      } else {
+        const book = await api.getCourseGradebook(selectedCourseId);
+        setGrades(book);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -50,10 +51,10 @@ export const GradesPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (user?.role !== 'STUDENT' && selectedCourseId) {
-      fetchCourseGradebook();
+    if (selectedCourseId) {
+      fetchGrades();
     }
-  }, [selectedCourseId]);
+  }, [selectedCourseId, user]);
 
   const calculateStudentAverage = () => {
     if (grades.length === 0) return 0;
@@ -132,25 +133,23 @@ export const GradesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Lecturer Course Selector */}
-      {user?.role !== 'STUDENT' && (
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center space-x-3">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">
-            Khóa học:
-          </label>
-          <select
-            value={selectedCourseId}
-            onChange={(e) => setSelectedCourseId(Number(e.target.value))}
-            className="w-full sm:w-96 px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium text-slate-800"
-          >
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.code} - {c.title}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      {/* Course Selector */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center space-x-3">
+        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">
+          Khóa học:
+        </label>
+        <select
+          value={selectedCourseId}
+          onChange={(e) => setSelectedCourseId(e.target.value)}
+          className="w-full sm:w-96 px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium text-slate-800"
+        >
+          {courses.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.code} - {c.title}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Grades Table */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
@@ -185,7 +184,10 @@ export const GradesPage: React.FC = () => {
                   <tr key={g.id} className="hover:bg-slate-50 transition">
                     <td className="py-3.5 px-4">
                       {user?.role === 'STUDENT' ? (
-                        <span className="font-semibold text-slate-800">{g.course_code || 'Khóa học'}</span>
+                        <div>
+                          <div className="font-semibold text-slate-800">{g.itemTitle || g.feedback || 'Bài đánh giá'}</div>
+                          <div className="text-xs text-slate-400 font-mono">{courses.find((c) => String(c.id) === String(selectedCourseId))?.code || g.course_code || ''}</div>
+                        </div>
                       ) : (
                         <div>
                           <div className="font-semibold text-slate-800">{g.student_name || 'Sinh viên'}</div>

@@ -32,7 +32,7 @@ export const CoursesPage: React.FC = () => {
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newCredits, setNewCredits] = useState(3);
-  const [selectedLecturerId, setSelectedLecturerId] = useState<string | number>('');
+  const [selectedLecturerId, setSelectedLecturerId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
 
   const fetchCourses = async () => {
@@ -55,7 +55,7 @@ export const CoursesPage: React.FC = () => {
     if (user?.role === 'ADMIN') {
       api.getUsers('LECTURER', true).then((lecs) => {
         setLecturers(lecs);
-        if (lecs.length > 0) setSelectedLecturerId(lecs[0].id);
+        if (lecs.length > 0) setSelectedLecturerId(String(lecs[0].id));
       }).catch(console.error);
     }
   }, [user]);
@@ -93,6 +93,7 @@ export const CoursesPage: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'ACTIVE':
       case 'PUBLISHED':
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
@@ -165,6 +166,7 @@ export const CoursesPage: React.FC = () => {
               className="px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
             >
               <option value="ALL">Tất cả trạng thái</option>
+              <option value="ACTIVE">Đang mở (Active)</option>
               <option value="PUBLISHED">Đang mở (Published)</option>
               <option value="DRAFT">Bản nháp (Draft)</option>
               <option value="ARCHIVED">Đã lưu trữ (Archived)</option>
@@ -302,7 +304,7 @@ export const CoursesPage: React.FC = () => {
                   <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Phân công giảng viên</label>
                   <select
                     value={selectedLecturerId}
-                    onChange={(e) => setSelectedLecturerId(Number(e.target.value))}
+                    onChange={(e) => setSelectedLecturerId(e.target.value)}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
                   >
                     {lecturers.map((lec) => (

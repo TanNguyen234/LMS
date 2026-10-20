@@ -36,14 +36,14 @@ export const CourseDetailPage: React.FC = () => {
   const [newModuleDesc, setNewModuleDesc] = useState('');
 
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
-  const [selectedModuleId, setSelectedModuleId] = useState<string | number>('');
+  const [selectedModuleId, setSelectedModuleId] = useState<string>('');
   const [newLessonTitle, setNewLessonTitle] = useState('');
   const [newLessonType, setNewLessonType] = useState<'TEXT' | 'VIDEO' | 'DOCUMENT'>('TEXT');
   const [newLessonBody, setNewLessonBody] = useState('');
   const [newLessonMedia, setNewLessonMedia] = useState('');
 
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | number>('');
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -71,7 +71,7 @@ export const CourseDetailPage: React.FC = () => {
           try {
             const allStudents = await api.getUsers('STUDENT', true);
             setStudents(allStudents);
-            if (allStudents.length > 0) setSelectedStudentId(allStudents[0].id as any);
+            if (allStudents.length > 0) setSelectedStudentId(String(allStudents[0].id));
           } catch (e) {
             console.warn('Could not fetch student list:', e);
           }
@@ -271,7 +271,7 @@ export const CourseDetailPage: React.FC = () => {
                     {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
                       <button
                         onClick={() => {
-                          setSelectedModuleId(m.id);
+                          setSelectedModuleId(String(m.id));
                           setIsLessonModalOpen(true);
                         }}
                         className="text-xs text-blue-600 hover:underline font-semibold"
@@ -481,7 +481,7 @@ export const CourseDetailPage: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Chương học</label>
                 <select
                   value={selectedModuleId}
-                  onChange={(e) => setSelectedModuleId(Number(e.target.value))}
+                  onChange={(e) => setSelectedModuleId(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white"
                 >
                   {modules.map((m) => (
@@ -575,7 +575,7 @@ export const CourseDetailPage: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Chọn sinh viên</label>
                 <select
                   value={selectedStudentId}
-                  onChange={(e) => setSelectedStudentId(Number(e.target.value))}
+                  onChange={(e) => setSelectedStudentId(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white"
                 >
                   {students.map((s) => (

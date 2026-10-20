@@ -15,7 +15,7 @@ import type { Quiz, Course } from '../types';
 export const QuizzesPage: React.FC = () => {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState<string | number>('');
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,7 +48,7 @@ export const QuizzesPage: React.FC = () => {
       try {
         const data = await api.getCourses();
         setCourses(data);
-        if (data.length > 0) setSelectedCourseId(data[0].id);
+        if (data.length > 0) setSelectedCourseId(String(data[0].id));
       } catch (err) {
         console.error(err);
       } finally {
@@ -104,7 +104,7 @@ export const QuizzesPage: React.FC = () => {
     try {
       await api.addQuizQuestion(targetQuiz.id, {
         question_text: questionText,
-        question_type: 'MULTIPLE_CHOICE',
+        question_type: 'SINGLE_CHOICE',
         points: Number(questionPoints),
         options: [
           { id: 'A', text: optA },
@@ -186,7 +186,7 @@ export const QuizzesPage: React.FC = () => {
         </label>
         <select
           value={selectedCourseId}
-          onChange={(e) => setSelectedCourseId(Number(e.target.value))}
+          onChange={(e) => setSelectedCourseId(e.target.value)}
           className="w-full sm:w-96 px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium text-slate-800"
         >
           {courses.map((c) => (
@@ -325,7 +325,7 @@ export const QuizzesPage: React.FC = () => {
                         </div>
 
                         <div className="space-y-2">
-                          {q.options.map((opt) => (
+                          {(Array.isArray(q.options) ? q.options : []).map((opt) => (
                             <label
                               key={opt.id}
                               className={`flex items-center space-x-3 p-2.5 rounded-lg border text-xs cursor-pointer transition ${

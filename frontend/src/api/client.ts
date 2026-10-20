@@ -82,14 +82,42 @@ export const api = {
     } else {
       payload = credentials;
     }
-    return request<AuthResponse>('/auth/login', {
+    const res = await request<any>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    const u = res.user;
+    const normalizedUser: User = {
+      ...u,
+      id: u?.userId || u?.id,
+      userId: u?.userId || u?.id,
+      full_name: u?.fullName || u?.full_name,
+      fullName: u?.fullName || u?.full_name,
+      is_active: u?.isActive !== undefined ? u.isActive : u?.is_active,
+      isActive: u?.isActive !== undefined ? u.isActive : u?.is_active,
+      created_at: u?.createdAt || u?.created_at,
+      createdAt: u?.createdAt || u?.created_at,
+    };
+    return {
+      access_token: res.access_token,
+      token_type: res.token_type,
+      user: normalizedUser,
+    };
   },
 
   async getMe(): Promise<User> {
-    return request<User>('/auth/me');
+    const u = await request<any>('/auth/me');
+    return {
+      ...u,
+      id: u?.userId || u?.id,
+      userId: u?.userId || u?.id,
+      full_name: u?.fullName || u?.full_name,
+      fullName: u?.fullName || u?.full_name,
+      is_active: u?.isActive !== undefined ? u.isActive : u?.is_active,
+      isActive: u?.isActive !== undefined ? u.isActive : u?.is_active,
+      created_at: u?.createdAt || u?.created_at,
+      createdAt: u?.createdAt || u?.created_at,
+    };
   },
 
   // Users (Admin)
@@ -532,9 +560,27 @@ export const api = {
       is_published: res.isPublished,
       created_at: res.createdAt,
       questions: (res.questions || []).map((qn: any) => {
-        let parsedOpts = [];
+        let parsedOpts: any[] = [];
         try {
-          parsedOpts = qn.optionsJson ? JSON.parse(qn.optionsJson) : [];
+          if (qn.optionsJson) {
+            const raw = typeof qn.optionsJson === 'string' ? JSON.parse(qn.optionsJson) : qn.optionsJson;
+            if (Array.isArray(raw)) {
+              parsedOpts = raw.map((item: any, idx: number) => {
+                if (typeof item === 'string') {
+                  return { id: String.fromCharCode(65 + idx), text: item };
+                }
+                return {
+                  id: String(item.id !== undefined ? item.id : String.fromCharCode(65 + idx)),
+                  text: item.text || item.label || String(item),
+                };
+              });
+            } else if (raw && typeof raw === 'object') {
+              parsedOpts = Object.entries(raw).map(([key, val]) => ({
+                id: String(key),
+                text: String(val),
+              }));
+            }
+          }
         } catch {}
         return {
           ...qn,
@@ -730,19 +776,19 @@ export const api = {
     } else if (userRole === 'lecturer') {
       return {
         role: 'LECTURER',
-        courses_count: res.totalCourses || 0,
-        students_count: res.totalStudents || 0,
-        pending_submissions_count: res.pendingSubmissionsCount || 0,
+        courses_count: res.totalCourses ?? 0,
+        students_count: res.totalStudents ?? 0,
+        pending_submissions_count: res.totalPendingSubmissions ?? res.pendingSubmissionsCount ?? 0,
         upcoming_assignments_count: 0,
         recent_notifications: notifs.slice(0, 5),
       };
     } else {
       return {
         role: 'STUDENT',
-        courses_count: res.enrolledCoursesCount || 0,
+        courses_count: res.totalEnrolledCourses ?? res.enrolledCoursesCount ?? 0,
         pending_submissions_count: 0,
-        upcoming_assignments_count: (res.upcomingAssignments || []).length,
-        quizzes_count: (res.activeQuizzes || []).length,
+        upcoming_assignments_count: typeof res.upcomingAssignments === 'number' ? res.upcomingAssignments : (res.upcomingAssignments || []).length,
+        quizzes_count: typeof res.availableQuizzes === 'number' ? res.availableQuizzes : (res.activeQuizzes || []).length,
         gpa: res.gpa || 0.0,
         recent_notifications: notifs.slice(0, 5),
       };
