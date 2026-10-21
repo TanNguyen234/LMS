@@ -40,7 +40,7 @@ These are baseline calculations, not observed project dates or actual elapsed ti
 ## Budget and EVM
 
 Budget subtotal:
-840M labor + 120M infrastructure + 48M software + 40M training + 32M administration + 120M contingency = **1.200M VNĐ**.
+840M labor + 120M infrastructure + 48M software + 40M training + 32M administration + 120M contingency = **1.200M VNĐ (1,2 tỷ VNĐ)**.
 
 Cash flow phases:
 180M + 150M + 450M + 240M + 180M = **1.200M VNĐ**. Cumulative planned percentages are 15%, 27.5%, 65%, 85%, 100%.
@@ -49,8 +49,10 @@ The closure document's scenario assumes PV=1.2B, EV=1.2B and AC=1.175B; arithmet
 
 ## SQL and setup path
 
-The canonical fresh schema path is database/01_schema.sql → database/02_seed.sql → database/04_seed_validation.sql, selected against a newly created disposable SQL Server database. The validation script checks at least 10 rows per table and referential conditions; it was NOT RUN here.
+The canonical fresh schema path is `database/01_schema.sql` → `database/02_seed.sql` → `database/04_seed_validation.sql`, followed by Alembic stamp at head on a newly created disposable SQL Server database. It was executed on `UniversityLms_Test_Repeat_20261021_1027`: 12 business tables seeded with 10 rows each, row and referential validation passed, then Alembic stamped at `6f2d4db8312a`. After the reverse-order full suite, the same DB still passed validation with all 12 business tables containing at least 10 rows. Exact output is in `evidence/live_fresh_repeat_bootstrap.txt`, `evidence/live_alembic_repeat_stamp.txt`, `evidence/live_backend_pytest_fresh_repeat_final.txt` and `evidence/live_seed_validation_repeat_final.txt`.
 
-The existing initial Alembic revision efd8af3f19c3 alters existing schema objects and is not an empty-database bootstrap. Fresh SQL bootstrap should be stamped at current Alembic head after validation. An existing disposable DB already at efd8af3f19c3 can use the new incremental revision; preflight checks stop if duplicate source grades or unsupported question types exist. No stamp, upgrade or database write was executed.
+The existing initial Alembic revision `efd8af3f19c3` alters existing schema objects and is not an empty-database bootstrap. Fresh SQL bootstrap is stamped at current Alembic head only after seed validation. The incremental revision preflights duplicate source grades and unsupported question types. Do not run this workflow on `UniversityLms` or other shared databases.
+
+The later Chrome DevTools browser journey is technical acceptance evidence, not a claim that the 10 coursework UAT scenarios or stakeholder approvals in PM artifacts were formally executed. UAT scenarios, signatures and EVM actuals remain simulated/planned where the source documents label them so.
 
 The detailed prior report is [06_PM_DOCUMENT_RECONCILIATION.md](../06_PM_DOCUMENT_RECONCILIATION.md); current evidence and release decision are separate in [the test matrix](03_TEST_MATRIX.md) and [release gate](05_RELEASE_GATE.md).

@@ -39,6 +39,41 @@ def test_ac02_authorization(client, student1_token):
     assert "Access denied" in response.json()["detail"] or "Forbidden" in response.text
 
 
+def test_admin_can_edit_user_contact_info_and_reject_duplicate_email(client, admin_token):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    suffix = uuid.uuid4().hex[:12]
+    first = client.post("/api/users", headers=headers, json={
+        "email": f"edit-{suffix}@example.edu.vn",
+        "fullName": "Before Edit",
+        "role": "STUDENT",
+        "password": "TestPass123",
+    })
+    second = client.post("/api/users", headers=headers, json={
+        "email": f"duplicate-{suffix}@example.edu.vn",
+        "fullName": "Other User",
+        "role": "STUDENT",
+        "password": "TestPass123",
+    })
+    assert first.status_code == 201
+    assert second.status_code == 201
+
+    user_id = first.json()["userId"]
+    updated = client.put(f"/api/users/{user_id}", headers=headers, json={
+        "email": f"updated-{suffix}@example.edu.vn",
+        "fullName": "After Edit",
+    })
+    assert updated.status_code == 200
+    assert updated.json()["email"] == f"updated-{suffix}@example.edu.vn"
+    assert updated.json()["fullName"] == "After Edit"
+
+    duplicate = client.put(f"/api/users/{user_id}", headers=headers, json={
+        "email": second.json()["email"],
+        "fullName": "After Edit",
+    })
+    assert duplicate.status_code == 400
+    assert duplicate.json()["detail"] == "Email is already in use"
+
+
 def test_ac03_course_isolation(client, lecturer2_token):
     """
     AC-03 Course isolation:
@@ -242,7 +277,8 @@ def test_ac08_quiz_max_attempts(client, student1_token, lecturer1_token):
     )
     assert qn_resp.status_code == 201
 
-    # Attempt 1: Start
+    # Attempt 1: Start. Repeating Start while it is in progress resumes
+    # the same attempt instead of consuming another allowed attempt.
     start1 = client.post(
         f"/api/quizzes/{quiz_id}/attempts/start",
         headers={"Authorization": f"Bearer {student1_token}"}
@@ -250,13 +286,31 @@ def test_ac08_quiz_max_attempts(client, student1_token, lecturer1_token):
     assert start1.status_code == 200
     assert start1.json()["attemptNo"] == 1
 
-    # Attempt 2: Start -> Should be rejected with 400 Bad Request
+    # Resume must return the same persisted attempt ID and number.
     start2 = client.post(
         f"/api/quizzes/{quiz_id}/attempts/start",
         headers={"Authorization": f"Bearer {student1_token}"}
     )
-    assert start2.status_code == 400
-    assert "maximum attempts" in start2.json()["detail"].lower()
+    assert start2.status_code == 200
+    assert start2.json()["attemptId"] == start1.json()["attemptId"]
+    assert start2.json()["attemptNo"] == start1.json()["attemptNo"] == 1
+
+    question_id = start1.json()["questions"][0]["questionId"]
+    submit = client.post(
+        f"/api/quiz-attempts/{start1.json()['attemptId']}/submit",
+        json={"answers": {str(question_id): "true"}},
+        headers={"Authorization": f"Bearer {student1_token}"}
+    )
+    assert submit.status_code == 200
+    assert submit.json()["status"] == "SUBMITTED"
+
+    # A new attempt after submitting is rejected when MaxAttempts is reached.
+    start3 = client.post(
+        f"/api/quizzes/{quiz_id}/attempts/start",
+        headers={"Authorization": f"Bearer {student1_token}"}
+    )
+    assert start3.status_code == 400
+    assert "maximum attempts" in start3.json()["detail"].lower()
 
 
 def test_ac09_quiz_secret_protection(client, student1_token, lecturer1_token):

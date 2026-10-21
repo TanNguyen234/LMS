@@ -41,3 +41,6 @@ The `/assignments`, `/quizzes`, and `/grades` views were opened through the UI. 
 ## Still unverified
 
 The write journeys in the forensic acceptance prompt remain NOT RUN: assignment creation and submission, grading, quiz start and submit, persistence/idempotency checks, and the SQL Server integration suite. A disposable SQL Server test database is required to complete them without changing existing coursework records. No release-complete claim is made from these read-only sessions.
+# Historical read-only browser probe — superseded
+
+This file records the initial read-only session. Its “NOT RUN” write-journey status is historical and is superseded by the actual three-role Chrome E2E at `crud-e2e/live_crud_e2e.log`; see `../03_TEST_MATRIX.md` for current coverage.

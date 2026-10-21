@@ -7,10 +7,13 @@ import {
   Play,
   X,
   Timer,
+  Pencil,
+  History,
+  Archive,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
-import type { Quiz, Course } from '../types';
+import type { Quiz, QuizAttempt, QuizQuestion, Course } from '../types';
 
 type ActiveQuiz = Quiz & {
   attemptId?: string;
@@ -27,6 +30,7 @@ export const QuizzesPage: React.FC = () => {
 
   // Modals state
   const [isCreateQuizModalOpen, setIsCreateQuizModalOpen] = useState(false);
+  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newDuration, setNewDuration] = useState(15);
@@ -36,6 +40,7 @@ export const QuizzesPage: React.FC = () => {
   // Add Question Modal
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [targetQuiz, setTargetQuiz] = useState<Quiz | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<QuizQuestion | null>(null);
   const [questionText, setQuestionText] = useState('');
   const [questionPoints, setQuestionPoints] = useState(2.5);
   const [optA, setOptA] = useState('');
@@ -49,6 +54,8 @@ export const QuizzesPage: React.FC = () => {
   const [studentAnswers, setStudentAnswers] = useState<Record<string, string>>({});
   const [quizScoreResult, setQuizScoreResult] = useState<{ score: number; max: number } | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [attemptsQuiz, setAttemptsQuiz] = useState<Quiz | null>(null);
+  const [quizAttempts, setQuizAttempts] = useState<QuizAttempt[]>([]);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -96,35 +103,52 @@ export const QuizzesPage: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [activeQuiz]);
 
-  const handleCreateQuiz = async (e: React.FormEvent) => {
+  const resetQuizForm = () => {
+    setNewTitle('');
+    setNewDesc('');
+    setNewDuration(15);
+    setNewPassingScore(5);
+    setEditingQuiz(null);
+  };
+
+  const handleSaveQuiz = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editingQuiz && !courses.some((course) => course.id === selectedCourseId)) return;
     setSubmitting(true);
     try {
-      const created = await api.createQuiz(selectedCourseId, {
-        title: newTitle,
-        description: newDesc,
-        duration_minutes: Number(newDuration),
-        passingScore: Number(newPassingScore),
-        is_published: true,
-      });
-      setQuizzes((prev) => [created, ...prev]);
+      if (editingQuiz) {
+        const updated = await api.updateQuiz(editingQuiz.id, {
+          title: newTitle,
+          description: newDesc,
+          duration_minutes: Number(newDuration),
+          passingScore: Number(newPassingScore),
+        });
+        setQuizzes((prev) => prev.map((quiz) => quiz.id === updated.id ? updated : quiz));
+      } else {
+        const created = await api.createQuiz(selectedCourseId, {
+          title: newTitle,
+          description: newDesc,
+          duration_minutes: Number(newDuration),
+          passingScore: Number(newPassingScore),
+          is_published: true,
+        });
+        setQuizzes((prev) => [created, ...prev]);
+      }
       setIsCreateQuizModalOpen(false);
-      setNewTitle('');
-      setNewDesc('');
-      setNewPassingScore(5);
+      resetQuizForm();
     } catch (err: any) {
-      alert('Lỗi tạo bài quiz: ' + err.message);
+      alert((editingQuiz ? 'Lỗi cập nhật bài quiz: ' : 'Lỗi tạo bài quiz: ') + err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleAddQuestion = async (e: React.FormEvent) => {
+  const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetQuiz) return;
     setSubmitting(true);
     try {
-      await api.addQuizQuestion(targetQuiz.id, {
+      const data = {
         question_text: questionText,
         question_type: 'SINGLE_CHOICE',
         points: Number(questionPoints),
@@ -135,10 +159,14 @@ export const QuizzesPage: React.FC = () => {
           { id: 'D', text: optD },
         ],
         correct_option_id: correctOpt,
-      });
-      alert('Đã thêm câu hỏi trắc nghiệm thành công!');
+      };
+      if (editingQuestion) await api.updateQuizQuestion(editingQuestion.id, data);
+      else await api.addQuizQuestion(targetQuiz.id, data);
+      alert(editingQuestion ? 'Đã cập nhật câu hỏi thành công!' : 'Đã thêm câu hỏi trắc nghiệm thành công!');
       setIsQuestionModalOpen(false);
       await fetchQuizzes();
+      if (activeQuiz?.mode === 'preview' && activeQuiz.id === targetQuiz.id) await handlePreviewQuiz(targetQuiz);
+      setEditingQuestion(null);
       setQuestionText('');
       setOptA('');
       setOptB('');
@@ -149,6 +177,45 @@ export const QuizzesPage: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleToggleQuizPublish = async (quiz: Quiz) => {
+    const nextPublished = !(quiz.isPublished ?? quiz.is_published);
+    try {
+      await api.publishQuiz(quiz.id, nextPublished);
+      setQuizzes((prev) => prev.map((item) => item.id === quiz.id ? { ...item, isPublished: nextPublished, is_published: nextPublished } : item));
+    } catch (err: any) { alert('Lỗi cập nhật trạng thái quiz: ' + err.message); }
+  };
+
+  const openEditQuiz = (quiz: Quiz) => {
+    setEditingQuiz(quiz);
+    setNewTitle(quiz.title);
+    setNewDesc(quiz.description || '');
+    setNewDuration(Number(quiz.timeLimitMinutes ?? quiz.duration_minutes));
+    setNewPassingScore(Number(quiz.passingScore ?? 5));
+    setIsCreateQuizModalOpen(true);
+  };
+
+  const handleOpenAttempts = async (quiz: Quiz) => {
+    try {
+      const attempts = await api.getQuizAttempts(quiz.id);
+      setAttemptsQuiz(quiz);
+      setQuizAttempts(attempts);
+    } catch (err: any) { alert('Lỗi tải lượt làm bài: ' + err.message); }
+  };
+
+  const openEditQuestion = (quiz: Quiz, question: QuizQuestion) => {
+    setTargetQuiz(quiz);
+    setEditingQuestion(question);
+    setQuestionText(question.question_text || question.questionText);
+    setQuestionPoints(Number(question.points ?? question.score));
+    const options = question.options || [];
+    setOptA(options.find((option) => String(option.id) === 'A')?.text || '');
+    setOptB(options.find((option) => String(option.id) === 'B')?.text || '');
+    setOptC(options.find((option) => String(option.id) === 'C')?.text || '');
+    setOptD(options.find((option) => String(option.id) === 'D')?.text || '');
+    setCorrectOpt(String(question.correctAnswer ?? question.correct_option_id ?? 'A'));
+    setIsQuestionModalOpen(true);
   };
 
   const handleStartQuiz = async (quiz: Quiz) => {
@@ -217,8 +284,9 @@ export const QuizzesPage: React.FC = () => {
 
         {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
           <button
-            onClick={() => setIsCreateQuizModalOpen(true)}
-            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition shrink-0"
+            onClick={() => { resetQuizForm(); setIsCreateQuizModalOpen(true); }}
+            disabled={!courses.some((course) => course.id === selectedCourseId)}
+            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             <span>Tạo bài Quiz mới</span>
@@ -271,6 +339,7 @@ export const QuizzesPage: React.FC = () => {
                   </span>
                   <span className="text-xs font-bold text-slate-600">Điểm tối đa: {Number(q.max_score ?? q.maxScore ?? 0)}đ</span>
                 </div>
+                {user?.role !== 'STUDENT' && <span className={`inline-flex mb-2 px-2 py-0.5 rounded-full text-[11px] font-semibold ${(q.isPublished ?? q.is_published) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{(q.isPublished ?? q.is_published) ? 'Đã xuất bản' : 'Bản nháp / đã ẩn'}</span>}
                 <h3 className="font-bold text-slate-800 text-base">{q.title}</h3>
                 <p className="text-xs text-slate-500 mt-1 line-clamp-2">{q.description || 'Không có mô tả'}</p>
               </div>
@@ -280,15 +349,12 @@ export const QuizzesPage: React.FC = () => {
 
                 <div className="flex items-center space-x-2">
                   {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
-                    <button
-                      onClick={() => {
-                        setTargetQuiz(q);
-                        setIsQuestionModalOpen(true);
-                      }}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
-                    >
-                      + Thêm câu hỏi
-                    </button>
+                    <>
+                      <button onClick={() => openEditQuiz(q)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1"><Pencil className="w-3.5 h-3.5" /> Sửa</button>
+                      <button onClick={() => handleToggleQuizPublish(q)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1"><Archive className="w-3.5 h-3.5" /> {(q.isPublished ?? q.is_published) ? 'Ẩn' : 'Xuất bản'}</button>
+                      <button onClick={() => { setTargetQuiz(q); setEditingQuestion(null); setQuestionText(''); setQuestionPoints(2.5); setOptA(''); setOptB(''); setOptC(''); setOptD(''); setCorrectOpt('A'); setIsQuestionModalOpen(true); }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">+ Câu hỏi</button>
+                      <button onClick={() => handleOpenAttempts(q)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1"><History className="w-3.5 h-3.5" /> Lượt làm</button>
+                    </>
                   )}
 
                   {user?.role === 'STUDENT' ? (
@@ -335,6 +401,7 @@ export const QuizzesPage: React.FC = () => {
                   setActiveQuiz(null);
                   setQuizScoreResult(null);
                 }}
+                aria-label={activeQuiz.mode === 'preview' ? 'Đóng bản xem trước' : 'Đóng bài kiểm tra'}
               >
                 <X className="w-5 h-5 text-slate-400" />
               </button>
@@ -389,6 +456,7 @@ export const QuizzesPage: React.FC = () => {
                           <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded ml-2">
                             {q.points} điểm
                           </span>
+                          {activeQuiz.mode === 'preview' && (user?.role === 'ADMIN' || user?.role === 'LECTURER') && <button onClick={() => openEditQuestion(activeQuiz, q)} className="ml-2 text-xs font-semibold text-blue-600 hover:underline">Sửa câu hỏi</button>}
                         </div>
 
                         <div className="space-y-2">
@@ -445,12 +513,12 @@ export const QuizzesPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">Tạo bài Quiz mới</h3>
-              <button onClick={() => setIsCreateQuizModalOpen(false)}>
+              <h3 className="font-bold text-slate-800">{editingQuiz ? 'Cập nhật bài Quiz' : 'Tạo bài Quiz mới'}</h3>
+              <button onClick={() => { setIsCreateQuizModalOpen(false); resetQuizForm(); }}>
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
-            <form onSubmit={handleCreateQuiz} className="space-y-4 mt-4">
+            <form onSubmit={handleSaveQuiz} className="space-y-4 mt-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tiêu đề bài Quiz</label>
                 <input
@@ -501,7 +569,7 @@ export const QuizzesPage: React.FC = () => {
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsCreateQuizModalOpen(false)}
+                  onClick={() => { setIsCreateQuizModalOpen(false); resetQuizForm(); }}
                   className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl"
                 >
                   Hủy
@@ -511,7 +579,7 @@ export const QuizzesPage: React.FC = () => {
                   disabled={submitting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
                 >
-                  Lưu bài Quiz
+                  {editingQuiz ? 'Lưu thay đổi' : 'Lưu bài Quiz'}
                 </button>
               </div>
             </form>
@@ -524,13 +592,13 @@ export const QuizzesPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">Thêm câu hỏi: {targetQuiz.title}</h3>
-              <button onClick={() => setIsQuestionModalOpen(false)}>
+              <h3 className="font-bold text-slate-800">{editingQuestion ? 'Sửa câu hỏi' : 'Thêm câu hỏi'}: {targetQuiz.title}</h3>
+              <button onClick={() => { setIsQuestionModalOpen(false); setEditingQuestion(null); }}>
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
 
-            <form onSubmit={handleAddQuestion} className="space-y-4 mt-4">
+            <form onSubmit={handleSaveQuestion} className="space-y-4 mt-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Câu hỏi</label>
                 <input
@@ -595,7 +663,7 @@ export const QuizzesPage: React.FC = () => {
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsQuestionModalOpen(false)}
+                  onClick={() => { setIsQuestionModalOpen(false); setEditingQuestion(null); }}
                   className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl"
                 >
                   Hủy
@@ -605,10 +673,30 @@ export const QuizzesPage: React.FC = () => {
                   disabled={submitting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
                 >
-                  Lưu câu hỏi
+                  {editingQuestion ? 'Lưu thay đổi' : 'Lưu câu hỏi'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {attemptsQuiz && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-2xl w-full p-6 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div><h3 className="font-bold text-slate-800">Lượt làm: {attemptsQuiz.title}</h3><p className="text-xs text-slate-500">{quizAttempts.length} lượt được lưu</p></div>
+              <button onClick={() => setAttemptsQuiz(null)} aria-label="Đóng danh sách lượt làm"><X className="w-5 h-5 text-slate-400" /></button>
+            </div>
+            <div className="overflow-y-auto divide-y divide-slate-100">
+              {quizAttempts.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">Chưa có lượt làm bài.</p> : quizAttempts.map((attempt) => (
+                <div key={attempt.id} className="py-3 flex items-center justify-between gap-3">
+                  <div><p className="font-semibold text-sm text-slate-800">{attempt.student_name || 'Sinh viên'}{attempt.student_code ? ` (${attempt.student_code})` : ''}</p><p className="text-xs text-slate-500">Bắt đầu: {new Date(attempt.started_at).toLocaleString('vi-VN')}</p></div>
+                  <div className="text-right"><p className="text-sm font-bold text-slate-800">{attempt.score ?? '—'} điểm</p><p className="text-xs text-slate-500">{attempt.status || '—'}{attempt.submitted_at ? ` · ${new Date(attempt.submitted_at).toLocaleString('vi-VN')}` : ''}</p></div>
+                </div>
+              ))}
+            </div>
+            <div className="pt-3 border-t border-slate-100 flex justify-end"><button onClick={() => setAttemptsQuiz(null)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold">Đóng</button></div>
           </div>
         </div>
       )}

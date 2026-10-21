@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 from backend.app.main import app
-from backend.app.db.session import engine
+from backend.app.db.session import engine, SessionLocal
+from backend.app.db.init_db import init_development_passwords
 
 client = TestClient(app)
 
@@ -16,6 +17,13 @@ def require_disposable_test_database():
             "Integration tests require an isolated UniversityLms_Test_<id> database; "
             "the configured database will not be modified."
         )
+    # This module uses a module-level TestClient directly, so it initializes
+    # seed passwords itself instead of relying on another module's client fixture.
+    db = SessionLocal()
+    try:
+        init_development_passwords(db)
+    finally:
+        db.close()
 
 def test_health_contract():
     r = client.get("/health")

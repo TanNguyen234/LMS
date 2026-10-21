@@ -1,0 +1,4 @@
+DATABASE_CREATED=UniversityLms_Test_Repeat_20261021_1027
+SCHEMA=database/01_schema.sql; SEED=database/02_seed.sql
+SEED_VALIDATION=PASS; TABLES=12; MIN_ROWS=10
+ROW_COUNTS=Assignments:10, Courses:10, Enrollments:10, Grades:10, Lessons:10, Modules:10, Notifications:10, QuizAttempts:10, QuizQuestions:10, Quizzes:10, Submissions:10, Users:10

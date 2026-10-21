@@ -11,3 +11,6 @@ CRG graph tools were unavailable. A separate read-only reviewer inspected the so
 ## Verification boundary
 
 The reviewer did not run tests or database actions. The 14 pure tests pass separately. SQL Server integration and browser E2E remain NOT RUN because no disposable test database was created.
+# Historical initial review — superseded
+
+This report records an earlier pre-test-database review. Its initial “NOT RUN” status is superseded by the final SQL Server and real Chrome evidence linked from `../03_TEST_MATRIX.md` and `../05_RELEASE_GATE.md`.

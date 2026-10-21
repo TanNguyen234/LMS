@@ -7,6 +7,8 @@ import {
   Eye,
   Calendar,
   Send,
+  Pencil,
+  LockKeyhole,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
@@ -21,10 +23,12 @@ export const AssignmentsPage: React.FC = () => {
 
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [newMaxScore, setNewMaxScore] = useState(10);
+  const [newStatus, setNewStatus] = useState<'DRAFT' | 'PUBLISHED' | 'CLOSED'>('PUBLISHED');
   const [submitting, setSubmitting] = useState(false);
 
   // Submissions review modal for lecturer
@@ -64,9 +68,18 @@ export const AssignmentsPage: React.FC = () => {
     try {
       setLoading(true);
       const data = await api.getCourseAssignments(selectedCourseId);
-      setAssignments(data);
+      if (user?.role === 'STUDENT') {
+        const withSubmissions = await Promise.all(data.map(async (assignment) => ({
+          ...assignment,
+          my_submission: await api.getMySubmission(assignment.id) || undefined,
+        })));
+        setAssignments(withSubmissions);
+      } else {
+        setAssignments(data);
+      }
     } catch (err) {
       console.error(err);
+      setAssignments([]);
     } finally {
       setLoading(false);
     }
@@ -76,27 +89,58 @@ export const AssignmentsPage: React.FC = () => {
     fetchAssignments();
   }, [selectedCourseId]);
 
-  const handleCreateAssignment = async (e: React.FormEvent) => {
+  const resetAssignmentForm = () => {
+    setNewTitle('');
+    setNewDesc('');
+    setNewDueDate('');
+    setNewMaxScore(10);
+    setNewStatus('PUBLISHED');
+    setEditingAssignment(null);
+  };
+
+  const handleSaveAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editingAssignment && !courses.some((course) => course.id === selectedCourseId)) return;
     setSubmitting(true);
     try {
-      const created = await api.createAssignment(selectedCourseId, {
-        title: newTitle,
-        description: newDesc,
-        due_date: newDueDate ? new Date(newDueDate).toISOString() : new Date(Date.now() + 7 * 86400000).toISOString(),
-        max_score: Number(newMaxScore),
-      });
-      setAssignments((prev) => [created, ...prev]);
+      const dueAt = newDueDate ? new Date(newDueDate).toISOString() : new Date(Date.now() + 7 * 86400000).toISOString();
+      if (editingAssignment) {
+        const updated = await api.updateAssignment(editingAssignment.id, {
+          title: newTitle,
+          description: newDesc,
+          dueAt,
+          maxScore: Number(newMaxScore),
+          status: newStatus,
+        });
+        setAssignments((prev) => prev.map((assignment) => assignment.id === updated.id ? updated : assignment));
+      } else {
+        const created = await api.createAssignment(selectedCourseId, {
+          title: newTitle,
+          description: newDesc,
+          due_date: dueAt,
+          max_score: Number(newMaxScore),
+          status: newStatus,
+        });
+        setAssignments((prev) => [created, ...prev]);
+      }
       setIsCreateModalOpen(false);
-      setNewTitle('');
-      setNewDesc('');
-      setNewDueDate('');
-      setNewMaxScore(10);
+      resetAssignmentForm();
     } catch (err: any) {
-      alert('Lỗi tạo bài tập: ' + err.message);
+      alert((editingAssignment ? 'Lỗi cập nhật bài tập: ' : 'Lỗi tạo bài tập: ') + err.message);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const openEditAssignment = (assignment: Assignment) => {
+    const dueAt = new Date(assignment.dueAt || assignment.due_date);
+    setEditingAssignment(assignment);
+    setNewTitle(assignment.title);
+    setNewDesc(assignment.description || '');
+    setNewDueDate(new Date(dueAt.getTime() - dueAt.getTimezoneOffset() * 60_000).toISOString().slice(0, 16));
+    setNewMaxScore(Number(assignment.maxScore ?? assignment.max_score));
+    setNewStatus((assignment.status as 'DRAFT' | 'PUBLISHED' | 'CLOSED') || 'PUBLISHED');
+    setIsCreateModalOpen(true);
   };
 
   const handleOpenSubmissions = async (assignment: Assignment) => {
@@ -139,11 +183,14 @@ export const AssignmentsPage: React.FC = () => {
     if (!submitAssignmentTarget || !submitAssignmentTarget.id) return;
     setSubmitting(true);
     try {
-      await api.submitAssignment(submitAssignmentTarget.id, submissionText);
+      const savedSubmission = await api.submitAssignment(submitAssignmentTarget.id, submissionText);
+      setAssignments((prev) => prev.map((assignment) => assignment.id === savedSubmission.assignment_id
+        ? { ...assignment, my_submission: savedSubmission }
+        : assignment));
       alert('Nộp bài thành công!');
       setIsSubmitModalOpen(false);
       setSubmissionText('');
-      fetchAssignments();
+      setSubmitAssignmentTarget(null);
     } catch (err: any) {
       alert('Lỗi nộp bài: ' + err.message);
     } finally {
@@ -167,7 +214,8 @@ export const AssignmentsPage: React.FC = () => {
         {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition shrink-0"
+            disabled={!courses.some((course) => course.id === selectedCourseId)}
+            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             <span>Tạo bài tập mới</span>
@@ -217,6 +265,7 @@ export const AssignmentsPage: React.FC = () => {
                   <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-xs">
                     Điểm tối đa: {a.max_score}đ
                   </span>
+                  {user?.role !== 'STUDENT' && <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${a.status === 'CLOSED' ? 'bg-slate-100 text-slate-600' : a.status === 'DRAFT' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{a.status || 'PUBLISHED'}</span>}
                   <span className="flex items-center text-xs text-slate-400 space-x-1">
                     <Calendar className="w-3.5 h-3.5" />
                     <span>Hạn nộp: {new Date(a.due_date).toLocaleDateString('vi-VN')}</span>
@@ -228,24 +277,44 @@ export const AssignmentsPage: React.FC = () => {
 
               <div className="flex items-center space-x-3 shrink-0">
                 {user?.role === 'STUDENT' ? (
-                  <button
-                    onClick={() => {
-                      setSubmitAssignmentTarget(a);
-                      setIsSubmitModalOpen(true);
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center space-x-1.5"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Nộp bài tập</span>
-                  </button>
+                  a.status === 'CLOSED' || a.status === 'DRAFT' || a.my_submission?.status === 'GRADED' ? (
+                    <span className="px-3 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-semibold">
+                      {a.my_submission?.status === 'GRADED' ? 'Đã chấm' : a.status === 'CLOSED' ? 'Đã đóng' : 'Chưa mở'}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setSubmitAssignmentTarget(a);
+                        setSubmissionText(a.my_submission?.contentText || a.my_submission?.submission_text || '');
+                        setIsSubmitModalOpen(true);
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center space-x-1.5"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{a.my_submission ? 'Cập nhật bài nộp' : 'Nộp bài tập'}</span>
+                    </button>
+                  )
                 ) : (
-                  <button
-                    onClick={() => handleOpenSubmissions(a)}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Xem & Chấm bài</span>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => openEditAssignment(a)}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold inline-flex items-center gap-1"
+                    ><Pencil className="w-3.5 h-3.5" /> Sửa</button>
+                    <button
+                      onClick={async () => {
+                        const status = a.status === 'CLOSED' ? 'PUBLISHED' : 'CLOSED';
+                        try {
+                          const updated = await api.updateAssignment(a.id, { status });
+                          setAssignments((prev) => prev.map((item) => item.id === updated.id ? updated : item));
+                        } catch (err: any) { alert('Lỗi cập nhật trạng thái: ' + err.message); }
+                      }}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold inline-flex items-center gap-1"
+                    ><LockKeyhole className="w-3.5 h-3.5" /> {a.status === 'CLOSED' ? 'Mở lại' : 'Đóng'}</button>
+                    <button
+                      onClick={() => handleOpenSubmissions(a)}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
+                    ><Eye className="w-3.5 h-3.5 text-slate-500" /><span>Xem & Chấm bài</span></button>
+                  </>
                 )}
               </div>
             </div>
@@ -253,17 +322,17 @@ export const AssignmentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: Create Assignment */}
+      {/* Modal: Create / Edit Assignment */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">Tạo bài tập mới</h3>
-              <button onClick={() => setIsCreateModalOpen(false)}>
+              <h3 className="font-bold text-slate-800">{editingAssignment ? 'Cập nhật bài tập' : 'Tạo bài tập mới'}</h3>
+              <button onClick={() => { setIsCreateModalOpen(false); resetAssignmentForm(); }}>
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
-            <form onSubmit={handleCreateAssignment} className="space-y-4 mt-4">
+            <form onSubmit={handleSaveAssignment} className="space-y-4 mt-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tiêu đề bài tập</label>
                 <input
@@ -310,10 +379,19 @@ export const AssignmentsPage: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Trạng thái bài tập</label>
+                <select value={newStatus} onChange={(e) => setNewStatus(e.target.value as typeof newStatus)} className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white">
+                  <option value="DRAFT">Bản nháp</option>
+                  <option value="PUBLISHED">Đã giao</option>
+                  <option value="CLOSED">Đã đóng</option>
+                </select>
+              </div>
+
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
+                  onClick={() => { setIsCreateModalOpen(false); resetAssignmentForm(); }}
                   className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl"
                 >
                   Hủy
@@ -323,7 +401,7 @@ export const AssignmentsPage: React.FC = () => {
                   disabled={submitting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Đang tạo...' : 'Giao bài tập'}
+                  {submitting ? 'Đang lưu...' : editingAssignment ? 'Lưu thay đổi' : 'Giao bài tập'}
                 </button>
               </div>
             </form>

@@ -218,6 +218,8 @@ export interface QuizAttempt {
   submittedAt?: string;
   submitted_at?: string;
   status?: string;
+  student_name?: string;
+  student_code?: string | null;
 }
 
 export interface QuizAttemptStart {

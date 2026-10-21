@@ -184,7 +184,7 @@ export const api = {
       page += 1;
     }
     const items: User[] = collected;
-    return items.map((u: any) => ({
+    const normalized = items.map((u: any) => ({
       ...u,
       id: u.userId,
       username: u.studentCode || u.staffCode || u.email.split('@')[0],
@@ -192,6 +192,7 @@ export const api = {
       is_active: u.isActive,
       created_at: u.createdAt,
     }));
+    return activeOnly ? normalized.filter((u) => u.is_active) : normalized;
   },
 
   async createUser(userData: {
@@ -218,6 +219,7 @@ export const api = {
       full_name: res.fullName,
       is_active: res.isActive,
       created_at: res.createdAt,
+      username: res.studentCode || res.staffCode || res.email.split('@')[0],
     };
   },
 
@@ -226,6 +228,21 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ isActive: !currentActive }),
     });
+  },
+
+  async updateUser(userId: string | number, data: { email: string; fullName: string }): Promise<User> {
+    const res = await request<any>(`/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return {
+      ...res,
+      id: res.userId,
+      full_name: res.fullName,
+      is_active: res.isActive,
+      created_at: res.createdAt,
+      username: res.studentCode || res.staffCode || res.email.split('@')[0],
+    };
   },
 
   // Courses
@@ -346,6 +363,12 @@ export const api = {
     };
   },
 
+  async dropEnrollment(courseId: string | number, studentId: string | number): Promise<{ message: string }> {
+    return request<{ message: string }>(`/courses/${courseId}/enrollments/${studentId}`, {
+      method: 'DELETE',
+    });
+  },
+
   // Content (Modules & Lessons)
   async getCourseModules(courseId: string | number): Promise<Module[]> {
     const res = await request<any[]>(`/courses/${courseId}/modules`);
@@ -354,6 +377,7 @@ export const api = {
       id: m.moduleId,
       course_id: m.courseId,
       order_index: m.sortOrder,
+      isPublished: m.isPublished,
       created_at: m.createdAt,
       lessons: (m.lessons || []).map((l: any) => ({
         ...l,
@@ -362,18 +386,19 @@ export const api = {
         order_index: l.sortOrder,
         content_body: l.contentHtml,
         media_url: l.materialUrl,
+        content_type: l.contentType || 'TEXT',
         is_published: l.isPublished,
         created_at: l.createdAt,
       })),
     }));
   },
 
-  async createModule(courseId: string | number, data: { title: string; description?: string; order_index?: number; sortOrder?: number }): Promise<Module> {
+  async createModule(courseId: string | number, data: { title: string; description?: string; order_index?: number; sortOrder?: number; isPublished?: boolean }): Promise<Module> {
     const payload = {
       title: data.title,
       description: data.description,
       sortOrder: data.sortOrder || data.order_index || 1,
-      isPublished: true,
+      isPublished: data.isPublished ?? true,
     };
     const res = await request<any>(`/courses/${courseId}/modules`, {
       method: 'POST',
@@ -385,6 +410,25 @@ export const api = {
       course_id: res.courseId,
       order_index: res.sortOrder,
       lessons: [],
+    };
+  },
+
+  async updateModule(moduleId: string | number, data: Partial<Module>): Promise<Module> {
+    const res = await request<any>(`/modules/${moduleId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        title: data.title,
+        description: data.description,
+        sortOrder: data.sortOrder ?? data.order_index,
+        isPublished: data.isPublished,
+      }),
+    });
+    return {
+      ...res,
+      id: res.moduleId,
+      course_id: res.courseId,
+      order_index: res.sortOrder,
+      lessons: res.lessons || [],
     };
   },
 
@@ -421,6 +465,7 @@ export const api = {
       order_index: res.sortOrder,
       content_body: res.contentHtml,
       media_url: res.materialUrl,
+      content_type: 'TEXT',
       is_published: res.isPublished,
     };
   },
@@ -434,6 +479,7 @@ export const api = {
       order_index: res.sortOrder,
       content_body: res.contentHtml,
       media_url: res.materialUrl,
+      content_type: 'TEXT',
       is_published: res.isPublished,
     };
   },
@@ -442,9 +488,9 @@ export const api = {
     const payload = {
       title: data.title,
       contentType: data.contentType || data.content_type,
-      contentHtml: data.contentHtml || data.content_body,
-      materialUrl: data.materialUrl || data.media_url,
-      sortOrder: data.sortOrder || data.order_index,
+      contentHtml: data.contentHtml ?? data.content_body,
+      materialUrl: data.materialUrl ?? data.media_url,
+      sortOrder: data.sortOrder ?? data.order_index,
       isPublished: data.isPublished !== undefined ? data.isPublished : data.is_published,
     };
     const res = await request<any>(`/lessons/${lessonId}`, {
@@ -507,6 +553,28 @@ export const api = {
     };
   },
 
+  async updateAssignment(assignmentId: string | number, data: Partial<Assignment>): Promise<Assignment> {
+    const res = await request<any>(`/assignments/${assignmentId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        title: data.title,
+        description: data.description,
+        dueAt: data.dueAt || data.due_date,
+        maxScore: data.maxScore ?? data.max_score,
+        allowLate: data.allowLate,
+        status: data.status,
+      }),
+    });
+    return {
+      ...res,
+      id: res.assignmentId,
+      course_id: res.courseId,
+      due_date: res.dueAt,
+      max_score: res.maxScore,
+      created_at: res.createdAt,
+    };
+  },
+
   async getAssignmentSubmissions(assignmentId: string | number): Promise<Submission[]> {
     const res = await request<any[]>(`/assignments/${assignmentId}/submissions`);
     return (res || []).map((s: any) => ({
@@ -520,6 +588,20 @@ export const api = {
       attachment_url: s.fileUrl,
       submitted_at: s.submittedAt,
     }));
+  },
+
+  async getMySubmission(assignmentId: string | number): Promise<Submission | null> {
+    const res = await request<any | null>(`/assignments/${assignmentId}/my-submission`);
+    if (!res) return null;
+    return {
+      ...res,
+      id: res.submissionId,
+      assignment_id: res.assignmentId,
+      student_id: res.studentId,
+      submission_text: res.contentText,
+      attachment_url: res.fileUrl,
+      submitted_at: res.submittedAt,
+    };
   },
 
   async submitAssignment(assignmentId: string | number, textContent: string): Promise<Submission> {
@@ -629,6 +711,38 @@ export const api = {
     };
   },
 
+  async updateQuiz(quizId: string | number, data: Partial<Quiz>): Promise<Quiz> {
+    const res = await request<any>(`/quizzes/${quizId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        title: data.title,
+        description: data.description,
+        timeLimitMinutes: data.timeLimitMinutes ?? data.duration_minutes,
+        maxAttempts: data.maxAttempts,
+        passingScore: data.passingScore,
+        isPublished: data.isPublished ?? data.is_published,
+      }),
+    });
+    return {
+      ...res,
+      id: res.quizId,
+      course_id: res.courseId,
+      duration_minutes: res.timeLimitMinutes,
+      is_published: res.isPublished,
+      maxScore: Number(res.maxScore ?? 0),
+      max_score: Number(res.maxScore ?? 0),
+      created_at: res.createdAt,
+      questions: normalizeQuizQuestions(res.questions || []),
+    };
+  },
+
+  async publishQuiz(quizId: string | number, isPublished: boolean): Promise<{ message: string }> {
+    return request<{ message: string }>(`/quizzes/${quizId}/publish`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isPublished }),
+    });
+  },
+
   async addQuizQuestion(quizId: string | number, data: {
     question_text?: string;
     questionText?: string;
@@ -661,6 +775,44 @@ export const api = {
       question_text: res.questionText,
       points: res.score,
     };
+  },
+
+  async updateQuizQuestion(questionId: string | number, data: Partial<QuizQuestion>): Promise<QuizQuestion> {
+    const optionsJson = data.optionsJson ?? (data.options ? JSON.stringify(data.options) : undefined);
+    const res = await request<any>(`/questions/${questionId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        questionText: data.questionText ?? data.question_text,
+        questionType: data.questionType ?? data.question_type,
+        optionsJson,
+        correctAnswer: data.correctAnswer ?? data.correct_option_id,
+        score: data.score ?? data.points,
+        sortOrder: data.sortOrder,
+      }),
+    });
+    return {
+      ...res,
+      id: res.questionId,
+      quiz_id: res.quizId,
+      question_text: res.questionText,
+      question_type: res.questionType,
+      points: Number(res.score),
+      options: normalizeQuizQuestions([res])[0].options,
+    };
+  },
+
+  async getQuizAttempts(quizId: string | number): Promise<QuizAttempt[]> {
+    const res = await request<any[]>(`/quizzes/${quizId}/attempts`);
+    return (res || []).map((attempt: any) => ({
+      ...attempt,
+      id: attempt.attemptId,
+      quiz_id: attempt.quizId,
+      student_id: attempt.studentId,
+      started_at: attempt.startedAt,
+      submitted_at: attempt.submittedAt,
+      student_name: attempt.studentName,
+      student_code: attempt.studentCode,
+    }));
   },
 
   async startQuizAttempt(quizId: string | number): Promise<QuizAttemptStart> {

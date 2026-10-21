@@ -1,0 +1,5 @@
+DATABASE=UniversityLms_Test_Repeat_20261021_1027
+SEED_TABLES=12; MIN_ROWS=10
+ROW_COUNTS=Assignments:24, Courses:10, Enrollments:10, Grades:21, Lessons:12, Modules:12, Notifications:23, QuizAttempts:23, QuizQuestions:29, Quizzes:27, Submissions:16, Users:14
+ALEMBIC_VERSION=6f2d4db8312a
+RESULT=PASS (04_seed_validation.sql; row count and referential checks)
