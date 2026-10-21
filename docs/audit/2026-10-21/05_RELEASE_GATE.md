@@ -1,6 +1,6 @@
 # Release gate — forensic fix 2026-10-21
 
-Evidence cut: 2026-10-21 10:43:45 UTC. Baseline SHA: `4fc2ead72d929ace0c3ed6ce85ae09dc4ac3fa6a`. Fix branch: `fix/lms-forensic-acceptance-20261021`, based on `821ddf21210f275b167b4345c176bc1ce525ffc3`; final verified source SHA will be recorded here immediately after commit. Existing PR #1 is already merged at `3c722e0a46a7804b60232000d8115e492ef6978b`.
+Evidence cut: 2026-10-21 10:43:45 UTC. Baseline SHA: `4fc2ead72d929ace0c3ed6ce85ae09dc4ac3fa6a`. Fix branch: `fix/lms-forensic-acceptance-20261021`, based on `821ddf21210f275b167b4345c176bc1ce525ffc3`. Verified source commit SHA: `34d19a7f3b8fc7ce66a3d452d973f5e8bff8d7cd`. Existing PR #1 is already merged at `3c722e0a46a7804b60232000d8115e492ef6978b`.
 
 ## Decision: PASS — local test acceptance scope
 
@@ -20,7 +20,7 @@ The code, API, SQL Server integration, real-browser user journeys and PM documen
 
 ## Exact commands and evidence timestamps
 
-The source changes represented by this evidence are committed at the verified source SHA recorded in the next line after commit. The timestamps below are the UTC modification times of the captured command outputs. All dates are 2026-10-21. Commands ran in the local repository; no production DB or credentials are recorded.
+The source changes represented by this evidence are committed at `34d19a7f3b8fc7ce66a3d452d973f5e8bff8d7cd`; subsequent audit-only commits do not change tested source. The timestamps below are the UTC modification times of the captured command outputs. All dates are 2026-10-21. Commands ran in the local repository; no production DB or credentials are recorded.
 
 | Command | CWD and environment | Evidence time (UTC) | Exit/result | Output |
 |---|---|---:|---|---|
@@ -36,7 +36,7 @@ The source changes represented by this evidence are committed at the verified so
 | `GET /health` and `GET /openapi.json` | local API `127.0.0.1:8001`; E2E test DB | 10:03:46 | 200; connected; 51 operations | `evidence/live_http_health_openapi.txt` |
 | `backend\venv\Scripts\python.exe -m py_compile scripts\run_live_crud_e2e.py backend\app\api\routes\users.py backend\app\schemas\schemas.py backend\tests\test_acceptance.py backend\tests\test_challenger_recon.py backend\tests\test_recon2_challenger.py` | repo root; Python 3.12 | 10:42:46 | 0 | `evidence/live_py_compile_final.txt` |
 | `backend\venv\Scripts\python.exe scripts\run_live_crud_e2e.py` | repo root; visible Chrome CDP 9333, Vite 5174, API 8001, E2E test DB | 10:43:45 | 0; 29 operations, 43 writes, 226 API 2xx, 10 SQL checks | `evidence/crud-e2e/live_crud_e2e.log` and `live_crud_e2e_verified.stdout.log` |
-| `git diff --check` | repo root; final working diff | see `evidence/live_diff_check.txt` | 0; no whitespace errors (Git reports only configured LF-to-CRLF notices) | `evidence/live_diff_check.txt` |
+| `git diff --check` | repo root; final working diff | 10:48:20 | 0; no whitespace errors (Git reports only configured LF-to-CRLF notices) | `evidence/live_diff_check.txt` |
 
 The final E2E harness now records `Runtime.consoleAPICalled` errors without persisting argument values, avoids duplicate Log console events, times out CDP commands and fails pending commands if the listener exits. It passed again after these changes. CRG tools were unavailable; no graph-backed review is claimed. The earlier independent review identified an overbroad expected-401 whitelist; it has been narrowed to exact `GET /api/auth/me` 401 responses and the final E2E passes with response/log counts matched.
 
