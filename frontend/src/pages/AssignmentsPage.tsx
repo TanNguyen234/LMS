@@ -41,7 +41,6 @@ export const AssignmentsPage: React.FC = () => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [submitAssignmentTarget, setSubmitAssignmentTarget] = useState<Assignment | null>(null);
   const [submissionText, setSubmissionText] = useState('');
-  const [submissionFile, setSubmissionFile] = useState<File | null>(null);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -84,7 +83,7 @@ export const AssignmentsPage: React.FC = () => {
       const created = await api.createAssignment(selectedCourseId, {
         title: newTitle,
         description: newDesc,
-        due_date: newDueDate || new Date(Date.now() + 7 * 86400000).toISOString(),
+        due_date: newDueDate ? new Date(newDueDate).toISOString() : new Date(Date.now() + 7 * 86400000).toISOString(),
         max_score: Number(newMaxScore),
       });
       setAssignments((prev) => [created, ...prev]);
@@ -140,11 +139,10 @@ export const AssignmentsPage: React.FC = () => {
     if (!submitAssignmentTarget || !submitAssignmentTarget.id) return;
     setSubmitting(true);
     try {
-      await api.submitAssignment(submitAssignmentTarget.id, submissionText, submissionFile ? submissionFile.name : undefined);
+      await api.submitAssignment(submitAssignmentTarget.id, submissionText);
       alert('Nộp bài thành công!');
       setIsSubmitModalOpen(false);
       setSubmissionText('');
-      setSubmissionFile(null);
       fetchAssignments();
     } catch (err: any) {
       alert('Lỗi nộp bài: ' + err.message);
@@ -398,7 +396,7 @@ export const AssignmentsPage: React.FC = () => {
             <h3 className="font-bold text-slate-800 text-base mb-1">
               Chấm điểm cho: {gradingSubmission.student_name}
             </h3>
-            <p className="text-xs text-slate-400 mb-4">Nội dung nộp: {gradingSubmission.submission_text || 'Tệp đính kèm'}</p>
+            <p className="text-xs text-slate-400 mb-4">Nội dung nộp: {gradingSubmission.submission_text || 'Không có nội dung văn bản'}</p>
 
             <form onSubmit={handleGradeSubmission} className="space-y-4">
               <div>
@@ -469,18 +467,11 @@ export const AssignmentsPage: React.FC = () => {
                   value={submissionText}
                   onChange={(e) => setSubmissionText(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                  placeholder="Dán câu trả lời, link GitHub hoặc báo cáo tóm tắt tại đây..."
+                  placeholder="Dán câu trả lời, báo cáo tóm tắt hoặc liên kết tài liệu tại đây..."
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tệp đính kèm (Tùy chọn)</label>
-                <input
-                  type="file"
-                  onChange={(e) => setSubmissionFile(e.target.files ? e.target.files[0] : null)}
-                  className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
-              </div>
+              <p className="text-xs text-slate-500">Bài nộp được lưu dưới dạng văn bản. Tải tệp trực tiếp chưa được hỗ trợ; có thể dán liên kết chia sẻ trong nội dung.</p>
 
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button

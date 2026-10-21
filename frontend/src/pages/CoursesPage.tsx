@@ -132,7 +132,7 @@ export const CoursesPage: React.FC = () => {
           </p>
         </div>
 
-        {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
+        {user?.role === 'ADMIN' && (
           <button
             onClick={() => setIsModalOpen(true)}
             className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition shrink-0"
@@ -167,7 +167,6 @@ export const CoursesPage: React.FC = () => {
             >
               <option value="ALL">Tất cả trạng thái</option>
               <option value="ACTIVE">Đang mở (Active)</option>
-              <option value="PUBLISHED">Đang mở (Published)</option>
               <option value="DRAFT">Bản nháp (Draft)</option>
               <option value="ARCHIVED">Đã lưu trữ (Archived)</option>
             </select>

@@ -1,3 +1,5 @@
+> **Historical audit snapshot:** this document describes an earlier repository state. Its PASS/RESOLVED claims are not evidence for the 2026-10-21 forensic-fix branch. Use the dated reports in `docs/audit/2026-10-21/` for current findings and verification.
+
 # Audit Document 08: Final Release Gate & Definition of Done (DoD)
 
 This release gate document provides evidence-backed verification for each criterion in the Definition of Done (DoD), leading to the formal release recommendation.

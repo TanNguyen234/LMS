@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from backend.app.db.session import get_db
-from backend.app.models.models import Grade, Course, User, Enrollment
+from backend.app.models.models import Grade, Course, User, Enrollment, Assignment, Quiz
 from backend.app.schemas.schemas import GradeResponse, ManualGradeCreate
 from backend.app.core.dependencies import (
     get_current_user, require_student, verify_course_access,
@@ -16,7 +16,14 @@ router = APIRouter(tags=["Grades & Gradebook"])
 
 def format_grade_response(grade: Grade, db: Session) -> GradeResponse:
     student = db.query(User).filter(User.UserId == grade.StudentId).first()
-    title = grade.Feedback or f"{grade.SourceType} Item"
+    if grade.SourceType == "ASSIGNMENT" and grade.SourceId:
+        source = db.query(Assignment).filter(Assignment.AssignmentId == grade.SourceId).first()
+        title = source.Title if source else "Assignment"
+    elif grade.SourceType == "QUIZ" and grade.SourceId:
+        source = db.query(Quiz).filter(Quiz.QuizId == grade.SourceId).first()
+        title = source.Title if source else "Quiz"
+    else:
+        title = "Manual grade"
     return GradeResponse(
         gradeId=grade.GradeId,
         courseId=grade.CourseId,

@@ -1,3 +1,5 @@
+> **Historical audit snapshot:** this document describes an earlier repository state. Its PASS/RESOLVED claims are not evidence for the 2026-10-21 forensic-fix branch. Use the dated reports in `docs/audit/2026-10-21/` for current findings and verification.
+
 # Audit Document 01: API Contract Reconciliation Matrix
 
 This document provides a comprehensive mapping of all backend endpoints under `backend/app/api/routes/`, their canonical Pydantic request/response schemas, allowed roles, frontend consumption points in `frontend/src/api/client.ts`, and verification status.

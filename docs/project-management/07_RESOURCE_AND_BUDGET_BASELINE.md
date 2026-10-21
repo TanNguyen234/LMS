@@ -1,16 +1,18 @@
+> **Tài liệu đồ án học thuật mô phỏng.** Vai trò, ước tính, giả định, trạng thái và biên bản trong kế hoạch này không phải bằng chứng thực thi hoặc phê duyệt thực tế.
+
 # 07 — Kế hoạch Nguồn lực & Bản cơ sở Ngân sách (Resource & Cost Baseline)
 
 ## 1. Bản cơ sở Ngân sách (Budget Baseline Overview)
 - **Tổng ngân sách phê duyệt (BAC - Budget at Completion):** **1.200.000.000 VNĐ** (Một tỷ hai trăm triệu đồng).
 - **Thời lượng dự án:** 20 tuần (5 tháng).
 - **Phương pháp ước tính:** Bottom-up Estimation kết hợp Parametric Costing.
-- **Quy tắc kiểm soát:** Toàn bộ chi phí được đối soát khớp 100% với baseline tại `docs/08_PROJECT_MANAGEMENT.md`.
+- **Quy tắc kiểm soát:** Các khoản trong tài liệu là ước tính baseline; đối soát tổng tại [Project Charter](01_PROJECT_CHARTER.md) và bảng này.
 
 ---
 
 ## 2. Kế hoạch Nguồn lực Nhân sự (Human Resource Plan & Labor Cost)
 
-Cơ cấu đội ngũ gồm 8 vị trí với tổng số 8.5 FTE:
+Kế hoạch phân bổ nhân lực có tổng 8.5 FTE. Bảng chi phí gồm 9 dòng phân bổ (PM, BA, UI/UX, 2 BE, 2 FE, QA, DevOps); số đầu người thực tế không được xác định bởi bảng ngân sách:
 
 | Vai trò (Role) | Số lượng / FTE | Thời gian tham gia | Đơn giá tháng (VNĐ/tháng) | Thành tiền (VNĐ) | Trách nhiệm chính |
 |---|---:|:---:|---:|---:|---|
@@ -59,7 +61,7 @@ Cơ cấu đội ngũ gồm 8 vị trí với tổng số 8.5 FTE:
 
 | Hạng mục chi phí | Dự toán chi tiết (VNĐ) | Tỷ trọng (%) | Ghi chú kiểm soát |
 |---|---:|---:|---|
-| 1. Chi phí Nhân sự (Labor) | 840.000.000 | 70,00% | 8 vị trí, 8.5 FTE trong 20 tuần |
+| 1. Chi phí Nhân sự (Labor) | 840.000.000 | 70,00% | 9 dòng phân bổ, tổng 8.5 FTE; đầu người chưa xác định |
 | 2. Hạ tầng & Môi trường Demo | 120.000.000 | 10,00% | Máy chủ, SQL Server, demo host |
 | 3. Công cụ & Bản quyền phần mềm | 48.000.000 | 4,00% | Công cụ quản lý, thiết kế, code |
 | 4. Đào tạo & Tài liệu hướng dẫn | 40.000.000 | 3,33% | Workshop, hướng dẫn người dùng |

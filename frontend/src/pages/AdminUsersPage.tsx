@@ -48,8 +48,11 @@ export const AdminUsersPage: React.FC = () => {
   const handleToggleStatus = async (userId: string | number) => {
     try {
       const targetUser = users.find((u) => u.id === userId);
-      const updated = await api.toggleUserStatus(userId, targetUser?.isActive);
-      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
+      if (!targetUser) return;
+      const currentActive = targetUser.isActive ?? targetUser.is_active;
+      await api.toggleUserStatus(userId, currentActive);
+      const nextActive = !currentActive;
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, isActive: nextActive, is_active: nextActive } : u)));
     } catch (err: any) {
       alert('Lỗi cập nhật trạng thái: ' + err.message);
     }

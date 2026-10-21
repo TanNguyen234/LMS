@@ -1,6 +1,15 @@
-import os
+import hmac
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_DEMO_JWT_SECRET = "university-lms-super-secret-jwt-key-2026-pm-academic"
+
+
+def validate_jwt_secret(app_env: str, jwt_secret: str) -> None:
+    if app_env.strip().lower() not in {"development", "test"} and hmac.compare_digest(
+        jwt_secret, DEFAULT_DEMO_JWT_SECRET
+    ):
+        raise RuntimeError("JWT_SECRET must be configured with a non-demo value outside development and test environments")
 
 
 class Settings(BaseSettings):
@@ -17,13 +26,9 @@ class Settings(BaseSettings):
     )
 
     # JWT
-    JWT_SECRET: str = "university-lms-super-secret-jwt-key-2026-pm-academic"
+    JWT_SECRET: str = DEFAULT_DEMO_JWT_SECRET
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
-
-    # Storage
-    UPLOAD_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "storage", "uploads")
-    MAX_UPLOAD_SIZE_MB: int = 10
 
     # CORS
     CORS_ORIGINS: List[str] = [

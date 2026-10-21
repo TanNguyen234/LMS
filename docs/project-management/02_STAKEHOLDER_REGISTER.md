@@ -1,3 +1,5 @@
+> **Tài liệu đồ án học thuật mô phỏng.** Vai trò, ước tính, giả định, trạng thái và biên bản trong kế hoạch này không phải bằng chứng thực thi hoặc phê duyệt thực tế.
+
 # 02 — Stakeholder Register & Power-Interest Matrix
 
 ## 1. Danh bạ các bên liên quan (Stakeholder Register)

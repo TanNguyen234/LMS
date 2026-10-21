@@ -143,7 +143,7 @@ CREATE TABLE dbo.QuizQuestions (
     CorrectAnswer NVARCHAR(500) NOT NULL,
     Score DECIMAL(6,2) NOT NULL,
     SortOrder INT NOT NULL,
-    CONSTRAINT CK_QuizQuestions_Type CHECK (QuestionType IN ('SINGLE_CHOICE','TRUE_FALSE','SHORT_TEXT')),
+    CONSTRAINT CK_QuizQuestions_Type CHECK (QuestionType IN ('SINGLE_CHOICE','TRUE_FALSE')),
     CONSTRAINT CK_QuizQuestions_Score CHECK (Score > 0),
     CONSTRAINT CK_QuizQuestions_SortOrder CHECK (SortOrder > 0),
     CONSTRAINT FK_QuizQuestions_Quiz FOREIGN KEY (QuizId) REFERENCES dbo.Quizzes(QuizId)
@@ -214,5 +214,8 @@ CREATE INDEX IX_Quizzes_CourseId ON dbo.Quizzes(CourseId);
 CREATE INDEX IX_QuizQuestions_QuizId ON dbo.QuizQuestions(QuizId);
 CREATE INDEX IX_QuizAttempts_StudentId ON dbo.QuizAttempts(StudentId);
 CREATE INDEX IX_Grades_Course_Student ON dbo.Grades(CourseId, StudentId);
+CREATE UNIQUE INDEX UQ_Grades_Source_Learner
+    ON dbo.Grades(CourseId, StudentId, SourceType, SourceId)
+    WHERE SourceId IS NOT NULL;
 CREATE INDEX IX_Notifications_User_Read ON dbo.Notifications(UserId, IsRead);
 GO

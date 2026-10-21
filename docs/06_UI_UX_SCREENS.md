@@ -71,7 +71,7 @@ Tabs:
 ### Quiz Builder
 - Quiz settings
 - Questions
-- Types: SINGLE_CHOICE, TRUE_FALSE, SHORT_TEXT
+- Types currently supported: SINGLE_CHOICE and TRUE_FALSE. SHORT_TEXT is deferred until a manual-grading flow exists.
 - Publish control
 
 ### Gradebook

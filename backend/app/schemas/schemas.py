@@ -1,7 +1,13 @@
 import uuid
-from datetime import datetime
-from typing import List, Optional
-from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime, timezone
+from typing import List, Literal, Optional
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+
+
+def as_utc_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 # ==========================================
@@ -190,13 +196,26 @@ class ModuleResponse(ModuleBase):
 # ==========================================
 
 class AssignmentBase(BaseModel):
-    title: str
+    title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
     dueAt: datetime
-    maxScore: float = 10.0
+    maxScore: float = Field(default=10.0, gt=0)
     allowLate: bool = False
     attachmentUrl: Optional[str] = None
-    status: str = "DRAFT"  # 'DRAFT', 'PUBLISHED', 'CLOSED'
+    status: Literal["DRAFT", "PUBLISHED", "CLOSED"] = "DRAFT"
+
+    @field_validator("title")
+    @classmethod
+    def strip_nonempty_title(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Title must not be empty")
+        return value
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, value: str) -> str:
+        return value.strip().upper() if isinstance(value, str) else value
 
 
 class AssignmentCreate(AssignmentBase):
@@ -207,10 +226,25 @@ class AssignmentUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     dueAt: Optional[datetime] = None
-    maxScore: Optional[float] = None
+    maxScore: Optional[float] = Field(default=None, gt=0)
     allowLate: Optional[bool] = None
     attachmentUrl: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[Literal["DRAFT", "PUBLISHED", "CLOSED"]] = None
+
+    @field_validator("title")
+    @classmethod
+    def strip_nonempty_title(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("Title must not be empty")
+        return value
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip().upper() if isinstance(value, str) else value
 
 
 class AssignmentResponse(AssignmentBase):
@@ -224,7 +258,19 @@ class AssignmentResponse(AssignmentBase):
 
 class SubmissionCreate(BaseModel):
     contentText: Optional[str] = None
-    fileUrl: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("contentText")
+    @classmethod
+    def normalize_content(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() if value is not None else None
+
+    @model_validator(mode="after")
+    def require_text_content(self):
+        if not self.contentText:
+            raise ValueError("Text submission content is required; file uploads are not supported")
+        return self
 
 
 class SubmissionGrade(BaseModel):
@@ -255,12 +301,20 @@ class SubmissionResponse(BaseModel):
 # ==========================================
 
 class QuizQuestionBase(BaseModel):
-    questionText: str
-    questionType: str  # 'SINGLE_CHOICE', 'TRUE_FALSE', 'SHORT_TEXT'
+    questionText: str = Field(..., min_length=1, max_length=1000)
+    questionType: str
     optionsJson: Optional[str] = None
-    correctAnswer: str
-    score: float = 1.0
+    correctAnswer: str = Field(..., min_length=1, max_length=500)
+    score: float = Field(default=1.0, gt=0)
     sortOrder: int = 1
+
+    @field_validator("questionText", "correctAnswer")
+    @classmethod
+    def strip_required_quiz_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Question text and correct answer must not be empty")
+        return value
 
 
 class QuizQuestionCreate(QuizQuestionBase):
@@ -272,7 +326,7 @@ class QuizQuestionUpdate(BaseModel):
     questionType: Optional[str] = None
     optionsJson: Optional[str] = None
     correctAnswer: Optional[str] = None
-    score: Optional[float] = None
+    score: Optional[float] = Field(default=None, gt=0)
     sortOrder: Optional[int] = None
 
 
@@ -305,14 +359,28 @@ class QuizQuestionStudentResponse(BaseModel):
 
 
 class QuizBase(BaseModel):
-    title: str
+    title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
     startAt: datetime
     endAt: datetime
-    timeLimitMinutes: int = 30
-    maxAttempts: int = 1
-    passingScore: float = 5.0
+    timeLimitMinutes: int = Field(default=30, ge=1, le=300)
+    maxAttempts: int = Field(default=1, ge=1, le=10)
+    passingScore: float = Field(default=5.0, ge=0)
     isPublished: bool = False
+
+    @field_validator("title")
+    @classmethod
+    def strip_quiz_title(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Title must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_window(self):
+        if as_utc_datetime(self.endAt) <= as_utc_datetime(self.startAt):
+            raise ValueError("EndAt must be after StartAt")
+        return self
 
 
 class QuizCreate(QuizBase):
@@ -324,10 +392,30 @@ class QuizUpdate(BaseModel):
     description: Optional[str] = None
     startAt: Optional[datetime] = None
     endAt: Optional[datetime] = None
-    timeLimitMinutes: Optional[int] = None
-    maxAttempts: Optional[int] = None
-    passingScore: Optional[float] = None
+    timeLimitMinutes: Optional[int] = Field(default=None, ge=1, le=300)
+    maxAttempts: Optional[int] = Field(default=None, ge=1, le=10)
+    passingScore: Optional[float] = Field(default=None, ge=0)
     isPublished: Optional[bool] = None
+
+    @field_validator("title")
+    @classmethod
+    def strip_optional_quiz_title(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("Title must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_optional_window(self):
+        if (
+            self.startAt is not None
+            and self.endAt is not None
+            and as_utc_datetime(self.endAt) <= as_utc_datetime(self.startAt)
+        ):
+            raise ValueError("EndAt must be after StartAt")
+        return self
 
 
 class QuizPublish(BaseModel):
@@ -338,6 +426,7 @@ class QuizResponse(QuizBase):
     quizId: uuid.UUID
     courseId: uuid.UUID
     createdAt: datetime
+    maxScore: float = 0.0
     questions: List[QuizQuestionResponse] = []
 
     class Config:
@@ -348,6 +437,7 @@ class QuizStudentResponse(QuizBase):
     quizId: uuid.UUID
     courseId: uuid.UUID
     createdAt: datetime
+    maxScore: float = 0.0
     questions: List[QuizQuestionStudentResponse] = []
 
     class Config:
@@ -360,6 +450,7 @@ class QuizAttemptStartResponse(BaseModel):
     attemptNo: int
     startedAt: datetime
     timeLimitMinutes: int
+    maxScore: float
     questions: List[QuizQuestionStudentResponse] = []
 
 

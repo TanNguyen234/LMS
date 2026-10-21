@@ -1,3 +1,5 @@
+> **Tài liệu đồ án học thuật mô phỏng.** Vai trò, ước tính, giả định, trạng thái và biên bản trong kế hoạch này không phải bằng chứng thực thi hoặc phê duyệt thực tế.
+
 # 03 — Ma trận Phân công Trách nhiệm (RACI Matrix)
 
 ## 1. Định nghĩa các vai trò trong RACI

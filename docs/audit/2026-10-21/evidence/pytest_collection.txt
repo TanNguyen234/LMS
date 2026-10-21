@@ -1,0 +1,112 @@
+Command: backend\venv\Scripts\python.exe -m pytest --collect-only -q backend/tests
+CWD: D:\Download\LMS
+Timestamp UTC:
+2026-10-21T00:51:32Z
+HEAD SHA:
+4fc2ead72d929ace0c3ed6ce85ae09dc4ac3fa6a
+ (working tree dirty)
+backend/tests/test_acceptance.py::test_ac01_authentication
+backend/tests/test_acceptance.py::test_ac02_authorization
+backend/tests/test_acceptance.py::test_ac03_course_isolation
+backend/tests/test_acceptance.py::test_ac04_enrollment_uniqueness
+backend/tests/test_acceptance.py::test_ac05_published_content
+backend/tests/test_acceptance.py::test_ac06_assignment_deadline
+backend/tests/test_acceptance.py::test_ac07_grading_sync
+backend/tests/test_acceptance.py::test_ac08_quiz_max_attempts
+backend/tests/test_acceptance.py::test_ac09_quiz_secret_protection
+backend/tests/test_acceptance.py::test_ac10_notification_ownership
+backend/tests/test_challenger_recon.py::test_challenger_health_endpoint_contract
+backend/tests/test_challenger_recon.py::test_challenger_auth_valid_logins_all_roles
+backend/tests/test_challenger_recon.py::test_challenger_auth_case_and_whitespace_insensitivity
+backend/tests/test_challenger_recon.py::test_challenger_auth_invalid_credentials_adversarial
+backend/tests/test_challenger_recon.py::test_challenger_rbac_student_forbidden_admin_routes
+backend/tests/test_challenger_recon.py::test_challenger_rbac_student_forbidden_lecturer_routes
+backend/tests/test_challenger_recon.py::test_challenger_rbac_lecturer_forbidden_admin_routes
+backend/tests/test_challenger_recon.py::test_challenger_assignment_deadline_enforcement
+backend/tests/test_challenger_recon.py::test_challenger_quiz_secret_protection_full_lifecycle
+backend/tests/test_challenger_recon.py::test_challenger_quiz_attempt_submit_execution
+backend/tests/test_forensic_contracts.py::test_assignment_status_rejects_database_invalid_active_value
+backend/tests/test_forensic_contracts.py::test_quiz_question_contract_rejects_unsupported_short_text_and_zero_score
+backend/tests/test_forensic_contracts.py::test_quiz_window_validates_naive_and_aware_datetimes_and_limits
+backend/tests/test_forensic_contracts.py::test_submission_contract_rejects_fake_filename_and_empty_text
+backend/tests/test_forensic_contracts.py::test_assignment_service_rejects_any_status_outside_database_check_constraint
+backend/tests/test_forensic_contracts.py::test_assignment_response_deadline_is_always_utc_aware
+backend/tests/test_forensic_contracts.py::test_quiz_option_contract_uses_actual_key_and_rejects_wrong_key
+backend/tests/test_forensic_contracts.py::test_quiz_question_contract_rejects_answer_metadata_in_option_objects
+backend/tests/test_forensic_contracts.py::test_student_question_payload_strips_legacy_answer_metadata
+backend/tests/test_forensic_contracts.py::test_student_question_payload_strips_answer_aliases_from_legacy_choice_maps
+backend/tests/test_forensic_contracts.py::test_quiz_deadline_is_earlier_of_window_and_time_limit_plus_grace
+backend/tests/test_forensic_contracts.py::test_quiz_max_score_is_sum_of_question_scores
+backend/tests/test_forensic_contracts.py::test_non_development_rejects_the_demo_jwt_secret
+backend/tests/test_forensic_contracts.py::test_spa_file_resolution_rejects_traversal
+backend/tests/test_recon2_challenger.py::test_health_contract
+backend/tests/test_recon2_challenger.py::test_auth_logins_and_user_dtos
+backend/tests/test_recon2_challenger.py::test_dashboards_contracts
+backend/tests/test_recon2_challenger.py::test_courses_returned_have_course_id
+backend/tests/test_recon2_challenger.py::test_quiz_question_type_enum
+backend/tests/test_recon2_challenger.py::test_student_grades_and_self_enrollment_denial
+
+============================== warnings summary ===============================
+backend\venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\Download\LMS\backend\venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+backend\app\schemas\schemas.py:54
+  D:\Download\LMS\backend\app\schemas\schemas.py:54: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class UserResponse(UserBase):
+
+backend\app\schemas\schemas.py:95
+  D:\Download\LMS\backend\app\schemas\schemas.py:95: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class CourseResponse(CourseBase):
+
+backend\app\schemas\schemas.py:108
+  D:\Download\LMS\backend\app\schemas\schemas.py:108: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class EnrollmentResponse(BaseModel):
+
+backend\app\schemas\schemas.py:153
+  D:\Download\LMS\backend\app\schemas\schemas.py:153: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class LessonResponse(LessonBase):
+
+backend\app\schemas\schemas.py:184
+  D:\Download\LMS\backend\app\schemas\schemas.py:184: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class ModuleResponse(ModuleBase):
+
+backend\app\schemas\schemas.py:250
+  D:\Download\LMS\backend\app\schemas\schemas.py:250: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class AssignmentResponse(AssignmentBase):
+
+backend\app\schemas\schemas.py:281
+  D:\Download\LMS\backend\app\schemas\schemas.py:281: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class SubmissionResponse(BaseModel):
+
+backend\app\schemas\schemas.py:333
+  D:\Download\LMS\backend\app\schemas\schemas.py:333: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizQuestionResponse(BaseModel):
+
+backend\app\schemas\schemas.py:347
+  D:\Download\LMS\backend\app\schemas\schemas.py:347: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizQuestionStudentResponse(BaseModel):
+
+backend\app\schemas\schemas.py:425
+  D:\Download\LMS\backend\app\schemas\schemas.py:425: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizResponse(QuizBase):
+
+backend\app\schemas\schemas.py:436
+  D:\Download\LMS\backend\app\schemas\schemas.py:436: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizStudentResponse(QuizBase):
+
+backend\app\schemas\schemas.py:461
+  D:\Download\LMS\backend\app\schemas\schemas.py:461: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizAttemptResponse(BaseModel):
+
+backend\app\schemas\schemas.py:491
+  D:\Download\LMS\backend\app\schemas\schemas.py:491: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class GradeResponse(BaseModel):
+
+backend\app\schemas\schemas.py:511
+  D:\Download\LMS\backend\app\schemas\schemas.py:511: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class NotificationResponse(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+40 tests collected in 0.36s
+EXIT_CODE=0

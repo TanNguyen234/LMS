@@ -189,7 +189,8 @@ export interface Quiz {
   description?: string;
   timeLimitMinutes: number;
   duration_minutes: number;
-  max_score: number;
+  maxScore?: number;
+  max_score?: number;
   startAt?: string;
   endAt?: string;
   maxAttempts?: number;
@@ -217,6 +218,16 @@ export interface QuizAttempt {
   submittedAt?: string;
   submitted_at?: string;
   status?: string;
+}
+
+export interface QuizAttemptStart {
+  attemptId: string;
+  quizId: string;
+  attemptNo: number;
+  startedAt: string;
+  timeLimitMinutes: number;
+  maxScore: number;
+  questions: QuizQuestion[];
 }
 
 export interface Grade {

@@ -364,13 +364,15 @@ export const CourseDetailPage: React.FC = () => {
         <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-slate-800">Danh sách sinh viên trong lớp ({enrollments.length})</h2>
-            <button
-              onClick={() => setIsEnrollModalOpen(true)}
-              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Ghi danh sinh viên</span>
-            </button>
+              {user?.role === 'ADMIN' && (
+                <button
+                  onClick={() => setIsEnrollModalOpen(true)}
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Ghi danh sinh viên</span>
+                </button>
+              )}
           </div>
 
           <div className="overflow-x-auto">

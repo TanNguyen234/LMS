@@ -1,9 +1,21 @@
 import json
+from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 from backend.app.main import app
+from backend.app.db.session import engine
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def require_disposable_test_database():
+    database_name = engine.url.database or ""
+    if not database_name.lower().startswith("universitylms_test_"):
+        pytest.skip(
+            "Integration tests require an isolated UniversityLms_Test_<id> database; "
+            "the configured database will not be modified."
+        )
 
 def test_health_contract():
     r = client.get("/health")
@@ -82,10 +94,22 @@ def test_quiz_question_type_enum():
     assert len(courses) > 0
     course_id = courses[0]["courseId"]
 
-    r_quizzes = client.get(f"/api/courses/{course_id}/quizzes", headers={"Authorization": f"Bearer {lec_token}"})
-    quizzes = r_quizzes.json()
-    assert len(quizzes) > 0
-    quiz_id = quizzes[0]["quizId"]
+    now = datetime.now(timezone.utc)
+    r_quiz = client.post(
+        f"/api/courses/{course_id}/quizzes",
+        json={
+            "title": "Question type contract test",
+            "startAt": now.isoformat(),
+            "endAt": (now + timedelta(days=1)).isoformat(),
+            "timeLimitMinutes": 15,
+            "maxAttempts": 1,
+            "passingScore": 1,
+            "isPublished": False,
+        },
+        headers={"Authorization": f"Bearer {lec_token}"},
+    )
+    assert r_quiz.status_code == 201
+    quiz_id = r_quiz.json()["quizId"]
 
     # SINGLE_CHOICE should succeed
     valid_payload = {

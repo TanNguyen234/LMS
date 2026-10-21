@@ -2,7 +2,6 @@ import asyncio
 import base64
 import json
 import os
-import subprocess
 import sys
 import time
 import urllib.request
@@ -12,11 +11,9 @@ if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-SCREENSHOT_DIR = r"D:\Download\LMS\.agents\teamwork\worker_live_e2e_1"
+SCREENSHOT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs", "audit", "2026-10-21", "evidence", "e2e")
 AUDIT_LOG_PATH = os.path.join(SCREENSHOT_DIR, "devtools_audit.log")
 
-CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-CHROME_USER_DATA = r"D:\Download\LMS\.chrome-session"
 CDP_PORT = 9222
 FRONTEND_URL = "http://localhost:5173"
 
@@ -172,47 +169,20 @@ class ChromeDevToolsClient:
             await self.ws.close()
 
 
-def kill_stale_chrome():
-    if sys.platform == "win32":
-        subprocess.run(["powershell", "-Command", "Stop-Process -Name chrome -Force -ErrorAction SilentlyContinue"], capture_output=True)
-        time.sleep(1)
-
 def ensure_chrome_running():
     try:
         req = urllib.request.urlopen(f"http://127.0.0.1:{CDP_PORT}/json/version", timeout=2)
         if req.status == 200:
             print(f"Chrome already running on port {CDP_PORT}")
-            return None
+            return
     except Exception:
         pass
     
-    print("Cleaning up any stale Chrome processes...")
-    kill_stale_chrome()
-    
-    print(f"Launching Chrome with remote debugging on port {CDP_PORT}...")
-    cmd = [
-        CHROME_PATH,
-        f"--remote-debugging-port={CDP_PORT}",
-        "--remote-allow-origins=*",
-        f"--user-data-dir={CHROME_USER_DATA}",
-        "--window-size=1440,900",
-        "--no-first-run",
-        "--no-default-browser-check",
-        "--headless=new",
-        "--disable-gpu",
-        FRONTEND_URL
-    ]
-    proc = subprocess.Popen(cmd)
-    for i in range(15):
-        time.sleep(1)
-        try:
-            req = urllib.request.urlopen(f"http://127.0.0.1:{CDP_PORT}/json/version", timeout=1)
-            if req.status == 200:
-                print("Chrome started and CDP port is listening.")
-                return proc
-        except Exception:
-            pass
-    raise RuntimeError("Failed to launch Chrome on CDP port.")
+    raise RuntimeError(
+        f"No dedicated Chrome DevTools session is listening on port {CDP_PORT}. "
+        "Start a test-only Chrome profile with remote debugging and rerun; "
+        "this script will not close or kill existing Chrome processes."
+    )
 
 
 async def get_or_create_page_ws_url():
@@ -229,7 +199,10 @@ async def get_or_create_page_ws_url():
 
 
 async def main():
-    chrome_proc = ensure_chrome_running()
+    test_database = os.environ.get("LMS_E2E_TEST_DATABASE", "")
+    if not test_database.casefold().startswith("universitylms_test_"):
+        raise RuntimeError("Set LMS_E2E_TEST_DATABASE to the disposable UniversityLms_Test_<id> database actually used by the running API.")
+    ensure_chrome_running()
     ws_url = await get_or_create_page_ws_url()
     print(f"Connecting to CDP WebSocket: {ws_url}")
     
@@ -437,31 +410,59 @@ async def main():
         
         # Navigate to Quizzes (/quizzes) and verify taking quiz / no correctAnswer leaks
         print("Navigating to Quizzes (/quizzes) as Student...")
+        await client.evaluate("""
+            (() => {
+                window.__quizAudit = { starts: [], submits: [] };
+                const originalFetch = window.fetch.bind(window);
+                window.fetch = async (input, init = {}) => {
+                    const url = typeof input === 'string' ? input : input.url;
+                    const method = (init.method || (typeof input === 'string' ? 'GET' : input.method) || 'GET').toUpperCase();
+                    const path = new URL(url, location.href).pathname;
+                    const isStart = method === 'POST' && /\\/api\\/quizzes\\/[^/]+\\/attempts\\/start$/.test(path);
+                    const isSubmit = method === 'POST' && /\\/api\\/quiz-attempts\\/[^/]+\\/submit$/.test(path);
+                    const response = await originalFetch(input, init);
+                    if (isStart || isSubmit) {
+                        let data = null;
+                        try { data = await response.clone().json(); } catch (_) {}
+                        (isStart ? window.__quizAudit.starts : window.__quizAudit.submits).push({ url, status: response.status, data });
+                    }
+                    return response;
+                };
+            })()
+        """)
         await client.evaluate("document.querySelector('a[href=\"/quizzes\"]').click()")
         await client.wait_for_selector("h1", timeout=10)
         await asyncio.sleep(1.5)
         
-        # Open Quiz Taking interface
-        print("Opening quiz to inspect student view and verify no correctAnswer leakage...")
-        play_btn_exists = await client.evaluate("!!document.querySelector('button:has(svg.lucide-play), button:has(.lucide-play)') || !!Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Làm bài'))")
-        if play_btn_exists:
-            await client.evaluate("Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Làm bài')).click()")
-            await asyncio.sleep(2.0)
-            
-            # Check modal content for any leak of correct_option_id or correctAnswer
-            modal_html = await client.evaluate("document.body.innerHTML")
-            assert "correct_option_id" not in modal_html, "LEAK DETECTED: correct_option_id found in student DOM!"
-            assert "correctAnswer" not in modal_html, "LEAK DETECTED: correctAnswer found in student DOM!"
-            print("Verified: Student quiz view does NOT leak correct answers in DOM or markup!")
-            
-            # Close quiz modal
-            await client.evaluate("""
-                (() => {
-                    const closeBtn = document.querySelector('.lucide-x')?.closest('button');
-                    if (closeBtn) closeBtn.click();
-                })()
-            """)
-            await asyncio.sleep(1.0)
+        # Required timed attempt journey. This must use only a disposable test database.
+        print("Starting and submitting a real timed quiz attempt...")
+        start_button_exists = await client.evaluate("!!Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Làm bài') && !b.disabled)")
+        assert start_button_exists, "Required E2E fixture missing: student has no available quiz with questions"
+        await client.evaluate("Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Làm bài') && !b.disabled).click()")
+        await client.wait_for_selector(".fixed.inset-0 input[type='radio']", timeout=15)
+        await asyncio.sleep(0.3)
+        quiz_audit = await client.evaluate("window.__quizAudit")
+        assert len(quiz_audit["starts"]) == 1, f"Expected exactly one start request, got {len(quiz_audit['starts'])}"
+        started = quiz_audit["starts"][0]
+        assert started["status"] == 200, f"Quiz start failed with HTTP {started['status']}"
+        start_data = started["data"] or {}
+        attempt_id = start_data.get("attemptId")
+        assert attempt_id and start_data.get("startedAt") and start_data.get("timeLimitMinutes"), "Start response lacks timed attempt fields"
+        assert start_data.get("questions"), "Start response contains no questions"
+        assert all("correctAnswer" not in question for question in start_data["questions"]), "LEAK DETECTED: correctAnswer found in start response"
+        await client.evaluate("document.querySelector('.fixed.inset-0 input[type=radio]').click()")
+        await client.evaluate("Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Nộp bài & Chấm điểm')).click()")
+        await client.wait_for_text("Kết quả bài làm của bạn", timeout=15)
+        quiz_audit = await client.evaluate("window.__quizAudit")
+        assert len(quiz_audit["submits"]) == 1, f"Expected exactly one submit request, got {len(quiz_audit['submits'])}"
+        submitted = quiz_audit["submits"][0]
+        assert submitted["status"] == 200, f"Quiz submit failed with HTTP {submitted['status']}"
+        assert f"/quiz-attempts/{attempt_id}/submit" in submitted["url"], "Submit did not use the attemptId returned by start"
+        assert "correctAnswer" not in await client.evaluate("document.body.innerHTML"), "LEAK DETECTED: correctAnswer found in student DOM"
+        expected_max = float(start_data.get("maxScore", 0))
+        result_text = await client.evaluate("document.body.innerText")
+        assert expected_max > 0 and f"/ {expected_max:g}" in result_text, f"Quiz result does not show server max score {expected_max:g}"
+        print(f"Verified timed attempt {attempt_id}: start HTTP 200, submit HTTP 200, same attempt ID, max score {expected_max:g}.")
         
         # Navigate to Grades (/grades)
         print("Navigating to Student Grades (/grades)...")
@@ -479,7 +480,7 @@ async def main():
         audit_records.append("### Persona 3: Student — SUCCESS")
         audit_records.append(f"- Login: student1@university.edu.vn -> JWT authentication OK")
         audit_records.append(f"- Dashboard: Enrolled courses and GPA metrics rendered")
-        audit_records.append(f"- Quizzes: Inspected student quiz questions; VERIFIED ZERO correctAnswer / correct_option_id leak")
+        audit_records.append(f"- Quizzes: start HTTP {started['status']}; submit HTTP {submitted['status']}; same attempt {attempt_id}; max score {expected_max:g}; no correctAnswer returned")
         audit_records.append(f"- Grades: Verified student gradebook rows ({stu_grade_rows} items)")
         audit_records.append(f"- Screenshot: screenshot_student_grades.png\n")
 
@@ -507,12 +508,12 @@ async def main():
         for resp in client.network_responses:
             line = f"  [{resp['status']}] {resp['method']} {resp['url']}"
             audit_records.append(line)
-            if resp['status'] >= 400 and resp['status'] != 401: # 401 expected during unauth tests
+            if resp['status'] >= 400:
                 api_failures.append(line)
 
         audit_records.append(f"\n### Integrity Verification:")
-        audit_records.append(f"- Unhandled JS exceptions: {len(client.unhandled_exceptions)} (PASS)")
-        audit_records.append(f"- Backend 500 errors in network log: {len([r for r in client.network_responses if r['status'] >= 500])} (PASS)")
+        audit_records.append(f"- Unhandled JS exceptions: {len(client.unhandled_exceptions)}")
+        audit_records.append(f"- API 4xx/5xx responses: {len(api_failures)}")
         audit_records.append(f"- All 3 persona flows completed with genuine user actions.")
         
         with open(AUDIT_LOG_PATH, "w", encoding="utf-8") as f:
@@ -521,13 +522,11 @@ async def main():
 
         # Assert zero unhandled exceptions
         assert len(client.unhandled_exceptions) == 0, f"Found unhandled exceptions: {client.unhandled_exceptions}"
+        assert not api_failures, f"Unexpected API failures: {api_failures}"
         print("\n>>> ALL PERSONA FLOWS AND AUDIT CHECKS PASSED SUCCESSFULLY! <<<")
 
     finally:
         await client.close()
-        if chrome_proc:
-            print("Terminating Chrome test process...")
-            chrome_proc.terminate()
 
 if __name__ == "__main__":
     asyncio.run(main())

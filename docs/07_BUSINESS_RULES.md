@@ -39,7 +39,7 @@ Quiz chỉ start khi:
 ## BR-08 Quiz scoring
 - `SINGLE_CHOICE`: exact match key/string normalized.
 - `TRUE_FALSE`: normalized boolean/string.
-- `SHORT_TEXT`: MVP không auto-score; score 0 và lecturer có thể nhập manual grade hoặc bỏ question loại này khỏi auto total. Để demo đơn giản, seed chỉ dùng SINGLE_CHOICE/TRUE_FALSE.
+- `SHORT_TEXT`: chưa được hỗ trợ trong MVP hiện tại; API từ chối loại này vì UI không có luồng trả lời dạng văn bản. Nếu mở rộng sau này, phải có quy trình chấm tay rõ ràng và không được so chuỗi để auto-score. Seed chỉ dùng SINGLE_CHOICE/TRUE_FALSE.
 
 ## BR-09 Quiz attempt
 - AttemptNo do server tính.
