@@ -73,6 +73,12 @@ def test_assignment_response_deadline_is_always_utc_aware():
     assert assignment_response_datetime(offset_datetime) == expected
 
 
+def test_assignment_response_deadline_parses_sql_server_datetime_strings():
+    sql_datetime_string = "2026-10-21 16:30:00.0000000"
+    expected = datetime(2026, 10, 21, 16, 30, tzinfo=timezone.utc)
+    assert assignment_response_datetime(sql_datetime_string) == expected
+
+
 def test_quiz_option_contract_uses_actual_key_and_rejects_wrong_key():
     validate_question_contract("SINGLE_CHOICE", '[{"key":"K9","text":"Answer"}]', "K9")
     with pytest.raises(HTTPException) as error:

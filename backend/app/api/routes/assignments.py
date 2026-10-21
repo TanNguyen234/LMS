@@ -32,14 +32,16 @@ def normalize_assignment_status(value: str) -> str:
     return normalized
 
 
-def to_utc_datetime(value: datetime) -> datetime:
+def to_utc_datetime(value: datetime | str) -> datetime:
     """Store SQL Server DATETIME2 values as naive UTC and return aware UTC values."""
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
 
 
-def assignment_response_datetime(value: datetime) -> datetime:
+def assignment_response_datetime(value: datetime | str) -> datetime:
     return to_utc_datetime(value)
 
 
