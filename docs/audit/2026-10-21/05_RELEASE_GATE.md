@@ -4,7 +4,7 @@ Evidence cut: 2026-10-21 00:52 UTC. Working tree was dirty on the fix branch; fi
 
 ## Decision: BLOCKED
 
-The source and documentation corrections are prepared on branch fix/lms-forensic-acceptance-20261021. No merge or deployment occurred. The release gate cannot pass because no disposable SQL Server database or browser/API staging journey was available.
+The source and documentation corrections are on branch fix/lms-forensic-acceptance-20261021 at source commit b1f5cd3e31be90a8a9f780a2455d517dc7236654. Draft PR [#1](https://github.com/TanNguyen234/LMS/pull/1) is open for review. No merge or deployment occurred. The release gate cannot pass because no disposable SQL Server database or browser/API staging journey was available.
 
 ## Evidence attached to this branch
 
@@ -30,7 +30,7 @@ The source and documentation corrections are prepared on branch fix/lms-forensic
 
 ## Source-level triage
 
-The baseline review confirmed 4 P0, 8 P1 and 1 P2 finding; implementation updates are listed in 01_FINDINGS_AND_TRIAGE.md. Current verified status is 10 pure regressions passing, while database-dependent findings remain UNKNOWN pending SQL Server and browser evidence.
+The baseline review confirmed 4 P0, 8 P1 and 1 P2 finding; implementation updates are listed in 01_FINDINGS_AND_TRIAGE.md. Current verified status is 14 pure regression tests passing, while database-dependent findings remain UNKNOWN pending SQL Server and browser evidence.
 
 ## Approval boundary
 
