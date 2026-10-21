@@ -1,8 +1,11 @@
 import json
 import uuid
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from backend.app.db.session import get_db
 from backend.app.models.models import (
@@ -20,6 +23,136 @@ from backend.app.core.dependencies import (
 )
 
 router = APIRouter(tags=["Quizzes & Attempts"])
+
+ATTEMPT_GRACE_SECONDS = 60
+STUDENT_OPTION_FIELDS = {"key", "id", "value", "text", "label"}
+ANSWER_METADATA_FIELDS = {
+    "answer", "answerkey", "answeriscorrect", "correct", "correctanswer",
+    "correctkey", "correctoption", "explanation", "iscorrect", "iscorrectanswer",
+    "isright", "rightanswer", "solution",
+}
+
+
+def normalized_option_field(value: str) -> str:
+    return "".join(character for character in value.casefold() if character.isalnum())
+
+
+def option_field_contains_answer_metadata(value: str) -> bool:
+    normalized = normalized_option_field(value)
+    return (
+        normalized in ANSWER_METADATA_FIELDS
+        or "answer" in normalized
+        or "correct" in normalized
+        or "solution" in normalized
+        or "explanation" in normalized
+    )
+
+
+def validate_options_have_no_answer_metadata(value) -> None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if option_field_contains_answer_metadata(str(key)):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Options must not contain answer or correctness metadata",
+                )
+            validate_options_have_no_answer_metadata(child)
+    elif isinstance(value, list):
+        for child in value:
+            validate_options_have_no_answer_metadata(child)
+
+
+def student_safe_options_json(options_json: Optional[str]) -> Optional[str]:
+    """Return choice labels/keys only, including for legacy rows with extra fields."""
+    if options_json is None:
+        return None
+    try:
+        raw = json.loads(options_json) if isinstance(options_json, str) else options_json
+    except (TypeError, json.JSONDecodeError):
+        return None
+
+    def safe_value(value):
+        if isinstance(value, dict):
+            # Objects describing one choice have a narrow public contract.
+            if any(normalized_option_field(str(key)) in STUDENT_OPTION_FIELDS for key in value):
+                return {
+                    key: safe_value(child)
+                    for key, child in value.items()
+                    if normalized_option_field(str(key)) in STUDENT_OPTION_FIELDS
+                }
+            # A top-level object can also be a {choiceKey: choiceText} map.
+            return {
+                key: safe_value(child)
+                for key, child in value.items()
+                if not option_field_contains_answer_metadata(str(key))
+            }
+        if isinstance(value, list):
+            return [safe_value(child) for child in value]
+        return value
+
+    return json.dumps(safe_value(raw), ensure_ascii=False)
+
+
+def sum_question_scores(questions) -> float:
+    return float(sum((Decimal(str(question.Score)) for question in questions), Decimal("0")))
+
+
+def effective_attempt_deadline(started_at: datetime, time_limit_minutes: int, quiz_end_at: datetime) -> datetime:
+    started = parse_datetime(started_at)
+    quiz_end = parse_datetime(quiz_end_at)
+    attempt_end = started + timedelta(minutes=time_limit_minutes, seconds=ATTEMPT_GRACE_SECONDS)
+    return min(quiz_end, attempt_end)
+
+
+def validate_question_contract(question_type: str, options_json: Optional[str], correct_answer: str) -> None:
+    normalized_type = question_type.strip().upper()
+    answer = correct_answer.strip()
+    if normalized_type == "TRUE_FALSE":
+        if answer.lower() not in {"true", "false"}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="TRUE_FALSE answer must be true or false")
+        return
+    if normalized_type != "SINGLE_CHOICE":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid questionType")
+    try:
+        raw = json.loads(options_json) if isinstance(options_json, str) else options_json
+    except (TypeError, json.JSONDecodeError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Options must be valid JSON")
+    validate_options_have_no_answer_metadata(raw)
+    if isinstance(raw, dict):
+        keys = [str(key) for key in raw]
+    elif isinstance(raw, list):
+        keys = [
+            str(item.get("key", item.get("id", chr(65 + index)))) if isinstance(item, dict)
+            else chr(65 + index)
+            for index, item in enumerate(raw)
+        ]
+    else:
+        keys = []
+    if not keys:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SINGLE_CHOICE questions require answer options")
+    if answer.casefold() not in {key.casefold() for key in keys}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CorrectAnswer must match an option key")
+
+
+def ensure_quiz_unattempted(quiz_id: uuid.UUID, db: Session) -> None:
+    has_attempt = db.query(QuizAttempt.AttemptId).filter(QuizAttempt.QuizId == quiz_id).first()
+    if has_attempt:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Quiz questions and scoring cannot change after an attempt has started")
+
+
+def quiz_question_payload(questions):
+    return [
+        QuizQuestionStudentResponse(
+            questionId=qn.QuestionId,
+            quizId=qn.QuizId,
+            questionText=qn.QuestionText,
+            questionType=qn.QuestionType,
+            optionsJson=student_safe_options_json(qn.OptionsJson),
+            score=float(qn.Score),
+            sortOrder=qn.SortOrder,
+        )
+        for qn in questions
+    ]
 
 
 def get_quiz_or_404(quiz_id: uuid.UUID, db: Session) -> Quiz:
@@ -49,6 +182,12 @@ def get_course_quizzes(
     if current_user.Role == "STUDENT":
         query = query.filter(Quiz.IsPublished == True)
     quizzes = query.order_by(Quiz.StartAt.asc()).all()
+    max_scores = {}
+    if quizzes:
+        rows = db.query(QuizQuestion.QuizId, func.sum(QuizQuestion.Score)).filter(
+            QuizQuestion.QuizId.in_([q.QuizId for q in quizzes])
+        ).group_by(QuizQuestion.QuizId).all()
+        max_scores = {quiz_id: float(score or 0) for quiz_id, score in rows}
 
     if current_user.Role == "STUDENT":
         return [
@@ -57,11 +196,12 @@ def get_course_quizzes(
                 courseId=q.CourseId,
                 title=q.Title,
                 description=q.Description,
-                startAt=q.StartAt,
-                endAt=q.EndAt,
+                startAt=parse_datetime(q.StartAt),
+                endAt=parse_datetime(q.EndAt),
                 timeLimitMinutes=q.TimeLimitMinutes,
                 maxAttempts=q.MaxAttempts,
                 passingScore=float(q.PassingScore),
+                maxScore=max_scores.get(q.QuizId, 0.0),
                 isPublished=q.IsPublished,
                 createdAt=q.CreatedAt,
                 questions=[]  # list summary
@@ -76,11 +216,12 @@ def get_course_quizzes(
             courseId=q.CourseId,
             title=q.Title,
             description=q.Description,
-            startAt=q.StartAt,
-            endAt=q.EndAt,
+            startAt=parse_datetime(q.StartAt),
+            endAt=parse_datetime(q.EndAt),
             timeLimitMinutes=q.TimeLimitMinutes,
             maxAttempts=q.MaxAttempts,
             passingScore=float(q.PassingScore),
+            maxScore=max_scores.get(q.QuizId, 0.0),
             isPublished=q.IsPublished,
             createdAt=q.CreatedAt,
             questions=[]
@@ -105,8 +246,8 @@ def create_quiz(
         CourseId=course_id,
         Title=quiz_in.title.strip(),
         Description=quiz_in.description.strip() if quiz_in.description else None,
-        StartAt=quiz_in.startAt,
-        EndAt=quiz_in.endAt,
+        StartAt=parse_datetime(quiz_in.startAt).replace(tzinfo=None),
+        EndAt=parse_datetime(quiz_in.endAt).replace(tzinfo=None),
         TimeLimitMinutes=quiz_in.timeLimitMinutes,
         MaxAttempts=quiz_in.maxAttempts,
         PassingScore=quiz_in.passingScore,
@@ -121,11 +262,12 @@ def create_quiz(
         courseId=new_q.CourseId,
         title=new_q.Title,
         description=new_q.Description,
-        startAt=new_q.StartAt,
-        endAt=new_q.EndAt,
+        startAt=parse_datetime(new_q.StartAt),
+        endAt=parse_datetime(new_q.EndAt),
         timeLimitMinutes=new_q.TimeLimitMinutes,
         maxAttempts=new_q.MaxAttempts,
         passingScore=float(new_q.PassingScore),
+        maxScore=0.0,
         isPublished=new_q.IsPublished,
         createdAt=new_q.CreatedAt,
         questions=[]
@@ -156,25 +298,15 @@ def get_quiz_detail(
             courseId=q.CourseId,
             title=q.Title,
             description=q.Description,
-            startAt=q.StartAt,
-            endAt=q.EndAt,
+            startAt=parse_datetime(q.StartAt),
+            endAt=parse_datetime(q.EndAt),
             timeLimitMinutes=q.TimeLimitMinutes,
             maxAttempts=q.MaxAttempts,
             passingScore=float(q.PassingScore),
+            maxScore=sum_question_scores(questions),
             isPublished=q.IsPublished,
             createdAt=q.CreatedAt,
-            questions=[
-                QuizQuestionStudentResponse(
-                    questionId=qn.QuestionId,
-                    quizId=qn.QuizId,
-                    questionText=qn.QuestionText,
-                    questionType=qn.QuestionType,
-                    optionsJson=qn.OptionsJson,
-                    score=float(qn.Score),
-                    sortOrder=qn.SortOrder
-                )
-                for qn in questions
-            ]
+            questions=quiz_question_payload(questions)
         )
 
     # Lecturer / Admin
@@ -183,11 +315,12 @@ def get_quiz_detail(
         courseId=q.CourseId,
         title=q.Title,
         description=q.Description,
-        startAt=q.StartAt,
-        endAt=q.EndAt,
+        startAt=parse_datetime(q.StartAt),
+        endAt=parse_datetime(q.EndAt),
         timeLimitMinutes=q.TimeLimitMinutes,
         maxAttempts=q.MaxAttempts,
         passingScore=float(q.PassingScore),
+        maxScore=sum_question_scores(questions),
         isPublished=q.IsPublished,
         createdAt=q.CreatedAt,
         questions=[
@@ -217,14 +350,24 @@ def update_quiz(
     q = get_quiz_or_404(quiz_id, db)
     verify_lecturer_course_owner(q.CourseId, current_user, db)
 
+    if any(value is not None for value in (quiz_in.startAt, quiz_in.endAt, quiz_in.timeLimitMinutes, quiz_in.maxAttempts)):
+        has_attempt = db.query(QuizAttempt.AttemptId).filter(QuizAttempt.QuizId == quiz_id).first()
+        if has_attempt:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Quiz schedule and attempt limits cannot change after an attempt has started")
+
+    effective_start = parse_datetime(quiz_in.startAt) if quiz_in.startAt is not None else parse_datetime(q.StartAt)
+    effective_end = parse_datetime(quiz_in.endAt) if quiz_in.endAt is not None else parse_datetime(q.EndAt)
+    if effective_end <= effective_start:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="EndAt must be after StartAt")
+
     if quiz_in.title is not None:
         q.Title = quiz_in.title.strip()
     if quiz_in.description is not None:
         q.Description = quiz_in.description.strip() if quiz_in.description else None
     if quiz_in.startAt is not None:
-        q.StartAt = quiz_in.startAt
+        q.StartAt = parse_datetime(quiz_in.startAt).replace(tzinfo=None)
     if quiz_in.endAt is not None:
-        q.EndAt = quiz_in.endAt
+        q.EndAt = parse_datetime(quiz_in.endAt).replace(tzinfo=None)
     if quiz_in.timeLimitMinutes is not None:
         q.TimeLimitMinutes = quiz_in.timeLimitMinutes
     if quiz_in.maxAttempts is not None:
@@ -270,8 +413,8 @@ def add_quiz_question(
     q = get_quiz_or_404(quiz_id, db)
     verify_lecturer_course_owner(q.CourseId, current_user, db)
 
-    if qn_in.questionType not in ["SINGLE_CHOICE", "TRUE_FALSE", "SHORT_TEXT"]:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid questionType")
+    ensure_quiz_unattempted(quiz_id, db)
+    validate_question_contract(qn_in.questionType, qn_in.optionsJson, qn_in.correctAnswer)
 
     new_qn = QuizQuestion(
         QuestionId=uuid.uuid4(),
@@ -312,6 +455,13 @@ def update_quiz_question(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     q = get_quiz_or_404(qn.QuizId, db)
     verify_lecturer_course_owner(q.CourseId, current_user, db)
+
+    ensure_quiz_unattempted(q.QuizId, db)
+    validate_question_contract(
+        qn_in.questionType or qn.QuestionType,
+        qn_in.optionsJson if qn_in.optionsJson is not None else qn.OptionsJson,
+        qn_in.correctAnswer if qn_in.correctAnswer is not None else qn.CorrectAnswer,
+    )
 
     if qn_in.questionText is not None:
         qn.QuestionText = qn_in.questionText.strip()
@@ -368,7 +518,11 @@ def start_quiz_attempt(
     4. Attempt count < MaxAttempts
     Returns questions WITHOUT CorrectAnswer.
     """
-    q = get_quiz_or_404(quiz_id, db)
+    q = db.query(Quiz).filter(Quiz.QuizId == quiz_id).with_hint(
+        Quiz, "WITH (UPDLOCK, ROWLOCK)", dialect_name="mssql"
+    ).first()
+    if not q:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
     if not q.IsPublished:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quiz is not published")
 
@@ -385,9 +539,41 @@ def start_quiz_attempt(
     start_at = parse_datetime(q.StartAt)
     end_at = parse_datetime(q.EndAt)
 
+    questions = db.query(QuizQuestion).filter(QuizQuestion.QuizId == quiz_id).order_by(QuizQuestion.SortOrder.asc()).all()
+    if not questions:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quiz has no questions and cannot be started")
+    for question in questions:
+        validate_question_contract(question.QuestionType, question.OptionsJson, question.CorrectAnswer)
+
+    expired_attempt_updated = False
+    active_attempt = db.query(QuizAttempt).filter(
+        QuizAttempt.QuizId == quiz_id,
+        QuizAttempt.StudentId == current_user.UserId,
+        QuizAttempt.Status == "IN_PROGRESS",
+    ).order_by(QuizAttempt.AttemptNo.desc()).first()
+    if active_attempt:
+        if now <= effective_attempt_deadline(active_attempt.StartedAt, q.TimeLimitMinutes, end_at):
+            return QuizAttemptStartResponse(
+                attemptId=active_attempt.AttemptId,
+                quizId=active_attempt.QuizId,
+                attemptNo=active_attempt.AttemptNo,
+                startedAt=parse_datetime(active_attempt.StartedAt),
+                timeLimitMinutes=q.TimeLimitMinutes,
+                maxScore=sum_question_scores(questions),
+                questions=quiz_question_payload(questions),
+            )
+        active_attempt.Status = "EXPIRED"
+        active_attempt.SubmittedAt = now
+        db.flush()
+        expired_attempt_updated = True
+
     if now < start_at:
+        if expired_attempt_updated:
+            db.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quiz has not started yet")
     if now > end_at:
+        if expired_attempt_updated:
+            db.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quiz availability window has ended")
 
     # Count prior attempts
@@ -397,6 +583,8 @@ def start_quiz_attempt(
     ).count()
 
     if prior_attempts >= q.MaxAttempts:
+        if expired_attempt_updated:
+            db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Maximum attempts ({q.MaxAttempts}) reached for this quiz"
@@ -412,30 +600,36 @@ def start_quiz_attempt(
         Status="IN_PROGRESS"
     )
     db.add(new_attempt)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raced_attempt = db.query(QuizAttempt).filter(
+            QuizAttempt.QuizId == quiz_id,
+            QuizAttempt.StudentId == current_user.UserId,
+            QuizAttempt.AttemptNo == attempt_no,
+        ).first()
+        if raced_attempt and raced_attempt.Status == "IN_PROGRESS" and now <= effective_attempt_deadline(raced_attempt.StartedAt, q.TimeLimitMinutes, end_at):
+            return QuizAttemptStartResponse(
+                attemptId=raced_attempt.AttemptId,
+                quizId=raced_attempt.QuizId,
+                attemptNo=raced_attempt.AttemptNo,
+                startedAt=parse_datetime(raced_attempt.StartedAt),
+                timeLimitMinutes=q.TimeLimitMinutes,
+                maxScore=sum_question_scores(questions),
+                questions=quiz_question_payload(questions),
+            )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Could not create a unique quiz attempt; retry the request")
     db.refresh(new_attempt)
-
-    # Questions without answers
-    questions = db.query(QuizQuestion).filter(QuizQuestion.QuizId == quiz_id).order_by(QuizQuestion.SortOrder.asc()).all()
 
     return QuizAttemptStartResponse(
         attemptId=new_attempt.AttemptId,
         quizId=new_attempt.QuizId,
         attemptNo=new_attempt.AttemptNo,
-        startedAt=new_attempt.StartedAt,
+        startedAt=parse_datetime(new_attempt.StartedAt),
         timeLimitMinutes=q.TimeLimitMinutes,
-        questions=[
-            QuizQuestionStudentResponse(
-                questionId=qn.QuestionId,
-                quizId=qn.QuizId,
-                questionText=qn.QuestionText,
-                questionType=qn.QuestionType,
-                optionsJson=qn.OptionsJson,
-                score=float(qn.Score),
-                sortOrder=qn.SortOrder
-            )
-            for qn in questions
-        ]
+        maxScore=sum_question_scores(questions),
+        questions=quiz_question_payload(questions),
     )
 
 
@@ -451,7 +645,9 @@ def submit_quiz_attempt(
     Auto-scores SINGLE_CHOICE and TRUE_FALSE questions.
     Upserts into Grades table and sends notification.
     """
-    attempt = db.query(QuizAttempt).filter(QuizAttempt.AttemptId == attempt_id).first()
+    attempt = db.query(QuizAttempt).filter(QuizAttempt.AttemptId == attempt_id).with_hint(
+        QuizAttempt, "WITH (UPDLOCK, ROWLOCK)", dialect_name="mssql"
+    ).first()
     if not attempt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz attempt not found")
     if attempt.StudentId != current_user.UserId:
@@ -462,40 +658,55 @@ def submit_quiz_attempt(
             detail=f"Attempt cannot be submitted because status is '{attempt.Status}'"
         )
 
-    q = get_quiz_or_404(attempt.QuizId, db)
+    q = db.query(Quiz).filter(Quiz.QuizId == attempt.QuizId).with_hint(
+        Quiz, "WITH (UPDLOCK, ROWLOCK)", dialect_name="mssql"
+    ).first()
+    if not q:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
 
     now = datetime.now(timezone.utc)
     end_at = parse_datetime(q.EndAt)
     started_at = parse_datetime(attempt.StartedAt)
 
-    # Check quiz availability window
-    if now > end_at:
+    enrollment = db.query(Enrollment.EnrollmentId).filter(
+        Enrollment.CourseId == q.CourseId,
+        Enrollment.StudentId == current_user.UserId,
+        Enrollment.Status == "ACTIVE",
+    ).first()
+    if not enrollment or not q.IsPublished:
         attempt.Status = "EXPIRED"
+        attempt.SubmittedAt = now
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Quiz access was revoked after this attempt started; the attempt was expired",
+        )
+
+    deadline = effective_attempt_deadline(started_at, q.TimeLimitMinutes, end_at)
+    if now > deadline:
+        attempt.Status = "EXPIRED"
+        attempt.SubmittedAt = now
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Quiz availability window has ended. Attempt marked as EXPIRED."
+            detail="Quiz deadline has passed. Attempt marked as EXPIRED."
         )
 
-    # Check time limit with a 60-second grace period for network latency
-    allowed_duration = timedelta(minutes=q.TimeLimitMinutes, seconds=60)
-    if now > started_at + allowed_duration:
+    questions = db.query(QuizQuestion).filter(QuizQuestion.QuizId == q.QuizId).order_by(QuizQuestion.SortOrder.asc()).all()
+    if not questions:
         attempt.Status = "EXPIRED"
+        attempt.SubmittedAt = now
         db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Quiz time limit exceeded. Attempt marked as EXPIRED."
-        )
-
-    questions = db.query(QuizQuestion).filter(QuizQuestion.QuizId == q.QuizId).all()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quiz has no questions and cannot be submitted")
 
     total_score = 0.0
-    max_possible_score = sum(float(qn.Score) for qn in questions)
+    max_possible_score = sum_question_scores(questions)
 
     # Calculate score based on answers map {"<questionId>": "<answer>"}
     user_answers = submit_in.answers or {}
 
     for qn in questions:
+        validate_question_contract(qn.QuestionType, qn.OptionsJson, qn.CorrectAnswer)
         qid_str = str(qn.QuestionId)
         user_ans = user_answers.get(qid_str)
         if user_ans is None:
@@ -510,11 +721,20 @@ def submit_quiz_attempt(
         elif qn.QuestionType == "TRUE_FALSE":
             if user_ans_str.lower() == correct_ans.lower():
                 total_score += float(qn.Score)
-        elif qn.QuestionType == "SHORT_TEXT":
-            if user_ans_str.lower() == correct_ans.lower():
-                total_score += float(qn.Score)
-
-    attempt.AnswersJson = json.dumps(user_answers)
+    formatted_answers = json.dumps(user_answers)
+    updated = db.query(QuizAttempt).filter(
+        QuizAttempt.AttemptId == attempt_id,
+        QuizAttempt.Status == "IN_PROGRESS",
+    ).update({
+        QuizAttempt.AnswersJson: formatted_answers,
+        QuizAttempt.Score: total_score,
+        QuizAttempt.Status: "SUBMITTED",
+        QuizAttempt.SubmittedAt: now,
+    }, synchronize_session=False)
+    if updated != 1:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Attempt was already submitted or expired")
+    attempt.AnswersJson = formatted_answers
     attempt.Score = total_score
     attempt.Status = "SUBMITTED"
     attempt.SubmittedAt = now
@@ -535,6 +755,8 @@ def submit_quiz_attempt(
         if total_score >= float(existing_grade.Score):
             existing_grade.Score = total_score
             existing_grade.MaxScore = max_possible_score
+            existing_grade.Feedback = f"Tự động chấm: {total_score}/{max_possible_score}"
+            existing_grade.GradedBy = grader_id
             existing_grade.GradedAt = now
     else:
         new_grade = Grade(
@@ -572,8 +794,8 @@ def submit_quiz_attempt(
         quizId=attempt.QuizId,
         studentId=attempt.StudentId,
         attemptNo=attempt.AttemptNo,
-        startedAt=attempt.StartedAt,
-        submittedAt=attempt.SubmittedAt,
+        startedAt=parse_datetime(attempt.StartedAt),
+        submittedAt=parse_datetime(attempt.SubmittedAt) if attempt.SubmittedAt else None,
         score=float(attempt.Score) if attempt.Score is not None else None,
         status=attempt.Status,
         answersJson=attempt.AnswersJson,
@@ -601,8 +823,8 @@ def get_quiz_attempts(
             quizId=at.QuizId,
             studentId=at.StudentId,
             attemptNo=at.AttemptNo,
-            startedAt=at.StartedAt,
-            submittedAt=at.SubmittedAt,
+            startedAt=parse_datetime(at.StartedAt),
+            submittedAt=parse_datetime(at.SubmittedAt) if at.SubmittedAt else None,
             score=float(at.Score) if at.Score is not None else None,
             status=at.Status,
             answersJson=at.AnswersJson,

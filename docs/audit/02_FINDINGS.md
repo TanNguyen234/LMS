@@ -1,3 +1,5 @@
+> **Historical audit snapshot:** this document describes an earlier repository state. Its PASS/RESOLVED claims are not evidence for the 2026-10-21 forensic-fix branch. Use the dated reports in `docs/audit/2026-10-21/` for current findings and verification.
+
 # Audit Document 02: Defects & Findings Register
 
 This register details all critical (P0), high (P1), and medium (P2) defects identified during the audit, their root causes, reproduction steps, impacted files/lines, fix actions, and current status.

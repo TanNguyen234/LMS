@@ -10,6 +10,7 @@ import type {
   Quiz,
   QuizQuestion,
   QuizAttempt,
+  QuizAttemptStart,
   Grade,
   Notification,
   DashboardStats,
@@ -69,6 +70,48 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   return response.json();
 }
 
+function normalizeQuizQuestions(questions: any[]): QuizQuestion[] {
+  return questions.map((question: any) => {
+    let options: QuizQuestion['options'] = [];
+    try {
+      const raw = typeof question.optionsJson === 'string'
+        ? JSON.parse(question.optionsJson)
+        : question.optionsJson;
+      if (Array.isArray(raw)) {
+        options = raw.map((item: any, index: number) => {
+          const fallbackId = String.fromCharCode(65 + index);
+          if (typeof item === 'string') return { id: fallbackId, text: item };
+          if (item && typeof item === 'object') {
+            const id = item.key ?? item.id ?? item.value ?? fallbackId;
+            const text = item.text ?? item.label ?? item.value ?? String(item);
+            return { id: String(id), text: String(text) };
+          }
+          return { id: fallbackId, text: String(item) };
+        });
+      } else if (raw && typeof raw === 'object') {
+        options = Object.entries(raw).map(([key, value]) => ({ id: key, text: String(value) }));
+      }
+    } catch {
+      options = [];
+    }
+    if (question.questionType === 'TRUE_FALSE' && options.length === 0) {
+      options = [
+        { id: 'true', text: 'Đúng' },
+        { id: 'false', text: 'Sai' },
+      ];
+    }
+    return {
+      ...question,
+      id: question.questionId,
+      quiz_id: question.quizId,
+      question_text: question.questionText,
+      question_type: question.questionType,
+      points: Number(question.score ?? 0),
+      options,
+    };
+  });
+}
+
 export const api = {
   // Auth
   async login(credentials: { email: string; password: string } | FormData | { username: string; password: string }): Promise<AuthResponse> {
@@ -121,13 +164,26 @@ export const api = {
   },
 
   // Users (Admin)
-  async getUsers(role?: string, _activeOnly = false): Promise<User[]> {
-    const params = new URLSearchParams();
-    if (role) params.set('role', role);
-    params.set('pageSize', '100');
-    const query = params.toString() ? `?${params.toString()}` : '';
-    const res = await request<any>(`/users${query}`);
-    const items: User[] = Array.isArray(res) ? res : (res?.items || []);
+  async getUsers(role?: string, activeOnly = false): Promise<User[]> {
+    const collected: any[] = [];
+    let page = 1;
+    let total = Number.POSITIVE_INFINITY;
+    while (collected.length < total) {
+      const params = new URLSearchParams({ page: String(page), pageSize: '100' });
+      if (role) params.set('role', role);
+      if (activeOnly) params.set('isActive', 'true');
+      const res = await request<any>(`/users?${params.toString()}`);
+      if (Array.isArray(res)) {
+        collected.push(...res);
+        break;
+      }
+      const pageItems = Array.isArray(res?.items) ? res.items : [];
+      collected.push(...pageItems);
+      total = Number(res?.total ?? collected.length);
+      if (pageItems.length === 0 || collected.length >= total) break;
+      page += 1;
+    }
+    const items: User[] = collected;
     return items.map((u: any) => ({
       ...u,
       id: u.userId,
@@ -165,17 +221,11 @@ export const api = {
     };
   },
 
-  async toggleUserStatus(userId: string | number, currentActive = true): Promise<User> {
-    const res = await request<any>(`/users/${userId}/status`, {
+  async toggleUserStatus(userId: string | number, currentActive = true): Promise<{ message: string }> {
+    return request<{ message: string }>(`/users/${userId}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ isActive: !currentActive }),
     });
-    return {
-      ...res,
-      id: res.userId,
-      full_name: res.fullName,
-      is_active: res.isActive,
-    };
   },
 
   // Courses
@@ -266,13 +316,6 @@ export const api = {
     };
   },
 
-  async deleteCourse(courseId: string | number): Promise<{ message: string }> {
-    return request<{ message: string }>(`/courses/${courseId}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'ARCHIVED' }),
-    });
-  },
-
   // Enrollments
   async getCourseEnrollments(courseId: string | number): Promise<Enrollment[]> {
     const res = await request<any[]>(`/courses/${courseId}/enrollments`);
@@ -300,20 +343,6 @@ export const api = {
       student_name: res.studentName,
       student_email: res.studentEmail,
       enrolled_at: res.enrolledAt,
-    };
-  },
-
-  async updateEnrollmentStatus(courseId: string | number, enrollmentId: string | number, status: string): Promise<Enrollment> {
-    const res = await request<any>(`/courses/${courseId}/enrollments/${enrollmentId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
-    return {
-      ...res,
-      id: res.enrollmentId,
-      student_id: res.studentId,
-      course_id: res.courseId,
-      status: res.status,
     };
   },
 
@@ -462,7 +491,7 @@ export const api = {
       dueAt: data.dueAt || data.due_date || new Date(Date.now() + 7 * 86400000).toISOString(),
       maxScore: data.maxScore !== undefined ? data.maxScore : (data.max_score !== undefined ? data.max_score : 10),
       allowLate: data.allowLate !== undefined ? data.allowLate : true,
-      status: data.status || 'ACTIVE',
+      status: data.status || 'PUBLISHED',
     };
     const res = await request<any>(`/courses/${courseId}/assignments`, {
       method: 'POST',
@@ -493,10 +522,9 @@ export const api = {
     }));
   },
 
-  async submitAssignment(assignmentId: string | number, textContent: string, fileUrl?: string): Promise<Submission> {
+  async submitAssignment(assignmentId: string | number, textContent: string): Promise<Submission> {
     const payload = {
       contentText: textContent,
-      fileUrl: fileUrl || null,
     };
     const res = await request<any>(`/assignments/${assignmentId}/submission`, {
       method: 'PUT',
@@ -545,6 +573,7 @@ export const api = {
       id: q.quizId,
       course_id: q.courseId,
       duration_minutes: q.timeLimitMinutes,
+      max_score: Number(q.maxScore ?? 0),
       is_published: q.isPublished,
       created_at: q.createdAt,
     }));
@@ -559,39 +588,9 @@ export const api = {
       duration_minutes: res.timeLimitMinutes,
       is_published: res.isPublished,
       created_at: res.createdAt,
-      questions: (res.questions || []).map((qn: any) => {
-        let parsedOpts: any[] = [];
-        try {
-          if (qn.optionsJson) {
-            const raw = typeof qn.optionsJson === 'string' ? JSON.parse(qn.optionsJson) : qn.optionsJson;
-            if (Array.isArray(raw)) {
-              parsedOpts = raw.map((item: any, idx: number) => {
-                if (typeof item === 'string') {
-                  return { id: String.fromCharCode(65 + idx), text: item };
-                }
-                return {
-                  id: String(item.id !== undefined ? item.id : String.fromCharCode(65 + idx)),
-                  text: item.text || item.label || String(item),
-                };
-              });
-            } else if (raw && typeof raw === 'object') {
-              parsedOpts = Object.entries(raw).map(([key, val]) => ({
-                id: String(key),
-                text: String(val),
-              }));
-            }
-          }
-        } catch {}
-        return {
-          ...qn,
-          id: qn.questionId,
-          quiz_id: qn.quizId,
-          question_text: qn.questionText,
-          question_type: qn.questionType,
-          points: qn.score,
-          options: parsedOpts,
-        };
-      }),
+      maxScore: Number(res.maxScore ?? 0),
+      max_score: Number(res.maxScore ?? 0),
+      questions: normalizeQuizQuestions(res.questions || []),
     };
   },
 
@@ -600,7 +599,6 @@ export const api = {
     description?: string;
     duration_minutes?: number;
     timeLimitMinutes?: number;
-    max_score?: number;
     passingScore?: number;
     is_published?: boolean;
     isPublished?: boolean;
@@ -614,7 +612,7 @@ export const api = {
       endAt: end.toISOString(),
       timeLimitMinutes: data.timeLimitMinutes || data.duration_minutes || 15,
       maxAttempts: 3,
-      passingScore: data.passingScore || 5.0,
+      passingScore: data.passingScore ?? 5.0,
       isPublished: data.isPublished !== undefined ? data.isPublished : (data.is_published !== undefined ? data.is_published : true),
     };
     const res = await request<any>(`/courses/${courseId}/quizzes`, {
@@ -665,23 +663,23 @@ export const api = {
     };
   },
 
-  async startQuizAttempt(quizId: string | number): Promise<any> {
-    return request<any>(`/quizzes/${quizId}/attempts/start`, {
+  async startQuizAttempt(quizId: string | number): Promise<QuizAttemptStart> {
+    const res = await request<any>(`/quizzes/${quizId}/attempts/start`, {
       method: 'POST',
     });
+    return {
+      ...res,
+      maxScore: Number(res.maxScore ?? (res.questions || []).reduce((total: number, q: any) => total + Number(q.score || 0), 0)),
+      questions: normalizeQuizQuestions(res.questions || []),
+    };
   },
 
-  async submitQuiz(quizId: string | number, answers: Record<string | number, string | number>, attemptId?: string): Promise<QuizAttempt> {
-    let targetAttemptId = attemptId;
-    if (!targetAttemptId) {
-      const startRes = await this.startQuizAttempt(quizId);
-      targetAttemptId = startRes.attemptId;
-    }
+  async submitQuiz(attemptId: string, answers: Record<string | number, string | number>): Promise<QuizAttempt> {
     const formattedAnswers: Record<string, string> = {};
     for (const [k, v] of Object.entries(answers)) {
       formattedAnswers[String(k)] = String(v);
     }
-    const res = await request<any>(`/quiz-attempts/${targetAttemptId}/submit`, {
+    const res = await request<any>(`/quiz-attempts/${attemptId}/submit`, {
       method: 'POST',
       body: JSON.stringify({ answers: formattedAnswers }),
     });

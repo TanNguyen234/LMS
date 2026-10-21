@@ -1,5 +1,7 @@
 # 01 — Project Charter (Điều lệ Dự án)
 
+> **Tài liệu đồ án học thuật mô phỏng.** Sponsor, khách hàng, phê duyệt, ngày và quy mô được giả định; bảng sign-off là mẫu, không phải chứng cứ phê duyệt thực tế.
+
 ## 1. Thông tin chung về dự án
 - **Tên dự án:** University Learning Management System (LMS) Implementation
 - **Mã dự án:** PRJ-LMS-2026
@@ -76,7 +78,7 @@ Tổng ngân sách được phê duyệt: **1.200.000.000 VNĐ**
 ---
 
 ## 7. Cơ cấu tổ chức & Nhân sự dự án (Project Team Structure)
-Quy mô nhân sự giả định: 8 nhân sự (8.5 FTE)
+Nguồn lực theo kế hoạch giả định: tổng 8.5 FTE. Bảng ngân sách có 9 dòng phân bổ vai trò; tổng số đầu người không được khóa trong baseline.
 1. Project Manager (1.0 FTE)
 2. Business Analyst (1.0 FTE)
 3. UI/UX Designer (1.0 FTE)
@@ -99,7 +101,7 @@ Quy mô nhân sự giả định: 8 nhân sự (8.5 FTE)
 
 | Đại diện bên liên quan | Họ và tên | Chức vụ | Chữ ký / Tình trạng |
 |---|---|---|---|
-| Project Sponsor | PGS.TS. Nguyễn Văn Thịnh | Phó Hiệu trưởng Đào tạo | Đã phê duyệt |
-| Business Owner | ThS. Trần Mai Lan | Trưởng phòng Đào tạo | Đã phê duyệt |
-| Technical Authority | TS. Lê Hồng Quang | Trưởng phòng CNTT | Đã phê duyệt |
-| Project Manager | Nguyễn Minh Trí | Trưởng nhóm dự án | Đã tiếp nhận |
+| Project Sponsor | Đại diện giả định | Vai trò mô phỏng | **MẪU — CHƯA CÓ PHÊ DUYỆT THỰC TẾ** |
+| Business Owner | Đại diện giả định | Vai trò mô phỏng | **MẪU — CHƯA CÓ PHÊ DUYỆT THỰC TẾ** |
+| Technical Authority | Đại diện giả định | Vai trò mô phỏng | **MẪU — CHƯA CÓ PHÊ DUYỆT THỰC TẾ** |
+| Project Manager | Nhóm thực hiện đồ án | Vai trò mô phỏng | **MẪU — CHƯA CÓ XÁC NHẬN THỰC TẾ** |

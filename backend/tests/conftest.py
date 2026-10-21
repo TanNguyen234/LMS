@@ -7,13 +7,20 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from backend.app.main import app
-from backend.app.db.session import SessionLocal
+from backend.app.db.session import SessionLocal, engine
 from backend.app.db.init_db import init_development_passwords
 from backend.app.models.models import User, Course, Enrollment, Assignment, Quiz
 
 
 @pytest.fixture(scope="session")
 def client():
+    database_name = engine.url.database or ""
+    if not database_name.lower().startswith("universitylms_test_"):
+        pytest.fail(
+            "Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; "
+            "the configured database will not be modified.",
+            pytrace=False,
+        )
     # Ensure demo passwords initialized
     db = SessionLocal()
     init_development_passwords(db)

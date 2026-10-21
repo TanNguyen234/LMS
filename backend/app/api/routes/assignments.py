@@ -19,6 +19,31 @@ from backend.app.core.dependencies import (
 
 router = APIRouter(tags=["Assignments & Submissions"])
 
+ASSIGNMENT_STATUSES = {"DRAFT", "PUBLISHED", "CLOSED"}
+
+
+def normalize_assignment_status(value: str) -> str:
+    normalized = value.strip().upper() if isinstance(value, str) else ""
+    if normalized not in ASSIGNMENT_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Status must be one of: DRAFT, PUBLISHED, CLOSED",
+        )
+    return normalized
+
+
+def to_utc_datetime(value: datetime | str) -> datetime:
+    """Store SQL Server DATETIME2 values as naive UTC and return aware UTC values."""
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def assignment_response_datetime(value: datetime | str) -> datetime:
+    return to_utc_datetime(value)
+
 
 def get_assignment_or_404(assignment_id: uuid.UUID, db: Session) -> Assignment:
     a = db.query(Assignment).filter(Assignment.AssignmentId == assignment_id).first()
@@ -51,7 +76,7 @@ def get_course_assignments(
             courseId=a.CourseId,
             title=a.Title,
             description=a.Description,
-            dueAt=a.DueAt,
+            dueAt=assignment_response_datetime(a.DueAt),
             maxScore=float(a.MaxScore),
             allowLate=a.AllowLate,
             attachmentUrl=a.AttachmentUrl,
@@ -72,17 +97,20 @@ def create_assignment(
     """Create a new assignment (own Lecturer or Admin)."""
     if a_in.maxScore <= 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MaxScore must be greater than 0")
+    assignment_status = normalize_assignment_status(a_in.status)
+    if assignment_status == "PUBLISHED" and course.Status != "ACTIVE":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot publish an assignment in an inactive course")
 
     new_a = Assignment(
         AssignmentId=uuid.uuid4(),
         CourseId=course_id,
         Title=a_in.title.strip(),
         Description=a_in.description.strip() if a_in.description else None,
-        DueAt=a_in.dueAt,
+        DueAt=to_utc_datetime(a_in.dueAt).replace(tzinfo=None),
         MaxScore=a_in.maxScore,
         AllowLate=a_in.allowLate,
         AttachmentUrl=a_in.attachmentUrl,
-        Status=a_in.status.upper()
+        Status=assignment_status
     )
     db.add(new_a)
     db.commit()
@@ -93,7 +121,7 @@ def create_assignment(
         courseId=new_a.CourseId,
         title=new_a.Title,
         description=new_a.Description,
-        dueAt=new_a.DueAt,
+        dueAt=assignment_response_datetime(new_a.DueAt),
         maxScore=float(new_a.MaxScore),
         allowLate=new_a.AllowLate,
         attachmentUrl=new_a.AttachmentUrl,
@@ -118,7 +146,7 @@ def get_assignment_detail(
         courseId=a.CourseId,
         title=a.Title,
         description=a.Description,
-        dueAt=a.DueAt,
+        dueAt=assignment_response_datetime(a.DueAt),
         maxScore=float(a.MaxScore),
         allowLate=a.AllowLate,
         attachmentUrl=a.AttachmentUrl,
@@ -136,24 +164,32 @@ def update_assignment(
 ):
     """Update assignment parameters (own Lecturer or Admin)."""
     a = get_assignment_or_404(assignment_id, db)
-    verify_lecturer_course_owner(a.CourseId, current_user, db)
+    course = verify_lecturer_course_owner(a.CourseId, current_user, db)
 
     if a_in.title is not None:
         a.Title = a_in.title.strip()
     if a_in.description is not None:
         a.Description = a_in.description.strip() if a_in.description else None
     if a_in.dueAt is not None:
-        a.DueAt = a_in.dueAt
+        a.DueAt = to_utc_datetime(a_in.dueAt).replace(tzinfo=None)
     if a_in.maxScore is not None:
         if a_in.maxScore <= 0:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MaxScore must be > 0")
+        graded_submission = db.query(Submission).filter(
+            Submission.AssignmentId == assignment_id,
+            Submission.Status == "GRADED",
+        ).first()
+        if graded_submission and float(a_in.maxScore) != float(a.MaxScore):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="MaxScore cannot change after grading has started")
         a.MaxScore = a_in.maxScore
     if a_in.allowLate is not None:
         a.AllowLate = a_in.allowLate
     if a_in.attachmentUrl is not None:
         a.AttachmentUrl = a_in.attachmentUrl
     if a_in.status is not None:
-        a.Status = a_in.status.upper()
+        a.Status = normalize_assignment_status(a_in.status)
+        if a.Status == "PUBLISHED" and course.Status != "ACTIVE":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot publish an assignment in an inactive course")
 
     db.commit()
     db.refresh(a)
@@ -162,7 +198,7 @@ def update_assignment(
         courseId=a.CourseId,
         title=a.Title,
         description=a.Description,
-        dueAt=a.DueAt,
+        dueAt=assignment_response_datetime(a.DueAt),
         maxScore=float(a.MaxScore),
         allowLate=a.AllowLate,
         attachmentUrl=a.AttachmentUrl,
@@ -196,8 +232,9 @@ def submit_assignment(
     """
     a = get_assignment_or_404(assignment_id, db)
 
-    # Check assignment status (reject DRAFT or CLOSED)
-    if a.Status in ["DRAFT", "CLOSED"]:
+    # Validate the persisted status as well as the request schema to protect the DB boundary.
+    assignment_status = normalize_assignment_status(a.Status)
+    if assignment_status in ["DRAFT", "CLOSED"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot submit to an assignment with status '{a.Status}'"
@@ -215,12 +252,13 @@ def submit_assignment(
             detail="Student is not actively enrolled in this course"
         )
 
+    course = db.query(Course).filter(Course.CourseId == a.CourseId).first()
+    if not course or course.Status != "ACTIVE":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Course is not active")
+
     # Validate non-empty content
-    if not (sub_in.contentText and sub_in.contentText.strip()) and not (sub_in.fileUrl and sub_in.fileUrl.strip()):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Submission must include text content or file URL"
-        )
+    if not sub_in.contentText or not sub_in.contentText.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Text submission content is required")
 
     now = datetime.now(timezone.utc)
     due_at = parse_datetime(a.DueAt)
@@ -248,7 +286,7 @@ def submit_assignment(
                 detail="Cannot modify a submission that has already been graded"
             )
         existing_sub.ContentText = sub_in.contentText
-        existing_sub.FileUrl = sub_in.fileUrl
+        existing_sub.FileUrl = None
         existing_sub.Status = sub_status
         existing_sub.UpdatedAt = now
         db.commit()
@@ -261,7 +299,7 @@ def submit_assignment(
             StudentId=current_user.UserId,
             SubmittedAt=now,
             ContentText=sub_in.contentText,
-            FileUrl=sub_in.fileUrl,
+            FileUrl=None,
             Status=sub_status
         )
         db.add(new_sub)
@@ -356,7 +394,9 @@ def grade_submission(
     """
     Grade a submission and upsert grade to Grades table (BR-06, AC-07).
     """
-    sub = db.query(Submission).filter(Submission.SubmissionId == submission_id).first()
+    sub = db.query(Submission).filter(Submission.SubmissionId == submission_id).with_hint(
+        Submission, "WITH (UPDLOCK, ROWLOCK)", dialect_name="mssql"
+    ).first()
     if not sub:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
 
@@ -370,8 +410,26 @@ def grade_submission(
         )
 
     now = datetime.now(timezone.utc)
+    normalized_feedback = grade_in.feedback.strip() if grade_in.feedback else None
+    if sub.Status == "GRADED" and float(sub.Score) == float(grade_in.score) and sub.Feedback == normalized_feedback:
+        student = db.query(User).filter(User.UserId == sub.StudentId).first()
+        return SubmissionResponse(
+            submissionId=sub.SubmissionId,
+            assignmentId=sub.AssignmentId,
+            studentId=sub.StudentId,
+            submittedAt=sub.SubmittedAt,
+            contentText=sub.ContentText,
+            fileUrl=sub.FileUrl,
+            status=sub.Status,
+            score=float(sub.Score) if sub.Score is not None else None,
+            feedback=sub.Feedback,
+            updatedAt=sub.UpdatedAt,
+            studentName=student.FullName if student else "Unknown",
+            studentCode=student.StudentCode if student else None,
+        )
+
     sub.Score = grade_in.score
-    sub.Feedback = grade_in.feedback.strip() if grade_in.feedback else None
+    sub.Feedback = normalized_feedback
     sub.Status = "GRADED"
     sub.UpdatedAt = now
 

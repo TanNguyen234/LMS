@@ -37,6 +37,8 @@ def format_course_response(course: Course, db: Session) -> CourseResponse:
 
 @router.get("", response_model=List[CourseResponse])
 def get_courses(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    lecturer_id: Optional[uuid.UUID] = Query(None, alias="lecturerId"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -46,24 +48,36 @@ def get_courses(
     - Lecturer: courses taught by lecturer
     - Student: courses actively enrolled by student
     """
+    query = db.query(Course)
     if current_user.Role == "ADMIN":
-        courses = db.query(Course).order_by(Course.CreatedAt.desc()).all()
+        if lecturer_id is not None:
+            query = query.filter(Course.LecturerId == lecturer_id)
     elif current_user.Role == "LECTURER":
-        courses = db.query(Course).filter(Course.LecturerId == current_user.UserId).order_by(Course.CreatedAt.desc()).all()
+        query = query.filter(Course.LecturerId == current_user.UserId)
+        if lecturer_id is not None and lecturer_id != current_user.UserId:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot list another lecturer's courses")
     elif current_user.Role == "STUDENT":
-        courses = (
-            db.query(Course)
+        query = (
+            query
             .join(Enrollment, Enrollment.CourseId == Course.CourseId)
             .filter(
                 Enrollment.StudentId == current_user.UserId,
                 Enrollment.Status == "ACTIVE",
                 Course.Status == "ACTIVE"
             )
-            .order_by(Course.CreatedAt.desc())
-            .all()
         )
     else:
-        courses = []
+        return []
+
+    if status_filter is not None:
+        normalized_status = status_filter.strip().upper()
+        if normalized_status not in {"DRAFT", "ACTIVE", "ARCHIVED"}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid course status filter")
+        if current_user.Role == "STUDENT" and normalized_status != "ACTIVE":
+            return []
+        query = query.filter(Course.Status == normalized_status)
+
+    courses = query.order_by(Course.CreatedAt.desc()).all()
 
     return [format_course_response(c, db) for c in courses]
 

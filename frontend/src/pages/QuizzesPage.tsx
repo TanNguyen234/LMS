@@ -12,6 +12,12 @@ import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
 import type { Quiz, Course } from '../types';
 
+type ActiveQuiz = Quiz & {
+  attemptId?: string;
+  startedAt?: string;
+  mode: 'attempt' | 'preview';
+};
+
 export const QuizzesPage: React.FC = () => {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -24,7 +30,7 @@ export const QuizzesPage: React.FC = () => {
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newDuration, setNewDuration] = useState(15);
-  const [newMaxScore, setNewMaxScore] = useState(10);
+  const [newPassingScore, setNewPassingScore] = useState(5);
   const [submitting, setSubmitting] = useState(false);
 
   // Add Question Modal
@@ -39,9 +45,10 @@ export const QuizzesPage: React.FC = () => {
   const [correctOpt, setCorrectOpt] = useState('A');
 
   // Student Taking Quiz State
-  const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+  const [activeQuiz, setActiveQuiz] = useState<ActiveQuiz | null>(null);
   const [studentAnswers, setStudentAnswers] = useState<Record<string, string>>({});
   const [quizScoreResult, setQuizScoreResult] = useState<{ score: number; max: number } | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -75,6 +82,20 @@ export const QuizzesPage: React.FC = () => {
     fetchQuizzes();
   }, [selectedCourseId]);
 
+  useEffect(() => {
+    if (!activeQuiz || activeQuiz.mode !== 'attempt' || !activeQuiz.startedAt) {
+      return;
+    }
+
+    const startedAt = Date.parse(activeQuiz.startedAt);
+    const quizEndAt = activeQuiz.endAt ? Date.parse(activeQuiz.endAt) : Number.POSITIVE_INFINITY;
+    const attemptEndAt = startedAt + activeQuiz.duration_minutes * 60_000 + 60_000;
+    const deadline = Math.min(quizEndAt, attemptEndAt);
+    const updateCountdown = () => setRemainingSeconds(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    const timer = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(timer);
+  }, [activeQuiz]);
+
   const handleCreateQuiz = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -83,13 +104,14 @@ export const QuizzesPage: React.FC = () => {
         title: newTitle,
         description: newDesc,
         duration_minutes: Number(newDuration),
-        max_score: Number(newMaxScore),
+        passingScore: Number(newPassingScore),
         is_published: true,
       });
       setQuizzes((prev) => [created, ...prev]);
       setIsCreateQuizModalOpen(false);
       setNewTitle('');
       setNewDesc('');
+      setNewPassingScore(5);
     } catch (err: any) {
       alert('Lỗi tạo bài quiz: ' + err.message);
     } finally {
@@ -116,6 +138,7 @@ export const QuizzesPage: React.FC = () => {
       });
       alert('Đã thêm câu hỏi trắc nghiệm thành công!');
       setIsQuestionModalOpen(false);
+      await fetchQuizzes();
       setQuestionText('');
       setOptA('');
       setOptB('');
@@ -130,23 +153,47 @@ export const QuizzesPage: React.FC = () => {
 
   const handleStartQuiz = async (quiz: Quiz) => {
     try {
-      const fullQuiz = await api.getQuiz(quiz.id);
-      setActiveQuiz(fullQuiz);
+      const attempt = await api.startQuizAttempt(quiz.quizId || String(quiz.id));
+      const maxScore = Number(attempt.maxScore ?? attempt.questions.reduce((sum, q) => sum + Number(q.score || 0), 0));
+      const attemptEnd = Date.parse(attempt.startedAt) + attempt.timeLimitMinutes * 60_000 + 60_000;
+      const quizEnd = quiz.endAt ? Date.parse(quiz.endAt) : Number.POSITIVE_INFINITY;
+      setRemainingSeconds(Math.max(0, Math.ceil((Math.min(attemptEnd, quizEnd) - Date.now()) / 1000)));
+      setActiveQuiz({
+        ...quiz,
+        attemptId: attempt.attemptId,
+        startedAt: attempt.startedAt,
+        duration_minutes: attempt.timeLimitMinutes,
+        maxScore,
+        max_score: maxScore,
+        questions: attempt.questions,
+        mode: 'attempt',
+      });
       setStudentAnswers({});
       setQuizScoreResult(null);
     } catch (err: any) {
-      alert('Lỗi mở bài kiểm tra: ' + err.message);
+      alert('Không thể bắt đầu bài kiểm tra: ' + err.message);
+    }
+  };
+
+  const handlePreviewQuiz = async (quiz: Quiz) => {
+    try {
+      const fullQuiz = await api.getQuiz(quiz.quizId || String(quiz.id));
+      setActiveQuiz({ ...fullQuiz, mode: 'preview' });
+      setStudentAnswers({});
+      setQuizScoreResult(null);
+    } catch (err: any) {
+      alert('Lỗi mở bản xem trước: ' + err.message);
     }
   };
 
   const handleSubmitQuiz = async () => {
-    if (!activeQuiz) return;
+    if (!activeQuiz?.attemptId || activeQuiz.mode !== 'attempt') return;
     setSubmitting(true);
     try {
-      const result = await api.submitQuiz(activeQuiz.id, studentAnswers);
+      const result = await api.submitQuiz(activeQuiz.attemptId, studentAnswers);
       setQuizScoreResult({
         score: result.score,
-        max: activeQuiz.max_score,
+        max: Number(activeQuiz.max_score ?? activeQuiz.maxScore ?? 0),
       });
     } catch (err: any) {
       alert('Lỗi nộp bài kiểm tra: ' + err.message);
@@ -222,7 +269,7 @@ export const QuizzesPage: React.FC = () => {
                     <Clock className="w-3.5 h-3.5 mr-1" />
                     {q.duration_minutes} phút
                   </span>
-                  <span className="text-xs font-bold text-slate-600">Thang điểm: {q.max_score}đ</span>
+                  <span className="text-xs font-bold text-slate-600">Điểm tối đa: {Number(q.max_score ?? q.maxScore ?? 0)}đ</span>
                 </div>
                 <h3 className="font-bold text-slate-800 text-base">{q.title}</h3>
                 <p className="text-xs text-slate-500 mt-1 line-clamp-2">{q.description || 'Không có mô tả'}</p>
@@ -244,13 +291,23 @@ export const QuizzesPage: React.FC = () => {
                     </button>
                   )}
 
-                  <button
-                    onClick={() => handleStartQuiz(q)}
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-1"
-                  >
-                    <Play className="w-3.5 h-3.5" />
-                    <span>Làm bài</span>
-                  </button>
+                  {user?.role === 'STUDENT' ? (
+                    <button
+                      onClick={() => handleStartQuiz(q)}
+                      disabled={Number(q.max_score ?? q.maxScore ?? 0) <= 0}
+                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-1 disabled:opacity-50"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      <span>{Number(q.max_score ?? q.maxScore ?? 0) <= 0 ? 'Chưa có câu hỏi' : 'Làm bài'}</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handlePreviewQuiz(q)}
+                      className="px-3.5 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold"
+                    >
+                      Xem trước
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -270,11 +327,11 @@ export const QuizzesPage: React.FC = () => {
                     <Timer className="w-3.5 h-3.5 mr-1" /> Thời gian: {activeQuiz.duration_minutes} phút
                   </span>
                   <span>•</span>
-                  <span>Tổng điểm: {activeQuiz.max_score} điểm</span>
+                  <span>Điểm tối đa: {Number(activeQuiz.max_score ?? activeQuiz.maxScore ?? 0)} điểm</span>
                 </div>
               </div>
               <button
-                onClick={() => {
+              onClick={() => {
                   setActiveQuiz(null);
                   setQuizScoreResult(null);
                 }}
@@ -307,6 +364,16 @@ export const QuizzesPage: React.FC = () => {
               </div>
             ) : (
               <>
+                {activeQuiz.mode === 'attempt' && (
+                  <div className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800" aria-live="polite">
+                    Còn lại: {Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')} — thời gian hiển thị chỉ tham khảo; máy chủ kiểm tra hạn nộp.
+                  </div>
+                )}
+                {activeQuiz.mode === 'preview' && (
+                  <div className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600">
+                    Chế độ xem trước. Bản xem trước không tạo lượt làm bài và không cho nộp đáp án.
+                  </div>
+                )}
                 <div className="flex-1 overflow-y-auto space-y-6 my-4 pr-1">
                   {!activeQuiz.questions || activeQuiz.questions.length === 0 ? (
                     <div className="py-8 text-center text-slate-400 text-sm">
@@ -353,7 +420,7 @@ export const QuizzesPage: React.FC = () => {
                   )}
                 </div>
 
-                {activeQuiz.questions && activeQuiz.questions.length > 0 && (
+                {activeQuiz.mode === 'attempt' && activeQuiz.questions && activeQuiz.questions.length > 0 && (
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                     <span className="text-xs text-slate-400">
                       Đã trả lời: {Object.keys(studentAnswers).length} / {activeQuiz.questions.length} câu
@@ -419,13 +486,13 @@ export const QuizzesPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Điểm tối đa</label>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Điểm đạt</label>
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     max="100"
-                    value={newMaxScore}
-                    onChange={(e) => setNewMaxScore(Number(e.target.value))}
+                    value={newPassingScore}
+                    onChange={(e) => setNewPassingScore(Number(e.target.value))}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm"
                   />
                 </div>

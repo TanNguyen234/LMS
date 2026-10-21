@@ -1,3 +1,5 @@
+> **Historical audit snapshot:** this document describes an earlier repository state. Its PASS/RESOLVED claims are not evidence for the 2026-10-21 forensic-fix branch. Use the dated reports in `docs/audit/2026-10-21/` for current findings and verification.
+
 # Audit Document 07: Live Demonstration Runbook
 
 This runbook provides step-by-step instructions for demonstrating the University Learning Management System across all three user personas (`ADMIN`, `LECTURER`, and `STUDENT`) using validated Microsoft SQL Server seed data.

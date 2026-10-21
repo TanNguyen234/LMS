@@ -1,42 +1,44 @@
 # 13 — Đóng Dự án & Bài học Kinh nghiệm (Project Closure & Lessons Learned)
 
+> **Kịch bản đóng dự án học thuật mô phỏng, chưa phải hồ sơ đóng dự án thực tế.** Trạng thái, chi phí, thời lượng, phê duyệt và bài học dưới đây là giả định đồ án; không dùng làm bằng chứng nghiệm thu hoặc chi tiêu.
+
 ## 1. Bảng kiểm Đóng dự án (Project Closure Checklist)
 
 | STT | Hạng mục kiểm tra đóng dự án (Closure Item) | Tiêu chí hoàn thành | Tình trạng | Bằng chứng dẫn chiếu |
 |:---:|---|---|:---:|---|
-| 1 | Nghiệm thu phạm vi & Sản phẩm bàn giao | 100% yêu cầu Must-have (FR-01 đến FR-13) hoàn thành | **ĐẠT (Done)** | Báo cáo UAT tại `12_UAT_AND_ACCEPTANCE_EVIDENCE.md` |
-| 2 | Ký duyệt Biên bản UAT (UAT Sign-off) | Đại diện Sponsor, Đào tạo, Giảng viên, Sinh viên ký nhận | **ĐẠT (Done)** | Mốc M6 được phê duyệt tại Tuần 16 |
-| 3 | Xử lý & Đóng khiếm khuyết phần mềm | 0 lỗi P0, 0 lỗi P1; các lỗi nhẹ P3 được ghi nhận | **ĐẠT (Done)** | Nhật ký Defect Triage Log, Pytest Suite pass 100% |
-| 4 | Bàn giao Mã nguồn & Tài liệu kỹ thuật | Source code Backend, Frontend, CSDL và Swagger OpenAPI | **ĐẠT (Done)** | Repo Git, `backend/`, `frontend/`, `database/` |
-| 5 | Phân tích độ lệch Tiến độ & Chi phí | Tính toán độ lệch SV, CV, chỉ số hiệu suất SPI, CPI | **ĐẠT (Done)** | Bảng phân tích Earned Value Management tại mục 2 |
-| 6 | Đánh giá Bài học kinh nghiệm | Tổng kết kinh nghiệm các mảng phạm vi, kỹ thuật, quản lý | **ĐẠT (Done)** | Tài liệu Lessons Learned tại mục 3 |
-| 7 | Giải phóng nguồn lực & Đóng hợp đồng | Toàn bộ nhân sự hoàn thành nhiệm vụ, thanh lý hợp đồng demo | **ĐẠT (Done)** | Quyết định đóng dự án tại mốc M8 (Tuần 20) |
-| 8 | Đóng gói Báo cáo tổng kết đồ án | Hoàn thiện 10 chương báo cáo và slide thuyết trình | **ĐẠT (Done)** | Hồ sơ báo cáo chuẩn bị cho Hội đồng đánh giá |
+| 1 | Nghiệm thu phạm vi & Sản phẩm bàn giao | Kịch bản giả định: yêu cầu Must-have hoàn thành | **MÔ PHỎNG** | Mẫu UAT tại `12_UAT_AND_ACCEPTANCE_EVIDENCE.md` |
+| 2 | Ký duyệt Biên bản UAT | Kịch bản giả định có đại diện các bên | **MÔ PHỎNG** | Không phải chữ ký thật hay xác nhận UAT |
+| 3 | Xử lý khiếm khuyết phần mềm | Kịch bản giả định: xử lý defect theo severity | **MÔ PHỎNG** | Kết quả kiểm thử thực tế ghi riêng trong báo cáo forensic |
+| 4 | Bàn giao mã nguồn & tài liệu kỹ thuật | Backend, frontend, CSDL và API docs | **MÔ PHỎNG** | Repo `backend/`, `frontend/`, `database/` |
+| 5 | Phân tích độ lệch tiến độ & chi phí | Công thức EVM minh họa | **MÔ PHỎNG** | Chỉ là ví dụ tính toán ở mục 2 |
+| 6 | Đánh giá bài học kinh nghiệm | Tổng kết theo kịch bản | **MÔ PHỎNG** | Tài liệu Lessons Learned tại mục 3 |
+| 7 | Giải phóng nguồn lực & đóng hợp đồng | Kịch bản giả định ở mốc M8 | **MÔ PHỎNG** | Không có hợp đồng hoặc xác nhận thực tế |
+| 8 | Đóng gói báo cáo đồ án | Kịch bản giả định hoàn tất hồ sơ | **MÔ PHỎNG** | Không khẳng định đã nộp hoặc được duyệt |
 
 ---
 
-## 2. Phân tích Độ lệch Tiến độ & Chi phí (Earned Value & Variance Analysis)
+## 2. Ví dụ tính Earned Value (số liệu mô phỏng, không phải số đo dự án)
 
 ### 2.1 Đánh giá Tiến độ (Schedule Variance - SV)
 - **Kế hoạch (Planned Duration):** 20 tuần.
-- **Thực tế (Actual Duration):** 20 tuần (kết thúc đúng hạn tại mốc M8).
-- **Giá trị theo kế hoạch (PV - Planned Value tại tuần 20):** 1.200.000.000 VNĐ.
-- **Giá trị thu được (EV - Earned Value):** 1.200.000.000 VNĐ (100% công việc hoàn thành).
+- **Thời lượng giả định trong kịch bản:** 20 tuần; chưa có nhật ký thời gian thực tế.
+- **PV giả định tại tuần 20:** 1.200.000.000 VNĐ.
+- **EV giả định:** 1.200.000.000 VNĐ (giả định 100% hoàn thành; chưa được xác minh).
 - **Độ lệch tiến độ:** $\text{SV} = \text{EV} - \text{PV} = 1.200.000.000 - 1.200.000.000 = \mathbf{0\text{ VNĐ}}$
 - **Chỉ số hiệu suất tiến độ:** $\text{SPI} = \frac{\text{EV}}{\text{PV}} = \mathbf{1.0}$ (Dự án hoàn thành chính xác 100% theo đúng tiến độ baseline).
 
 ### 2.2 Đánh giá Chi phí (Cost Variance - CV)
-- **Ngân sách được duyệt (BAC):** 1.200.000.000 VNĐ.
-- **Chi phí thực tế phát sinh (AC - Actual Cost):** 1.175.000.000 VNĐ.
-  - Chi phí nhân sự: 840.000.000 VNĐ (đúng dự toán).
+- **BAC baseline giả định:** 1.200.000.000 VNĐ.
+- **AC minh họa trong kịch bản:** 1.175.000.000 VNĐ; không phải chứng từ hoặc chi tiêu đo được.
+  - Nhân sự: 840.000.000 VNĐ (giả định).
   - Chi phí hạ tầng & demo server: 120.000.000 VNĐ.
   - Công cụ & bản quyền: 48.000.000 VNĐ.
   - Đào tạo & workshop: 40.000.000 VNĐ.
   - Quản trị & hành chính: 32.000.000 VNĐ.
   - Quỹ dự phòng rủi ro giải ngân: 95.000.000 VNĐ / 120.000.000 VNĐ (dùng để tối ưu hóa truy vấn CSDL và bổ sung workshop hướng dẫn).
   - Dư quỹ dự phòng: 25.000.000 VNĐ.
-- **Độ lệch chi phí:** $\text{CV} = \text{EV} - \text{AC} = 1.200.000.000 - 1.175.000.000 = \mathbf{+25.000.000\text{ VNĐ}}$ (Dự án tiết kiệm được 25 triệu VNĐ từ quỹ dự phòng).
-- **Chỉ số hiệu suất chi phí:** $\text{CPI} = \frac{\text{EV}}{\text{AC}} = \frac{1.200.000.000}{1.175.000.000} \approx \mathbf{1.021}$ (Hiệu quả sử dụng chi phí rất tốt, nằm dưới mức ngân sách trần).
+- **CV minh họa:** EV − AC = **+25.000.000 VNĐ**.
+- **CPI minh họa:** EV / AC ≈ **1,021**; không đánh giá hiệu quả chi phí thực tế.
 
 ---
 
@@ -62,11 +64,11 @@
 
 ## 4. Biên bản Bàn giao & Đóng Dự án (Formal Sign-Off)
 
-Dự án **University Learning Management System (LMS) Implementation** chính thức được tuyên bố **HOÀN THÀNH VÀ ĐÓNG DỰ ÁN** tại mốc Tuần 20.
+Trong kịch bản học thuật, dự án **University Learning Management System (LMS) Implementation** được giả định đóng tại mốc Tuần 20. Bảng dưới là mẫu ký duyệt mô phỏng, không phải phê duyệt thật.
 
 | Đại diện bên liên quan | Họ và tên | Chức vụ | Trạng thái phê duyệt |
 |---|---|---|---|
-| Project Sponsor | PGS.TS. Nguyễn Văn Thịnh | Phó Hiệu trưởng Đào tạo | **ĐÃ PHÊ DUYỆT ĐÓNG DỰ ÁN** |
-| Business Owner | ThS. Trần Mai Lan | Trưởng phòng Đào tạo | **ĐÃ NGHIỆM THU BÀN GIAO** |
-| Technical Authority | TS. Lê Hồng Quang | Trưởng phòng CNTT | **ĐÃ TIẾP NHẬN BÀN GIAO KỸ THUẬT** |
-| Project Manager | Nguyễn Minh Trí | Trưởng nhóm dự án | **HOÀN THÀNH DỰ ÁN** |
+| Project Sponsor | Đại diện giả định | Vai trò mô phỏng | **CHƯA CÓ PHÊ DUYỆT THỰC TẾ** |
+| Business Owner | Đại diện giả định | Vai trò mô phỏng | **CHƯA CÓ NGHIỆM THU THỰC TẾ** |
+| Technical Authority | Đại diện giả định | Vai trò mô phỏng | **CHƯA CÓ BÀN GIAO THỰC TẾ** |
+| Project Manager | Nhóm thực hiện đồ án | Vai trò mô phỏng | **MẪU KẾT THÚC, CHƯA XÁC NHẬN** |

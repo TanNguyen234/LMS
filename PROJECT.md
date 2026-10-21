@@ -1,59 +1,44 @@
-# Project: University LMS Full-Stack Reconciliation & Verified Acceptance
+# University LMS — Project Status
 
-## Architecture
-- **Backend**: FastAPI (Python 3.12), SQLAlchemy 2.x, PyODBC, Pydantic v2 schemas (camelCase DTOs), JWT HS256 auth, bcrypt passwords.
-- **Frontend**: React 18, TypeScript, Vite, TailwindCSS, Axios API client (`frontend/src/api/client.ts`), React Router v6.
-- **Database**: Microsoft SQL Server (`localhost\SQLEXPRESS`, database `UniversityLms`, 12 tables, seed data).
-- **Service Ports**:
-  - FastAPI backend: `http://127.0.0.1:8000` (API routes `/api/*`, `/health`, `/docs`)
-  - React Vite frontend: `http://localhost:5173` (Vite dev server proxying `/api` and `/uploads` to `:8000`)
-- **Interactive Testing**: Google Chrome with remote debugging on port 9222 / DevTools Protocol.
+## System boundary
 
-## Feature Inventory
-| # | Feature | Description | Milestone | Status |
-|---|---|---|---|---|
-| 1 | Database Integrity | 12 tables x >=10 rows seeded in SQL Server with zero referential errors | M1 / M2 / M5 | DONE |
-| 2 | Auth & JWT | Login with JSON {email, password}, JWT Bearer token, User DTO in camelCase | M1 / M2 | DONE |
-| 3 | Role-Based Access Control | Strict RBAC for Admin, Lecturer, Student across all endpoints | M1 / M2 | DONE |
-| 4 | Admin User & Course Mgmt | Users CRUD, Courses CRUD, Lecturer assignment, Student enrollment | M2 / M4 | DONE |
-| 5 | Lecturer Content Mgmt | Modules, Lessons, Assignments, Timed Quizzes, Grading | M2 / M4 | DONE |
-| 6 | Student Learning Flows | Course viewing, Assignment submission, Taking quizzes, Viewing grades | M2 / M4 | DONE |
-| 7 | Contract & Bug Fixes | Fix UUID Number() coercion, Quiz questionType enum, Gradebook query, /health payload, timedelta import | M2 | DONE |
-| 8 | Full-Stack Service Startup | Launch MS SQL Server, FastAPI on :8000, React Vite on :5173 | M3 | DONE |
-| 9 | Chrome DevTools E2E Testing | Interactive browser sessions for Admin, Lecturer, Student with logs & screenshots | M4 | DONE |
-| 10 | Forensic Integrity & Release Gate | Forensic audit (no cheats/fakes), 26/26 pytest, clean build | M5 | DONE |
+- Backend: FastAPI on Python 3.12, SQLAlchemy 2.x and pyodbc.
+- Database: Microsoft SQL Server.
+- Frontend: React 19, TypeScript, Vite, React Router 7, fetch-based API client.
+- Roles: ADMIN, LECTURER and STUDENT; server-side dependencies enforce permissions.
+- Assignment submission is text-only in this MVP. No upload endpoint or public uploads directory is part of the current UI contract.
+- Student self-enrollment is outside scope.
 
-## Milestones
-| # | Name | Scope | Dependencies | Status |
-|---|---|---|---|---|
-| M1 | Survey & Baseline Assessment | Comprehensive code, DB, test, and environment survey | none | DONE |
-| M2 | Full-Stack Reconciliation & Fixes | Fix UUID coercion bugs, quiz questionType enum, student grades view, /health endpoint, timedelta import | M1 | DONE |
-| M3 | Full-Stack Service Startup | Boot FastAPI backend (:8000) and React frontend (:5173), verify /health HTTP 200 | M2 | DONE |
-| M4 | Chrome DevTools E2E Verification | Direct browser automation for Admin, Lecturer, Student personas with DevTools capture | M3 | DONE |
-| M5 | Forensic Integrity & Acceptance Report | Run teamwork_preview_auditor, verify 26/26 pytest, verify build, produce handoff | M4 | DONE |
+## Status for the 2026-10-21 forensic fix
 
-## Interface Contracts
-### Frontend (`frontend/src/api/client.ts`) ↔ Backend (`backend/app/api/routes/`)
-- **Authentication**: `POST /api/auth/login` payload `{email, password}` -> `{access_token, token_type: "bearer", user: UserResponse}`.
-- **Health Check**: `GET /health` -> `{"status": "ok", "status_detail": "healthy", "database_connected": true, ...}`.
-- **Entity IDs**: All entity IDs are UUID strings (`UNIQUEIDENTIFIER`). Frontend components preserve them as strings without `Number(...)`.
-- **Quiz Questions**: `questionType` enum is `SINGLE_CHOICE`, `TRUE_FALSE`, or `SHORT_TEXT`.
-- **Quiz Submissions**: `POST /api/quiz-attempts/{id}/submit` uses imported `timedelta` and calculates valid elapsed duration.
-- **Course Status**: Course status recognizes `'ACTIVE'`, `'DRAFT'`, or `'ARCHIVED'`.
-- **Grades API**: Student grades endpoint is `GET /api/courses/{course_id}/my-grades`.
+This branch addresses assignment status and submission contracts, timed quiz start/submit identity, question option and max-score contracts, user/course filters, role-gated controls, grading source labels, quiz grade consistency, SQL uniqueness, test database safety and public-file/path handling.
 
-## Code Layout
-- `backend/app/`: FastAPI application
-  - `main.py`: Entrypoint, `/health`, CORS, static SPA fallback
-  - `api/routes/`: Router modules (auth, users, courses, content, assignments, quizzes, grades, notifications, dashboard)
-  - `models/models.py`: SQLAlchemy ORM definitions
-  - `schemas/schemas.py`: Pydantic request/response schemas
-  - `core/`: Config, security, dependencies
-  - `db/`: Database engine, sessions, seed initialization
-- `backend/tests/`: Automated pytest acceptance & challenger suites
-- `frontend/src/`: React TypeScript frontend
-  - `api/client.ts`: Typed API client
-  - `types/index.ts`: TypeScript data contracts
-  - `pages/`: Role-specific and general pages
-  - `components/`: UI layout and shared components
-- `database/`: SQL scripts (`01_schema.sql`, `02_seed.sql`, `04_seed_validation.sql`)
+Implementation status does not equal release acceptance. SQL Server integration, seed validation and browser journeys require a separate disposable UniversityLms_Test_<id> database. The current release decision and exact evidence are maintained in [the dated release gate](docs/audit/2026-10-21/05_RELEASE_GATE.md).
+
+## Feature inventory
+
+| Area | Implementation state | Verification boundary |
+|---|---|---|
+| Authentication and JWT | Implemented; rejects the default demo signing key outside development/test | Pure contract checks; startup integration still requires database config |
+| RBAC and course isolation | Implemented server-side | API integration tests not run without isolated SQL Server |
+| Users and activation | Implemented; message response and active filter/pagination aligned | API integration not run |
+| Courses and enrollment | Implemented; status/lecturer filters supported; UI actions role-gated | API integration not run |
+| Modules and lessons | Implemented | API integration not run |
+| Assignment and grading | Published/Draft/Closed status contract; text-only submission; UTC due date handling | API integration not run |
+| Quiz and attempts | Start creates or resumes a timed attempt; submit requires that attempt ID; students receive safe question DTOs and server max score | API integration/E2E not run |
+| Grades and notifications | Source titles and quiz grade tuple are aligned | API integration not run |
+| SQL schema and Alembic | Canonical SQL bootstrap documented; incremental migration added for existing baseline schemas | No database migration executed |
+| Frontend | TypeScript/Vite build and lint evidence are in the dated evidence report | Build/lint must be rerun after final source changes |
+| PM coursework | Corrected filenames, schedule network, budget labels and simulated UAT/closure evidence | Academic figures remain planned/simulated, not measured |
+
+## Authoritative reports
+
+- [Baseline and environment](docs/audit/2026-10-21/00_BASELINE.md)
+- [Findings and triage](docs/audit/2026-10-21/01_FINDINGS_AND_TRIAGE.md)
+- [API contract matrix](docs/audit/2026-10-21/02_API_CONTRACT_MATRIX.md)
+- [Test matrix](docs/audit/2026-10-21/03_TEST_MATRIX.md)
+- [PM reconciliation](docs/audit/2026-10-21/04_PM_RECONCILIATION.md)
+- [Release gate](docs/audit/2026-10-21/05_RELEASE_GATE.md)
+- [Disposable database and demo runbook](docs/audit/2026-10-21/06_DEMO_RUNBOOK.md)
+
+Do not use the prior audit status labels as evidence for this branch. No deployment, production acceptance or live uptime check is claimed.

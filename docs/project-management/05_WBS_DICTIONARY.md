@@ -1,3 +1,5 @@
+> **Tài liệu đồ án học thuật mô phỏng.** Vai trò, ước tính, giả định, trạng thái và biên bản trong kế hoạch này không phải bằng chứng thực thi hoặc phê duyệt thực tế.
+
 # 05 — Từ điển Cấu trúc Phân chia Công việc (WBS Dictionary)
 
 > Tài liệu này chi tiết hóa các gói công việc chính (Work Packages) ở cấp độ 2 và cấp độ 3 theo đúng chuẩn quản lý dự án học thuật, làm cơ sở phân công tài nguyên, dự toán chi phí và nghiệm thu sản phẩm.

@@ -1,0 +1,160 @@
+EEEEEEEEEEEEEEEEEEEE..............F.                                     [100%]
+=================================== ERRORS ====================================
+_________________ ERROR at setup of test_ac01_authentication __________________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+__________________ ERROR at setup of test_ac02_authorization __________________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+________________ ERROR at setup of test_ac03_course_isolation _________________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+______________ ERROR at setup of test_ac04_enrollment_uniqueness ______________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+________________ ERROR at setup of test_ac05_published_content ________________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+_______________ ERROR at setup of test_ac06_assignment_deadline _______________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+__________________ ERROR at setup of test_ac07_grading_sync ___________________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+________________ ERROR at setup of test_ac08_quiz_max_attempts ________________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+_____________ ERROR at setup of test_ac09_quiz_secret_protection ______________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+_____________ ERROR at setup of test_ac10_notification_ownership ______________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+_________ ERROR at setup of test_challenger_health_endpoint_contract __________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+________ ERROR at setup of test_challenger_auth_valid_logins_all_roles ________
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+__ ERROR at setup of test_challenger_auth_case_and_whitespace_insensitivity ___
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+___ ERROR at setup of test_challenger_auth_invalid_credentials_adversarial ____
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+____ ERROR at setup of test_challenger_rbac_student_forbidden_admin_routes ____
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+__ ERROR at setup of test_challenger_rbac_student_forbidden_lecturer_routes ___
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+___ ERROR at setup of test_challenger_rbac_lecturer_forbidden_admin_routes ____
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+______ ERROR at setup of test_challenger_assignment_deadline_enforcement ______
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+___ ERROR at setup of test_challenger_quiz_secret_protection_full_lifecycle ___
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+_______ ERROR at setup of test_challenger_quiz_attempt_submit_execution _______
+Integration tests require an isolated SQL Server database named UniversityLms_Test_<id>; the configured database will not be modified.
+================================== FAILURES ===================================
+________________________ test_quiz_question_type_enum _________________________
+
+    def test_quiz_question_type_enum():
+        r_lec = client.post("/api/auth/login", json={"email": "lecturer1@university.edu.vn", "password": "Demo@123"})
+        lec_token = r_lec.json()["access_token"]
+
+        r_courses = client.get("/api/courses", headers={"Authorization": f"Bearer {lec_token}"})
+        courses = r_courses.json()
+        assert len(courses) > 0
+        course_id = courses[0]["courseId"]
+
+        r_quizzes = client.get(f"/api/courses/{course_id}/quizzes", headers={"Authorization": f"Bearer {lec_token}"})
+        quizzes = r_quizzes.json()
+        assert len(quizzes) > 0
+        quiz_id = quizzes[0]["quizId"]
+
+        # SINGLE_CHOICE should succeed
+        valid_payload = {
+            "questionText": "What is Python?",
+            "questionType": "SINGLE_CHOICE",
+            "optionsJson": json.dumps([{"id": "A", "text": "Language"}, {"id": "B", "text": "Snake"}]),
+            "correctAnswer": "A",
+            "score": 2.5,
+            "sortOrder": 1
+        }
+        r_valid = client.post(f"/api/quizzes/{quiz_id}/questions", json=valid_payload, headers={"Authorization": f"Bearer {lec_token}"})
+>       assert r_valid.status_code in [200, 201]
+E       assert 409 in [200, 201]
+E        +  where 409 = <Response [409 Conflict]>.status_code
+
+backend\tests\test_recon2_challenger.py:100: AssertionError
+============================== warnings summary ===============================
+backend\venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\Download\LMS\backend\venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+backend\app\schemas\schemas.py:54
+  D:\Download\LMS\backend\app\schemas\schemas.py:54: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class UserResponse(UserBase):
+
+backend\app\schemas\schemas.py:95
+  D:\Download\LMS\backend\app\schemas\schemas.py:95: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class CourseResponse(CourseBase):
+
+backend\app\schemas\schemas.py:108
+  D:\Download\LMS\backend\app\schemas\schemas.py:108: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class EnrollmentResponse(BaseModel):
+
+backend\app\schemas\schemas.py:153
+  D:\Download\LMS\backend\app\schemas\schemas.py:153: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class LessonResponse(LessonBase):
+
+backend\app\schemas\schemas.py:184
+  D:\Download\LMS\backend\app\schemas\schemas.py:184: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class ModuleResponse(ModuleBase):
+
+backend\app\schemas\schemas.py:250
+  D:\Download\LMS\backend\app\schemas\schemas.py:250: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class AssignmentResponse(AssignmentBase):
+
+backend\app\schemas\schemas.py:281
+  D:\Download\LMS\backend\app\schemas\schemas.py:281: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class SubmissionResponse(BaseModel):
+
+backend\app\schemas\schemas.py:333
+  D:\Download\LMS\backend\app\schemas\schemas.py:333: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizQuestionResponse(BaseModel):
+
+backend\app\schemas\schemas.py:347
+  D:\Download\LMS\backend\app\schemas\schemas.py:347: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizQuestionStudentResponse(BaseModel):
+
+backend\app\schemas\schemas.py:425
+  D:\Download\LMS\backend\app\schemas\schemas.py:425: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizResponse(QuizBase):
+
+backend\app\schemas\schemas.py:436
+  D:\Download\LMS\backend\app\schemas\schemas.py:436: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizStudentResponse(QuizBase):
+
+backend\app\schemas\schemas.py:461
+  D:\Download\LMS\backend\app\schemas\schemas.py:461: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizAttemptResponse(BaseModel):
+
+backend\app\schemas\schemas.py:491
+  D:\Download\LMS\backend\app\schemas\schemas.py:491: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class GradeResponse(BaseModel):
+
+backend\app\schemas\schemas.py:511
+  D:\Download\LMS\backend\app\schemas\schemas.py:511: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class NotificationResponse(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED backend/tests/test_recon2_challenger.py::test_quiz_question_type_enum
+ERROR backend/tests/test_acceptance.py::test_ac01_authentication - Failed: In...
+ERROR backend/tests/test_acceptance.py::test_ac02_authorization - Failed: Int...
+ERROR backend/tests/test_acceptance.py::test_ac03_course_isolation - Failed: ...
+ERROR backend/tests/test_acceptance.py::test_ac04_enrollment_uniqueness - Fai...
+ERROR backend/tests/test_acceptance.py::test_ac05_published_content - Failed:...
+ERROR backend/tests/test_acceptance.py::test_ac06_assignment_deadline - Faile...
+ERROR backend/tests/test_acceptance.py::test_ac07_grading_sync - Failed: Inte...
+ERROR backend/tests/test_acceptance.py::test_ac08_quiz_max_attempts - Failed:...
+ERROR backend/tests/test_acceptance.py::test_ac09_quiz_secret_protection - Fa...
+ERROR backend/tests/test_acceptance.py::test_ac10_notification_ownership - Fa...
+ERROR backend/tests/test_challenger_recon.py::test_challenger_health_endpoint_contract
+ERROR backend/tests/test_challenger_recon.py::test_challenger_auth_valid_logins_all_roles
+ERROR backend/tests/test_challenger_recon.py::test_challenger_auth_case_and_whitespace_insensitivity
+ERROR backend/tests/test_challenger_recon.py::test_challenger_auth_invalid_credentials_adversarial
+ERROR backend/tests/test_challenger_recon.py::test_challenger_rbac_student_forbidden_admin_routes
+ERROR backend/tests/test_challenger_recon.py::test_challenger_rbac_student_forbidden_lecturer_routes
+ERROR backend/tests/test_challenger_recon.py::test_challenger_rbac_lecturer_forbidden_admin_routes
+ERROR backend/tests/test_challenger_recon.py::test_challenger_assignment_deadline_enforcement
+ERROR backend/tests/test_challenger_recon.py::test_challenger_quiz_secret_protection_full_lifecycle
+ERROR backend/tests/test_challenger_recon.py::test_challenger_quiz_attempt_submit_execution
+1 failed, 15 passed, 15 warnings, 20 errors in 7.13s
+EXIT_CODE=1

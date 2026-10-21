@@ -1,0 +1,72 @@
+Command: backend\venv\Scripts\python.exe -m pytest backend/tests/test_forensic_contracts.py -q
+CWD: D:\Download\LMS
+Timestamp UTC:
+2026-10-21T00:51:32Z
+HEAD SHA:
+4fc2ead72d929ace0c3ed6ce85ae09dc4ac3fa6a
+ (working tree dirty)
+..............                                                           [100%]
+============================== warnings summary ===============================
+backend\venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\Download\LMS\backend\venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+backend\app\schemas\schemas.py:54
+  D:\Download\LMS\backend\app\schemas\schemas.py:54: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class UserResponse(UserBase):
+
+backend\app\schemas\schemas.py:95
+  D:\Download\LMS\backend\app\schemas\schemas.py:95: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class CourseResponse(CourseBase):
+
+backend\app\schemas\schemas.py:108
+  D:\Download\LMS\backend\app\schemas\schemas.py:108: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class EnrollmentResponse(BaseModel):
+
+backend\app\schemas\schemas.py:153
+  D:\Download\LMS\backend\app\schemas\schemas.py:153: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class LessonResponse(LessonBase):
+
+backend\app\schemas\schemas.py:184
+  D:\Download\LMS\backend\app\schemas\schemas.py:184: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class ModuleResponse(ModuleBase):
+
+backend\app\schemas\schemas.py:250
+  D:\Download\LMS\backend\app\schemas\schemas.py:250: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class AssignmentResponse(AssignmentBase):
+
+backend\app\schemas\schemas.py:281
+  D:\Download\LMS\backend\app\schemas\schemas.py:281: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class SubmissionResponse(BaseModel):
+
+backend\app\schemas\schemas.py:333
+  D:\Download\LMS\backend\app\schemas\schemas.py:333: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizQuestionResponse(BaseModel):
+
+backend\app\schemas\schemas.py:347
+  D:\Download\LMS\backend\app\schemas\schemas.py:347: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizQuestionStudentResponse(BaseModel):
+
+backend\app\schemas\schemas.py:425
+  D:\Download\LMS\backend\app\schemas\schemas.py:425: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizResponse(QuizBase):
+
+backend\app\schemas\schemas.py:436
+  D:\Download\LMS\backend\app\schemas\schemas.py:436: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizStudentResponse(QuizBase):
+
+backend\app\schemas\schemas.py:461
+  D:\Download\LMS\backend\app\schemas\schemas.py:461: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizAttemptResponse(BaseModel):
+
+backend\app\schemas\schemas.py:491
+  D:\Download\LMS\backend\app\schemas\schemas.py:491: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class GradeResponse(BaseModel):
+
+backend\app\schemas\schemas.py:511
+  D:\Download\LMS\backend\app\schemas\schemas.py:511: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class NotificationResponse(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+14 passed, 15 warnings in 0.42s
+EXIT_CODE=0

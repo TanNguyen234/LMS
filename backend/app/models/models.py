@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column, String, Boolean, Integer, Float, DateTime,
-    ForeignKey, Text, SmallInteger
+    ForeignKey, Text, SmallInteger, Index, UniqueConstraint, text
 )
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from sqlalchemy.orm import relationship
@@ -171,7 +171,7 @@ class QuizQuestion(Base):
     QuestionId = Column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
     QuizId = Column(UNIQUEIDENTIFIER, ForeignKey("Quizzes.QuizId"), nullable=False, index=True)
     QuestionText = Column(String(1000), nullable=False)
-    QuestionType = Column(String(20), nullable=False)  # 'SINGLE_CHOICE', 'TRUE_FALSE', 'SHORT_TEXT'
+    QuestionType = Column(String(20), nullable=False)  # 'SINGLE_CHOICE' or 'TRUE_FALSE'
     OptionsJson = Column(Text, nullable=True)  # JSON array: [{"key": "A", "text": "Option text"}, ...]
     CorrectAnswer = Column(String(500), nullable=False)
     Score = Column(Float, nullable=False, default=1.0)
@@ -183,6 +183,9 @@ class QuizQuestion(Base):
 
 class QuizAttempt(Base):
     __tablename__ = "QuizAttempts"
+    __table_args__ = (
+        UniqueConstraint("QuizId", "StudentId", "AttemptNo", name="UQ_QuizAttempts_Quiz_Student_No"),
+    )
 
     AttemptId = Column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
     QuizId = Column(UNIQUEIDENTIFIER, ForeignKey("Quizzes.QuizId"), nullable=False)
@@ -201,6 +204,17 @@ class QuizAttempt(Base):
 
 class Grade(Base):
     __tablename__ = "Grades"
+    __table_args__ = (
+        Index(
+            "UQ_Grades_Source_Learner",
+            "CourseId",
+            "StudentId",
+            "SourceType",
+            "SourceId",
+            unique=True,
+            mssql_where=text("SourceId IS NOT NULL"),
+        ),
+    )
 
     GradeId = Column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
     CourseId = Column(UNIQUEIDENTIFIER, ForeignKey("Courses.CourseId"), nullable=False)

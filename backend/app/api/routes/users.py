@@ -18,6 +18,7 @@ def list_users(
     pageSize: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None),
     role: Optional[str] = Query(None),
+    is_active: Optional[bool] = Query(None, alias="isActive"),
     db: Session = Depends(get_db)
 ):
     """List users with pagination and search (Admin only)."""
@@ -27,6 +28,8 @@ def list_users(
         query = query.filter((User.Email.ilike(s)) | (User.FullName.ilike(s)))
     if role:
         query = query.filter(User.Role == role.upper())
+    if is_active is not None:
+        query = query.filter(User.IsActive == is_active)
 
     total = query.count()
     users = query.order_by(User.CreatedAt.desc()).offset((page - 1) * pageSize).limit(pageSize).all()

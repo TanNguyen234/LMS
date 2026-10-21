@@ -1,40 +1,66 @@
-# Audit Document 06: Project Management Documentation Reconciliation
+# 06 — Đối soát tài liệu Quản lý Dự án
 
-This report documents the review, mathematical cross-check, and reconciliation across all 13 Software Project Management (SPM) artifacts under `docs/project-management/`.
+> **Báo cáo hiện hành ngày 2026-10-21.** Nội dung này thay thế báo cáo cũ. Kế hoạch, chữ ký, UAT, ngày thực hiện và chi phí được phân biệt với bằng chứng thực tế.
 
----
+## 1. Kiểm kê 13 tài liệu có thật
 
-## 1. Inventory & Consistency Audit of 13 PM Artifacts
+| # | Tệp thật | Ghi chú đối soát |
+|---:|---|---|
+| 01 | [01_PROJECT_CHARTER.md](../project-management/01_PROJECT_CHARTER.md) | Baseline 20 tuần, 1.200.000.000 VNĐ, ba vai trò người dùng; 8.5 FTE, đầu người chưa chốt. |
+| 02 | [02_STAKEHOLDER_REGISTER.md](../project-management/02_STAKEHOLDER_REGISTER.md) | Sổ stakeholder giả định của đồ án. |
+| 03 | [03_RACI_MATRIX.md](../project-management/03_RACI_MATRIX.md) | RACI cho nhóm dự án và sponsor giả định. |
+| 04 | [04_SCOPE_BASELINE_WBS.md](../project-management/04_SCOPE_BASELINE_WBS.md) | Scope/WBS; student self-enrollment ngoài phạm vi. |
+| 05 | [05_WBS_DICTIONARY.md](../project-management/05_WBS_DICTIONARY.md) | Từ điển WBS liên kết deliverables. |
+| 06 | [06_SCHEDULE_CPM_GANTT.md](../project-management/06_SCHEDULE_CPM_GANTT.md) | CPM tính lại theo phụ thuộc và float. |
+| 07 | [07_RESOURCE_AND_BUDGET_BASELINE.md](../project-management/07_RESOURCE_AND_BUDGET_BASELINE.md) | Ngân sách 1.2 tỷ; 9 dòng phân bổ, tổng 8.5 FTE. |
+| 08 | [08_RISK_REGISTER.md](../project-management/08_RISK_REGISTER.md) | Upload rủi ro được đổi thành kỳ vọng nộp bài; MVP chỉ nhận văn bản. |
+| 09 | [09_QUALITY_PLAN_AND_GATES.md](../project-management/09_QUALITY_PLAN_AND_GATES.md) | Tiêu chí chất lượng là mục tiêu, không phải kết quả đo hiện tại. |
+| 10 | [10_COMMUNICATION_PLAN.md](../project-management/10_COMMUNICATION_PLAN.md) | Kế hoạch truyền thông mô phỏng. |
+| 11 | [11_CHANGE_MANAGEMENT_PLAN.md](../project-management/11_CHANGE_MANAGEMENT_PLAN.md) | Quy trình change control dự kiến. |
+| 12 | [12_UAT_AND_ACCEPTANCE_EVIDENCE.md](../project-management/12_UAT_AND_ACCEPTANCE_EVIDENCE.md) | 10 kịch bản; kết quả mẫu được gắn nhãn mô phỏng/chưa chạy. |
+| 13 | [13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md](../project-management/13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md) | EVM/đóng dự án là ví dụ minh họa, không phải số đo/biên bản thật. |
 
-| Document | Title | Baseline Assessment | Reconciliation Action & Verification |
-| :--- | :--- | :--- | :--- |
-| **01** | `01_PROJECT_CHARTER.md` | Authorizes 20-week timeline, 1.2B VND budget, and 3 core personas. | Aligned with code delivery scope; verified academic prototype constraints. |
-| **02** | `02_STAKEHOLDER_COMMUNICATION_PLAN.md` | Outlines RACI matrix and escalation protocols. | Verified that Admin, Lecturer, and Student roles match backend RBAC. |
-| **03** | `03_SCOPE_MANAGEMENT_WBS_DICTIONARY.md` | 4-level Work Breakdown Structure (WBS). | Confirmed out-of-scope status of Student Self-Enrollment; dictionary aligns with deliverable packages. |
-| **04** | `04_EFFORT_ESTIMATION_COCOMO_FPA.md` | FPA (138.86 AFP) and Intermediate COCOMO II (29.2 Person-Months). | Re-checked effort calculations; consistent with 7-member team over 5 calendar months. |
-| **05** | `05_BUDGET_COST_BASELINE.md` | Total budget: 1,200,000,000 VND (Labor: 955M, Infrastructure: 110M, Contingency: 135M). | Verified cash flow sum and 10% contingency allocation balance exactly to 1.2B VND. |
-| **06** | `06_SCHEDULE_CPM_GANTT.md` | 18 Activities, 20-week Critical Path (`ACT-01` -> `ACT-18`). | **DEFECT RECONCILED**: ACT-14 predecessor corrected from ACT-13 to ACT-12; Total Float recalculated to TF=2 (non-critical). Gantt chart updated. |
-| **07** | `07_RISK_MANAGEMENT_PLAN.md` | 10 project risks with Monte Carlo simulations and EVM mitigations. | Aligned risk RSK-03 (SQL Server compatibility) with concrete ODBC driver configuration. |
-| **08** | `08_QUALITY_ASSURANCE_PLAN.md` | Quality gates, SonarQube metrics, test coverage benchmarks. | Verified quality gates with automated pytest suite and `oxlint`/`tsc` builds. |
-| **09** | `09_PROCUREMENT_VENDOR_MANAGEMENT.md` | Hardware, SQL Server, and cloud provider SLAs. | Aligned hardware specifications with Microsoft SQL Server Express constraints. |
-| **10** | `10_CHANGE_MANAGEMENT_PLAN.md` | CCB structure, change request workflow, thresholds. | Audited against change control records. |
-| **11** | `11_CONFIGURATION_DATA_MANAGEMENT.md` | Branching strategy, semantic versioning, CI/CD pipelines. | Aligned with Git working practices. |
-| **12** | `12_UAT_AND_ACCEPTANCE_EVIDENCE.md` | Acceptance test scenarios and sign-off records. | **DEFECT RECONCILED**: Added explicit academic governance disclaimer distinguishing simulated PM templates from actual automated acceptance tests (`test_acceptance.py`). |
-| **13** | `13_PROJECT_CLOSURE_REPORT.md` | Project post-mortem, final EVM metrics, lessons learned. | Reconciled EVM metrics (CPI=1.01, SPI=1.00) against completed project baseline. |
+Repo không có các file 04_EFFORT_ESTIMATION_COCOMO_FPA.md, 05_BUDGET_COST_BASELINE.md, 07_RISK_MANAGEMENT_PLAN.md, 08_QUALITY_ASSURANCE_PLAN.md, 09_PROCUREMENT_VENDOR_MANAGEMENT.md, 11_CONFIGURATION_DATA_MANAGEMENT.md hoặc 13_PROJECT_CLOSURE_REPORT.md được nêu trong báo cáo cũ.
 
----
+## 2. CPM: quy ước và phép tính
 
-## 2. Schedule & CPM Reconciliation Details
+ES/EF tính theo thời điểm bắt đầu 0, finish-to-start; EF=ES+duration. Backward pass lấy mốc kết thúc tuần 20; LS=LF-duration, TF=LS-ES. ACT-03 và ACT-05 nối vào ACT-06 vì kế hoạch/kiến trúc phải xong trước môi trường. ACT-14 và ACT-15 nối vào ACT-17 vì triage lẫn UAT phải xong trước release. Nhờ vậy mọi hoạt động nằm trên đường về mốc đóng dự án.
 
-In `06_SCHEDULE_CPM_GANTT.md`, the network dependency table originally contained a logical circularity and float calculation discrepancy on `ACT-14`:
-- **Discrepancy:** `ACT-14` (User Acceptance Testing) listed `ACT-13` (System Integration Testing) as a dependency, while `ACT-13` had already finished at Week 16. Furthermore, `ACT-14`'s Early Start was listed as Week 15, causing an impossible dependency sequence.
-- **Reconciliation Applied:**
-  - Standardized `ACT-14`'s predecessor to `ACT-12` (Deployment to Staging Environment).
-  - Recalculated forward and backward pass parameters:
-    - Duration: 2 weeks
-    - Early Start (ES): Week 15
-    - Early Finish (EF): Week 17
-    - Late Start (LS): Week 17
-    - Late Finish (LF): Week 19
-    - Total Float (TF): `17 - 15 = 2 weeks` (confirmed non-critical activity).
-  - Preserved the true Critical Path: `ACT-01 -> ACT-02 -> ACT-03 -> ACT-04 -> ACT-06 -> ACT-08 -> ACT-10 -> ACT-11 -> ACT-12 -> ACT-13 -> ACT-16 -> ACT-17 -> ACT-18 = 20 Weeks`.
+| Activity | Predecessors | Dur. | ES | EF | LS | LF | TF |
+|---|---|---:|---:|---:|---:|---:|---:|
+| ACT-01 | — | 2 | 0 | 2 | 0 | 2 | 0 |
+| ACT-02 | ACT-01 | 2 | 2 | 4 | 2 | 4 | 0 |
+| ACT-03 | ACT-02 | 2 | 4 | 6 | 4 | 6 | 0 |
+| ACT-04 | ACT-02 | 2 | 4 | 6 | 5 | 7 | 1 |
+| ACT-05 | ACT-02 | 2 | 4 | 6 | 4 | 6 | 0 |
+| ACT-06 | ACT-03, ACT-05 | 1 | 6 | 7 | 6 | 7 | 0 |
+| ACT-07 | ACT-04, ACT-06 | 1 | 7 | 8 | 7 | 8 | 0 |
+| ACT-08 | ACT-07 | 1 | 8 | 9 | 8 | 9 | 0 |
+| ACT-09 | ACT-08 | 1 | 9 | 10 | 9 | 10 | 0 |
+| ACT-10 | ACT-09 | 1 | 10 | 11 | 10 | 11 | 0 |
+| ACT-11 | ACT-10 | 1 | 11 | 12 | 11 | 12 | 0 |
+| ACT-12 | ACT-11 | 1 | 12 | 13 | 12 | 13 | 0 |
+| ACT-13 | ACT-12 | 2 | 13 | 15 | 13 | 15 | 0 |
+| ACT-14 | ACT-13 | 1 | 15 | 16 | 15 | 16 | 0 |
+| ACT-15 | ACT-13 | 1 | 15 | 16 | 15 | 16 | 0 |
+| ACT-16 | ACT-15 | 1 | 16 | 17 | 18 | 19 | 2 |
+| ACT-17 | ACT-14, ACT-15 | 2 | 16 | 18 | 16 | 18 | 0 |
+| ACT-18 | ACT-17 | 1 | 18 | 19 | 18 | 19 | 0 |
+| ACT-19 | ACT-16, ACT-18 | 1 | 19 | 20 | 19 | 20 | 0 |
+
+Mạng có thời lượng 20 tuần. ACT-04 có float 1 tuần; ACT-16 có float 2 tuần. Các nhánh găng song song là ACT-03/ACT-05 trước ACT-06 và ACT-14/ACT-15 trước ACT-17. Đây là tính toán baseline, không phải thời lượng thực tế.
+
+## 3. Ngân sách và nguồn lực
+
+- Labor 840M + infrastructure 120M + software 48M + training 40M + administration 32M + contingency 120M = **1.200M VNĐ**.
+- Cash flow: 180M + 150M + 450M + 240M + 180M = **1.200M VNĐ**.
+- Labor rows sum to **8.5 FTE**. Budget has 9 role-allocation rows while charter previously said 8 people. Corrected docs do not assert a headcount.
+- Closure example: PV=1.200M, EV=1.200M, AC=1.175M; SV=0, SPI=1.0, CV=+25M, CPI≈1.021. These are illustrative only; repo contains no invoice, timesheet or measured actual cost.
+
+## 4. UAT, closure and implementation truth
+
+UAT defines 10 scenarios; its sample outcomes are now marked SIMULATED/NOT RUN, not an automated test report. Closure status, approvals, duration and EVM are also scenario templates. Current executed evidence is separate in 2026-10-21/03_TEST_MATRIX.md.
+
+README and PROJECT.md now state the actual stack (React 19, fetch, React Router 7), text-only assignment submission and dated release status. Fresh SQL bootstrap is database/01_schema.sql, then 02_seed.sql, then 04_seed_validation.sql. Initial Alembic revision modifies existing tables and cannot bootstrap an empty DB. For a fresh database created from the current SQL scripts, stamp Alembic at head after schema/seed validation. For an existing database at revision efd8af3f19c3, the incremental migration adds filtered grade uniqueness and supported question-type constraints; it can stop before mutation if duplicate/unsupported rows exist.
+
+The former report mislabeled ACT-14 as UAT, changed its predecessor incorrectly, used wrong budget allocations and cited nonexistent PM files. Those claims are superseded.

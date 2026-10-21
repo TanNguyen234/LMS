@@ -1,12 +1,12 @@
-import os
+from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from backend.app.core.config import settings
+from backend.app.core.config import settings, validate_jwt_secret
 from backend.app.db.session import engine, SessionLocal
 from backend.app.db.init_db import init_development_passwords
 from backend.app.api.routes.auth import router as auth_router
@@ -22,9 +22,8 @@ from backend.app.api.routes.dashboard import router as dashboard_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Ensure upload directory exists
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    
+    validate_jwt_secret(settings.APP_ENV, settings.JWT_SECRET)
+
     # Initialize demo passwords if in development
     db = SessionLocal()
     try:
@@ -54,12 +53,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Uploads directory static serving
-if not os.path.exists(settings.UPLOAD_DIR):
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-app.mount("/storage/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
-
-
 # Health check
 @app.get("/health", tags=["System"])
 def health_check():
@@ -69,7 +62,7 @@ def health_check():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
             db_ok = True
-    except Exception as e:
+    except Exception:
         db_ok = False
 
     payload = {
@@ -98,11 +91,23 @@ app.include_router(dashboard_router, prefix=api_prefix)
 
 
 # Serve Built React Frontend (SPA fallback)
-frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist"))
-if os.path.exists(frontend_dist):
-    assets_dir = os.path.join(frontend_dist, "assets")
-    if os.path.exists(assets_dir):
-        app.mount("/assets", StaticFiles(directory=assets_dir), name="frontend-assets")
+frontend_dist = (Path(__file__).resolve().parents[2] / "frontend" / "dist").resolve()
+
+
+def resolve_spa_file(root: Path, requested_path: str) -> Path | None:
+    try:
+        resolved_root = root.resolve()
+        candidate = (resolved_root / requested_path).resolve()
+        candidate.relative_to(resolved_root)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return candidate if candidate.is_file() else None
+
+
+if frontend_dist.exists():
+    assets_dir = frontend_dist / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend-assets")
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
@@ -112,11 +117,10 @@ if os.path.exists(frontend_dist):
             or full_path.startswith("docs")
             or full_path.startswith("openapi.json")
             or full_path == "health"
-            or full_path.startswith("storage/")
         ):
             return JSONResponse(status_code=404, content={"detail": "Not found"})
         
-        file_path = os.path.join(frontend_dist, full_path)
-        if os.path.isfile(file_path):
+        file_path = resolve_spa_file(frontend_dist, full_path)
+        if file_path:
             return FileResponse(file_path)
-        return FileResponse(os.path.join(frontend_dist, "index.html"))
+        return FileResponse(frontend_dist / "index.html")

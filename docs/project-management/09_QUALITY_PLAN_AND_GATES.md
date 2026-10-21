@@ -1,3 +1,5 @@
+> **Tài liệu đồ án học thuật mô phỏng.** Vai trò, ước tính, giả định, trạng thái và biên bản trong kế hoạch này không phải bằng chứng thực thi hoặc phê duyệt thực tế.
+
 # 09 — Kế hoạch Quản lý Chất lượng & Cổng Kiểm soát (Quality Plan & Quality Gates)
 
 ## 1. Mục tiêu Chất lượng (Quality Objectives)

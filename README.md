@@ -1,147 +1,83 @@
 # University Learning Management System (LMS)
-## Đồ án Quản lý Dự án Phần mềm (Software Project Management)
 
-Dự án Hệ thống Quản lý Học tập Đại học (University LMS) được triển khai theo mô hình **Dual-Track Delivery** hoàn chỉnh:
-- **Track A (Hồ sơ Quản lý Dự án Chuẩn mực):** Bộ 13 tài liệu quản lý dự án học thuật đáp ứng đầy đủ tiêu chuẩn PMI/PMBOK (Charter, WBS L3, CPM/Gantt, Dự toán 1.2 tỷ VND, Quản trị rủi ro, Kế hoạch chất lượng, UAT và Đóng dự án).
-- **Track B (Nguyên mẫu Kỹ thuật Thực thi - Working Prototype):** Kiến trúc Modular Monolith chạy trên nền tảng **FastAPI (Python 3.12)**, **Microsoft SQL Server (localhost\SQLEXPRESS)**, **SQLAlchemy 2.x & Alembic**, và giao diện web SPA hiện đại **React 19 + TypeScript + Vite + Tailwind CSS**.
+University LMS is an academic project prototype for course content, assignment text submissions, timed quizzes, grading and notifications. The project keeps a FastAPI backend, SQL Server database and React/Vite web frontend.
 
----
+## Current verification
 
-## 1. Cấu trúc Dự án
+The dated forensic report is the source of truth for tested behavior, environment limits and release status: [docs/audit/2026-10-21/05_RELEASE_GATE.md](docs/audit/2026-10-21/05_RELEASE_GATE.md). The prior audit files in docs/audit are historical snapshots and are not current release evidence.
 
-```text
-D:\Download\LMS\
-├── docs/
-│   └── project-management/            # 13 Tài liệu Quản lý Dự án Chuẩn PMBOK
-│       ├── 01_PROJECT_CHARTER.md
-│       ├── 02_STAKEHOLDER_REGISTER.md
-│       ├── 03_RACI_MATRIX.md
-│       ├── 04_SCOPE_BASELINE_WBS.md
-│       ├── 05_WBS_DICTIONARY.md
-│       ├── 06_SCHEDULE_CPM_GANTT.md
-│       ├── 07_RESOURCE_AND_BUDGET_BASELINE.md
-│       ├── 08_RISK_REGISTER.md
-│       ├── 09_QUALITY_PLAN_AND_GATES.md
-│       ├── 10_COMMUNICATION_PLAN.md
-│       ├── 11_CHANGE_MANAGEMENT_PLAN.md
-│       ├── 12_UAT_AND_ACCEPTANCE_EVIDENCE.md
-│       └── 13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md
-├── database/                          # T-SQL Scripts cho Microsoft SQL Server
-│   ├── 01_schema.sql                  # Định nghĩa 12 bảng cốt lõi và quan hệ FK/Index
-│   ├── 02_seed.sql                    # Dữ liệu mẫu chuẩn (12 bảng x 10 bản ghi = 120 dòng)
-│   ├── 03_reset.sql                   # Kịch bản xóa sạch và làm mới CSDL
-│   └── 04_seed_validation.sql         # Kịch bản xác thực tính toàn vẹn dữ liệu
-├── backend/                           # API Server (FastAPI + SQLAlchemy 2.x)
-│   ├── app/
-│   │   ├── api/routes/                # Router phân hệ: auth, users, courses, content, ...
-│   │   ├── core/                      # Config, JWT Security, RBAC Dependencies
-│   │   ├── db/                        # Engine, SessionLocal, Seed initializer
-│   │   ├── models/                    # Khai báo ORM Models cho 12 bảng CSDL
-│   │   ├── schemas/                   # Khai báo Pydantic schemas (Request / Response)
-│   │   └── main.py                    # Khởi tạo FastAPI App, CORS, Static SPA serving
-│   ├── alembic/                       # Migration scripts tự động
-│   ├── tests/                         # Bộ kiểm thử chấp nhận (Acceptance Tests AC-01 -> AC-10)
-│   ├── requirements.txt               # Danh sách thư viện Python
-│   └── .env                           # Biến môi trường kết nối CSDL và JWT Secret
-└── frontend/                          # Giao diện người dùng Web SPA (React + Vite + TS)
-    ├── src/
-    │   ├── api/client.ts              # API client gọi FastAPI với Bearer token tự động
-    │   ├── auth/AuthContext.tsx       # Quản lý phiên đăng nhập và phân quyền RBAC
-    │   ├── components/layout/         # Header, Responsive Sidebar, Notifications menu
-    │   ├── pages/                     # Giao diện các phân hệ theo vai trò
-    │   ├── routes/AppRoutes.tsx       # Cấu hình định tuyến và bộ bảo vệ ProtectedRoute
-    │   └── types/index.ts             # Hợp đồng kiểu dữ liệu TypeScript
-    └── vite.config.ts                 # Cấu hình proxy /api và Tailwind CSS
-```
+## Technology
 
----
+- Backend: Python 3.12, FastAPI, SQLAlchemy, Alembic, pyodbc.
+- Database: Microsoft SQL Server.
+- Frontend: React 19, TypeScript, Vite, React Router 7 and a fetch-based API client.
+- Roles: ADMIN, LECTURER and STUDENT. Authorization is enforced by the API.
+- Assignment submission MVP: text only. The frontend does not upload files.
 
-## 2. Tài khoản Demo Kiểm thử Hệ thống
+## Repository guide
 
-## 2. Tài khoản Demo Kiểm thử Hệ thống
+- backend/app: API routes, schemas, models, authentication and database session.
+- backend/tests: SQL Server integration suite and pure forensic contract tests.
+- database: schema, seed and validation SQL scripts.
+- frontend/src: API client, role-aware views and shared types.
+- docs/project-management: the 13 academic project-management documents.
+- docs/audit/2026-10-21: current forensic baseline, contracts, test matrix, reconciliation, release gate and runbook.
 
-Hệ thống đã nạp sẵn dữ liệu mẫu chuẩn theo `database/02_seed.sql` phục vụ hội đồng chấm và đánh giá:
-Mật khẩu mặc định cho môi trường phát triển (`APP_ENV=development`) là: `Demo@123`
+## Safe local setup
 
-| Vai trò | Email đăng nhập | Tên hiển thị | Quyền hạn tiêu biểu |
-| :--- | :--- | :--- | :--- |
-| **Quản trị viên (Admin)** | `admin@university.edu.vn` | Nguyễn Minh Admin | Quản lý người dùng, tạo khóa học, phân công giảng viên, xem báo cáo toàn hệ thống. |
-| **Giảng viên (Lecturer)** | `lecturer1@university.edu.vn` | TS. Trần Hoàng Nam | Quản lý khóa học được giao, tạo chương/bài giảng, giao bài tập, chấm điểm, tạo Quiz. |
-| **Sinh viên (Student)** | `student1@university.edu.vn` | Nguyễn An | Xem bài giảng, tải tài liệu, nộp bài tập trực tuyến, thi trắc nghiệm tính giờ, tra cứu điểm. |
+Use a disposable SQL Server database named UniversityLms_Test_<id> for verification. Do not point test commands at a personal or shared UniversityLms database. Follow [the dated demo and test runbook](docs/audit/2026-10-21/06_DEMO_RUNBOOK.md) for schema, seed, Alembic and startup steps. Local secrets belong in an ignored .env file and must not be committed.
 
----
+Install backend dependencies from the repository root with:
 
-## 3. Hướng dẫn Khởi chạy Nhanh
+    python -m pip install -r backend/requirements.txt
 
-### Bước 1: Khởi tạo Cơ sở dữ liệu Microsoft SQL Server
-1. Mở SSMS hoặc `sqlcmd` kết nối tới `localhost\SQLEXPRESS`.
-2. Tạo cơ sở dữ liệu `UniversityLms`.
-3. Lần lượt thực thi các kịch bản:
-   - `database/01_schema.sql` (Tạo 12 bảng và ràng buộc)
-   - `database/02_seed.sql` (Nạp 120 dòng dữ liệu ban đầu)
-   - `database/04_seed_validation.sql` (Kiểm tra xác nhận: 12 bảng, mỗi bảng đúng 10 dòng)
+Start the API from the repository root after configuring its DATABASE_URL for the disposable database:
 
-### Bước 2: Khởi chạy Backend FastAPI
-```powershell
-# Từ thư mục gốc dự án:
-python -m pip install -r backend/requirements.txt
+    python -m uvicorn backend.app.main:app --reload --port 8000
 
-# Khởi chạy server FastAPI
-python -m uvicorn backend.app.main:app --reload --port 8000
-```
-- API Docs tương tác: `http://127.0.0.1:8000/docs`
-- Kiểm tra sức khỏe hệ thống: `http://127.0.0.1:8000/health`
+Install and start the frontend from frontend:
 
-### Bước 3: Khởi chạy Frontend React
-Mở một cửa sổ dòng lệnh thứ hai:
-```powershell
-cd frontend
-npm ci
-npm run dev
-```
-- Truy cập trình duyệt tại: `http://localhost:5173`
-- *Lưu ý:* Khi đã chạy lệnh `npm run build`, backend FastAPI tại `http://127.0.0.1:8000` cũng tự động phục vụ trực tiếp toàn bộ giao diện Frontend.
+    npm ci
+    npm run dev
 
----
+The API docs are served at /docs, health at /health, and the local web app at http://localhost:5173.
 
-## 4. Chạy Kiểm thử Tự động (Acceptance Test Suite)
+## Verification commands
 
-Dự án tích hợp bộ kiểm thử `pytest` tự động xác thực toàn bộ 10 tiêu chí chấp nhận kỹ thuật (AC-01 đến AC-10) theo đặc tả:
+From frontend:
 
-```powershell
-python -m pytest backend/tests -v
-```
+    npm ci
+    npm run build
+    npm run lint
 
-Kết quả thực nghiệm:
-```text
-backend/tests/test_acceptance.py::test_ac01_authentication PASSED        [ 10%]
-backend/tests/test_acceptance.py::test_ac02_authorization PASSED         [ 20%]
-backend/tests/test_acceptance.py::test_ac03_course_isolation PASSED      [ 30%]
-backend/tests/test_acceptance.py::test_ac04_enrollment_uniqueness PASSED [ 40%]
-backend/tests/test_acceptance.py::test_ac05_published_content PASSED     [ 50%]
-backend/tests/test_acceptance.py::test_ac06_assignment_deadline PASSED   [ 60%]
-backend/tests/test_acceptance.py::test_ac07_grading_sync PASSED          [ 70%]
-backend/tests/test_acceptance.py::test_ac08_quiz_max_attempts PASSED     [ 80%]
-backend/tests/test_acceptance.py::test_ac09_quiz_secret_protection PASSED [ 90%]
-backend/tests/test_acceptance.py::test_ac10_notification_ownership PASSED [100%]
+From the repository root, after configuring an isolated SQL Server database:
 
-======================= 10 passed, 0 failed =======================
-```
+    backend\venv\Scripts\python.exe -m pytest backend/tests -q
 
----
+The pytest fixture refuses to run database integration tests unless the configured database name begins with UniversityLms_Test_. Pure contract tests can be run separately with:
 
-## 5. Danh mục 13 Hồ sơ Quản lý Dự án (Track A)
+    backend\venv\Scripts\python.exe -m pytest backend/tests/test_forensic_contracts.py -q
 
-1. [01_PROJECT_CHARTER.md](docs/project-management/01_PROJECT_CHARTER.md) - Điều lệ dự án, mục tiêu SMART, ngân sách 1.2 tỷ VND, 20 tuần thực hiện.
-2. [02_STAKEHOLDER_REGISTER.md](docs/project-management/02_STAKEHOLDER_REGISTER.md) - Sổ đăng ký các bên liên quan, ma trận Quyền lực - Mức độ quan tâm.
-3. [03_RACI_MATRIX.md](docs/project-management/03_RACI_MATRIX.md) - Ma trận phân định trách nhiệm RACI cho 8 vai trò nhân sự.
-4. [04_SCOPE_BASELINE_WBS.md](docs/project-management/04_SCOPE_BASELINE_WBS.md) - Đường cơ sở phạm vi và cấu trúc phân rã công việc WBS cấp 3.
-5. [05_WBS_DICTIONARY.md](docs/project-management/05_WBS_DICTIONARY.md) - Từ điển WBS chi tiết cho từng gói công việc.
-6. [06_SCHEDULE_CPM_GANTT.md](docs/project-management/06_SCHEDULE_CPM_GANTT.md) - Tiến độ đường găng CPM, tính toán ES/EF/LS/LF, Float và biểu đồ Gantt.
-7. [07_RESOURCE_AND_BUDGET_BASELINE.md](docs/project-management/07_RESOURCE_AND_BUDGET_BASELINE.md) - Dự toán chi tiết 8.5 FTEs, phân bổ chi phí nhân sự và hạ tầng.
-8. [08_RISK_REGISTER.md](docs/project-management/08_RISK_REGISTER.md) - Sổ theo dõi rủi ro định lượng P*I, biện pháp phòng ngừa và ứng phó.
-9. [09_QUALITY_PLAN_AND_GATES.md](docs/project-management/09_QUALITY_PLAN_AND_GATES.md) - Cổng kiểm soát chất lượng QG1-QG5, phân cấp lỗi và tiêu chuẩn DoD.
-10. [10_COMMUNICATION_PLAN.md](docs/project-management/10_COMMUNICATION_PLAN.md) - Kế hoạch truyền thông, ma trận báo cáo và quy trình báo động 3 cấp.
-11. [11_CHANGE_MANAGEMENT_PLAN.md](docs/project-management/11_CHANGE_MANAGEMENT_PLAN.md) - Quy trình kiểm soát thay đổi, hội đồng CCB và biểu mẫu CR.
-12. [12_UAT_AND_ACCEPTANCE_EVIDENCE.md](docs/project-management/12_UAT_AND_ACCEPTANCE_EVIDENCE.md) - Bằng chứng nghiệm thu UAT cho 10 kịch bản kiểm thử AC-01 -> AC-10.
-13. [13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md](docs/project-management/13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md) - Biên bản đóng dự án, phân tích EVM và bài học kinh nghiệm.
+Do not interpret an unavailable database, a collected test count, a previous screenshot or a historical report as a passing integration or browser test.
+
+## Demo seed accounts
+
+The SQL seed defines demo accounts for each role; the development-only password initializer uses the demo password described in the seed. Use them only in a local disposable environment. Do not reuse demo credentials in a deployed environment.
+
+## Project-management documents
+
+The actual files are the numbered set under docs/project-management:
+
+1. [Project Charter](docs/project-management/01_PROJECT_CHARTER.md)
+2. [Stakeholder Register](docs/project-management/02_STAKEHOLDER_REGISTER.md)
+3. [RACI Matrix](docs/project-management/03_RACI_MATRIX.md)
+4. [Scope Baseline and WBS](docs/project-management/04_SCOPE_BASELINE_WBS.md)
+5. [WBS Dictionary](docs/project-management/05_WBS_DICTIONARY.md)
+6. [Schedule and CPM](docs/project-management/06_SCHEDULE_CPM_GANTT.md)
+7. [Resource and Budget Baseline](docs/project-management/07_RESOURCE_AND_BUDGET_BASELINE.md)
+8. [Risk Register](docs/project-management/08_RISK_REGISTER.md)
+9. [Quality Plan](docs/project-management/09_QUALITY_PLAN_AND_GATES.md)
+10. [Communication Plan](docs/project-management/10_COMMUNICATION_PLAN.md)
+11. [Change Management Plan](docs/project-management/11_CHANGE_MANAGEMENT_PLAN.md)
+12. [UAT Scenarios](docs/project-management/12_UAT_AND_ACCEPTANCE_EVIDENCE.md)
+13. [Project Closure Scenario](docs/project-management/13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md)
