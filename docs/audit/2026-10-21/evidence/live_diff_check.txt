@@ -1,25 +1,2 @@
-warning: in the working copy of 'backend/app/api/routes/users.py', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'backend/app/schemas/schemas.py', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'backend/tests/test_acceptance.py', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'backend/tests/test_challenger_recon.py', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'backend/tests/test_recon2_challenger.py', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'docs/audit/2026-10-21/00_BASELINE.md', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'docs/audit/2026-10-21/01_FINDINGS_AND_TRIAGE.md', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'docs/audit/2026-10-21/02_API_CONTRACT_MATRIX.md', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'docs/audit/2026-10-21/03_TEST_MATRIX.md', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'docs/audit/2026-10-21/04_PM_RECONCILIATION.md', LF will be replaced by CRLF the next time Git touches it
 warning: in the working copy of 'docs/audit/2026-10-21/05_RELEASE_GATE.md', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'docs/audit/2026-10-21/06_DEMO_RUNBOOK.md', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'docs/audit/2026-10-21/evidence/full_pytest_pre_guard.txt', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'docs/audit/2026-10-21/evidence/independent_review.md', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'docs/audit/2026-10-21/evidence/live_readonly_browser.md', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'frontend/src/api/client.ts', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'frontend/src/auth/AuthContext.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'frontend/src/pages/AdminUsersPage.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'frontend/src/pages/AssignmentsPage.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'frontend/src/pages/CourseDetailPage.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'frontend/src/pages/CoursesPage.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'frontend/src/pages/QuizzesPage.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'frontend/src/types/index.ts', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'frontend/vite.config.ts', LF will be replaced by CRLF the next time Git touches it
 exit_code=0
