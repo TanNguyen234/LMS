@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { User, UserRole } from '../types';
-import { api } from '../api/client';
+import { ApiError, api } from '../api/client';
 
 interface AuthContextType {
   user: User | null;
@@ -21,6 +21,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const logout = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }, []);
+
   useEffect(() => {
     const verifyUser = async () => {
       if (token) {
@@ -29,7 +36,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(freshUser);
           localStorage.setItem('user', JSON.stringify(freshUser));
         } catch (err) {
-          console.error('Session expired or invalid token', err);
+          if (!(err instanceof ApiError && err.status === 401)) {
+            console.error('Could not verify the current session', err);
+          }
           logout();
         }
       }
@@ -37,7 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     verifyUser();
-  }, [token]);
+  }, [token, logout]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -50,13 +59,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
   };
 
   const hasRole = (roles: UserRole | UserRole[]): boolean => {

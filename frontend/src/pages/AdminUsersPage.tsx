@@ -9,6 +9,7 @@ import {
   ToggleRight,
   X,
   AlertCircle,
+  Pencil,
 } from 'lucide-react';
 import { api } from '../api/client';
 import type { User, UserRole } from '../types';
@@ -19,6 +20,7 @@ export const AdminUsersPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // New user form state
@@ -58,26 +60,36 @@ export const AdminUsersPage: React.FC = () => {
     }
   };
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  const resetUserForm = () => {
+    setNewUsername('');
+    setNewEmail('');
+    setNewFullName('');
+    setNewPassword('Demo@123');
+    setNewRole('STUDENT');
+    setEditingUser(null);
+  };
+
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const created = await api.createUser({
-        username: newUsername,
-        email: newEmail,
-        full_name: newFullName,
-        role: newRole,
-        password: newPassword,
-      });
-      setUsers((prev) => [created, ...prev]);
+      if (editingUser) {
+        const updated = await api.updateUser(editingUser.id, { email: newEmail, fullName: newFullName });
+        setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+      } else {
+        const created = await api.createUser({
+          username: newUsername,
+          email: newEmail,
+          full_name: newFullName,
+          role: newRole,
+          password: newPassword,
+        });
+        setUsers((prev) => [created, ...prev]);
+      }
       setIsModalOpen(false);
-      // Reset form
-      setNewUsername('');
-      setNewEmail('');
-      setNewFullName('');
-      setNewPassword('Demo@123');
+      resetUserForm();
     } catch (err: any) {
-      alert('Lỗi tạo người dùng: ' + err.message);
+      alert((editingUser ? 'Lỗi cập nhật người dùng: ' : 'Lỗi tạo người dùng: ') + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -101,7 +113,10 @@ export const AdminUsersPage: React.FC = () => {
           <p className="text-sm text-slate-500">Quản lý danh sách tài khoản, phân quyền và trạng thái hoạt động</p>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            resetUserForm();
+            setIsModalOpen(true);
+          }}
           className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition shrink-0"
         >
           <UserPlus className="w-4 h-4" />
@@ -218,6 +233,21 @@ export const AdminUsersPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <button
+                        onClick={() => {
+                          setEditingUser(u);
+                          setNewFullName(u.full_name || u.fullName);
+                          setNewEmail(u.email);
+                          setNewUsername(u.username || '');
+                          setNewRole(u.role);
+                          setIsModalOpen(true);
+                        }}
+                        className="p-1.5 mr-1 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition"
+                        title="Sửa thông tin người dùng"
+                        aria-label={`Sửa ${u.full_name || u.fullName}`}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => handleToggleStatus(u.id)}
                         className={`p-1.5 rounded-lg border transition ${
                           u.is_active
@@ -237,18 +267,18 @@ export const AdminUsersPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Create User Modal */}
+      {/* Create / Edit User Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <h2 className="text-lg font-bold text-slate-800">Thêm người dùng mới</h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100">
+              <h2 className="text-lg font-bold text-slate-800">{editingUser ? 'Cập nhật thông tin người dùng' : 'Thêm người dùng mới'}</h2>
+              <button onClick={() => { setIsModalOpen(false); resetUserForm(); }} className="p-1 rounded-lg hover:bg-slate-100">
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateUser} className="space-y-4 mt-4">
+            <form onSubmit={handleSaveUser} className="space-y-4 mt-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Họ và tên</label>
                 <input
@@ -261,7 +291,7 @@ export const AdminUsersPage: React.FC = () => {
                 />
               </div>
 
-              <div>
+              {!editingUser && <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tên đăng nhập (Username)</label>
                 <input
                   type="text"
@@ -271,7 +301,7 @@ export const AdminUsersPage: React.FC = () => {
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
                   placeholder="nguyenvana"
                 />
-              </div>
+              </div>}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Email trường</label>
@@ -285,7 +315,7 @@ export const AdminUsersPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {!editingUser && <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Phân quyền</label>
                   <select
@@ -309,12 +339,12 @@ export const AdminUsersPage: React.FC = () => {
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
                   />
                 </div>
-              </div>
+              </div>}
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => { setIsModalOpen(false); resetUserForm(); }}
                   className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50"
                 >
                   Hủy
@@ -324,7 +354,7 @@ export const AdminUsersPage: React.FC = () => {
                   disabled={submitting}
                   className="px-4 py-2 rounded-xl bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Đang lưu...' : 'Thêm tài khoản'}
+                  {submitting ? 'Đang lưu...' : editingUser ? 'Lưu thay đổi' : 'Thêm tài khoản'}
                 </button>
               </div>
             </form>

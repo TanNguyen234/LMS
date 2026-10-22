@@ -11,6 +11,8 @@ import {
   UserPlus,
   AlertCircle,
   PlayCircle,
+  Pencil,
+  Archive,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
@@ -32,13 +34,14 @@ export const CourseDetailPage: React.FC = () => {
 
   // Modals state
   const [isModuleModalOpen, setIsModuleModalOpen] = useState(false);
+  const [editingModule, setEditingModule] = useState<Module | null>(null);
   const [newModuleTitle, setNewModuleTitle] = useState('');
   const [newModuleDesc, setNewModuleDesc] = useState('');
 
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
+  const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [selectedModuleId, setSelectedModuleId] = useState<string>('');
   const [newLessonTitle, setNewLessonTitle] = useState('');
-  const [newLessonType, setNewLessonType] = useState<'TEXT' | 'VIDEO' | 'DOCUMENT'>('TEXT');
   const [newLessonBody, setNewLessonBody] = useState('');
   const [newLessonMedia, setNewLessonMedia] = useState('');
 
@@ -46,6 +49,19 @@ export const CourseDetailPage: React.FC = () => {
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
   const [submitting, setSubmitting] = useState(false);
+
+  const resetModuleForm = () => {
+    setNewModuleTitle('');
+    setNewModuleDesc('');
+    setEditingModule(null);
+  };
+
+  const resetLessonForm = () => {
+    setNewLessonTitle('');
+    setNewLessonBody('');
+    setNewLessonMedia('');
+    setEditingLesson(null);
+  };
 
   const fetchCourseData = async () => {
     try {
@@ -94,14 +110,21 @@ export const CourseDetailPage: React.FC = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const created = await api.createModule(courseId, {
-        title: newModuleTitle,
-        description: newModuleDesc,
-      });
-      setModules((prev) => [...prev, { ...created, lessons: [] }]);
+      if (editingModule) {
+        const updated = await api.updateModule(editingModule.id, {
+          title: newModuleTitle,
+          description: newModuleDesc,
+        });
+        setModules((prev) => prev.map((m) => m.id === editingModule.id ? { ...m, ...updated, lessons: m.lessons } : m));
+      } else {
+        const created = await api.createModule(courseId, {
+          title: newModuleTitle,
+          description: newModuleDesc,
+        });
+        setModules((prev) => [...prev, { ...created, lessons: [] }]);
+      }
       setIsModuleModalOpen(false);
-      setNewModuleTitle('');
-      setNewModuleDesc('');
+      resetModuleForm();
     } catch (err: any) {
       alert('Lỗi tạo chương học: ' + err.message);
     } finally {
@@ -113,24 +136,30 @@ export const CourseDetailPage: React.FC = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const created = await api.createLesson(selectedModuleId, {
-        title: newLessonTitle,
-        content_type: newLessonType,
-        content_body: newLessonBody,
-        media_url: newLessonMedia || undefined,
-        is_published: true,
-      });
-
-      setModules((prev) =>
-        prev.map((m) =>
-          m.id === selectedModuleId ? { ...m, lessons: [...m.lessons, created] } : m
-        )
-      );
-      setSelectedLesson(created);
+      let savedLesson: Lesson;
+      if (editingLesson) {
+        savedLesson = await api.updateLesson(editingLesson.id, {
+          title: newLessonTitle,
+          content_body: newLessonBody,
+          media_url: newLessonMedia,
+          is_published: editingLesson.is_published,
+        });
+        setModules((prev) => prev.map((m) => ({
+          ...m,
+          lessons: m.lessons.map((lesson) => lesson.id === savedLesson.id ? savedLesson : lesson),
+        })));
+      } else {
+        savedLesson = await api.createLesson(selectedModuleId, {
+          title: newLessonTitle,
+          content_body: newLessonBody,
+          media_url: newLessonMedia || undefined,
+          is_published: true,
+        });
+        setModules((prev) => prev.map((m) => m.id === selectedModuleId ? { ...m, lessons: [...m.lessons, savedLesson] } : m));
+      }
+      setSelectedLesson(savedLesson);
       setIsLessonModalOpen(false);
-      setNewLessonTitle('');
-      setNewLessonBody('');
-      setNewLessonMedia('');
+      resetLessonForm();
     } catch (err: any) {
       alert('Lỗi tạo bài giảng: ' + err.message);
     } finally {
@@ -143,13 +172,40 @@ export const CourseDetailPage: React.FC = () => {
     setSubmitting(true);
     try {
       const enrolled = await api.enrollStudent(courseId, selectedStudentId);
-      setEnrollments((prev) => [enrolled, ...prev]);
+      setEnrollments((prev) => [enrolled, ...prev.filter((item) => item.student_id !== enrolled.student_id)]);
       setIsEnrollModalOpen(false);
     } catch (err: any) {
       alert('Lỗi ghi danh sinh viên: ' + err.message);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleToggleModulePublish = async (module: Module) => {
+    try {
+      const updated = await api.updateModule(module.id, { isPublished: !module.isPublished });
+      setModules((prev) => prev.map((m) => m.id === module.id ? { ...m, isPublished: updated.isPublished } : m));
+    } catch (err: any) { alert('Lỗi cập nhật chương học: ' + err.message); }
+  };
+
+  const handleToggleLessonPublish = async (lesson: Lesson) => {
+    try {
+      const updated = await api.updateLesson(lesson.id, { isPublished: !lesson.is_published });
+      setModules((prev) => prev.map((m) => ({
+        ...m,
+        lessons: m.lessons.map((item) => item.id === lesson.id ? updated : item),
+      })));
+      setSelectedLesson(updated);
+    } catch (err: any) { alert('Lỗi cập nhật bài giảng: ' + err.message); }
+  };
+
+  const openEditLesson = (lesson: Lesson) => {
+    setEditingLesson(lesson);
+    setSelectedModuleId(String(lesson.module_id));
+    setNewLessonTitle(lesson.title);
+    setNewLessonBody(lesson.content_body || '');
+    setNewLessonMedia(lesson.media_url || '');
+    setIsLessonModalOpen(true);
   };
 
   if (loading) {
@@ -209,6 +265,7 @@ export const CourseDetailPage: React.FC = () => {
                       return;
                     }
                     setSelectedModuleId(modules[0].id as any);
+                    resetLessonForm();
                     setIsLessonModalOpen(true);
                   }}
                   className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
@@ -263,22 +320,22 @@ export const CourseDetailPage: React.FC = () => {
             ) : (
               modules.map((m) => (
                 <div key={m.id} className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
-                  <div className="p-3.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                  <div className="p-3.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
                     <div>
                       <h3 className="font-bold text-sm text-slate-800">{m.title}</h3>
                       {m.description && <p className="text-xs text-slate-400">{m.description}</p>}
+                      {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && <p className="text-[11px] text-slate-400 mt-1">{m.isPublished ? 'Đã xuất bản' : 'Bản nháp'}</p>}
                     </div>
                     {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
-                      <button
-                        onClick={() => {
-                          setSelectedModuleId(String(m.id));
-                          setIsLessonModalOpen(true);
-                        }}
-                        className="text-xs text-blue-600 hover:underline font-semibold"
-                        title="Thêm bài giảng vào chương này"
-                      >
-                        + Thêm bài
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => { setEditingModule(m); setNewModuleTitle(m.title); setNewModuleDesc(m.description || ''); setIsModuleModalOpen(true); }} className="text-xs text-slate-600 hover:text-blue-600 font-semibold inline-flex items-center gap-1" aria-label={`Sửa chương ${m.title}`}><Pencil className="w-3.5 h-3.5" /> Sửa</button>
+                        <button onClick={() => handleToggleModulePublish(m)} className="text-xs text-slate-600 hover:text-amber-700 font-semibold inline-flex items-center gap-1"><Archive className="w-3.5 h-3.5" /> {m.isPublished ? 'Ẩn' : 'Xuất bản'}</button>
+                        <button
+                          onClick={() => { setSelectedModuleId(String(m.id)); resetLessonForm(); setIsLessonModalOpen(true); }}
+                          className="text-xs text-blue-600 hover:underline font-semibold"
+                          title="Thêm bài giảng vào chương này"
+                        >+ Thêm bài</button>
+                      </div>
                     )}
                   </div>
 
@@ -289,7 +346,7 @@ export const CourseDetailPage: React.FC = () => {
                       m.lessons.map((lesson) => {
                         const isSelected = selectedLesson?.id === lesson.id;
                         return (
-                          <button
+                      <button
                             key={lesson.id}
                             onClick={() => setSelectedLesson(lesson)}
                             className={`w-full p-3 text-left flex items-center justify-between transition ${
@@ -324,10 +381,11 @@ export const CourseDetailPage: React.FC = () => {
                 <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                   <div>
                     <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                      {selectedLesson.content_type}
+                      Bài giảng
                     </span>
                     <h2 className="text-xl font-bold text-slate-800 mt-2">{selectedLesson.title}</h2>
                   </div>
+                  {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && <div className="flex items-center gap-2"><button onClick={() => openEditLesson(selectedLesson)} aria-label={`Sửa bài giảng ${selectedLesson.title}`} className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 hover:border-blue-300 hover:text-blue-600 inline-flex items-center gap-1"><Pencil className="w-3.5 h-3.5" /> Sửa</button><button onClick={() => handleToggleLessonPublish(selectedLesson)} className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 hover:border-amber-300 hover:text-amber-700">{selectedLesson.is_published ? 'Ẩn bài' : 'Xuất bản'}</button></div>}
                 </div>
 
                 {selectedLesson.media_url && (
@@ -384,12 +442,13 @@ export const CourseDetailPage: React.FC = () => {
                   <th className="py-3 px-4">Email</th>
                   <th className="py-3 px-4">Trạng thái</th>
                   <th className="py-3 px-4">Ngày ghi danh</th>
+                  {user?.role === 'ADMIN' && <th className="py-3 px-4 text-right">Thao tác</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {enrollments.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-6 text-center text-slate-400 text-xs">
+                    <td colSpan={user?.role === 'ADMIN' ? 6 : 5} className="py-6 text-center text-slate-400 text-xs">
                       Chưa có sinh viên nào ghi danh khóa học này.
                     </td>
                   </tr>
@@ -400,13 +459,14 @@ export const CourseDetailPage: React.FC = () => {
                       <td className="py-3 px-4 font-semibold text-slate-800">{e.student_name || 'Sinh viên'}</td>
                       <td className="py-3 px-4 text-xs text-slate-500">{e.student_email || '—'}</td>
                       <td className="py-3 px-4">
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${e.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
                           {e.status}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-xs text-slate-400">
                         {new Date(e.enrolled_at).toLocaleDateString('vi-VN')}
                       </td>
+                      {user?.role === 'ADMIN' && <td className="py-3 px-4 text-right">{e.status === 'ACTIVE' && <button onClick={async () => { try { await api.dropEnrollment(courseId, e.student_id); setEnrollments((prev) => prev.map((item) => item.id === e.id ? { ...item, status: 'DROPPED' } : item)); } catch (err: any) { alert('Lỗi rút ghi danh: ' + err.message); } }} className="text-xs font-semibold text-red-600 hover:text-red-700">Rút ghi danh</button>}</td>}
                     </tr>
                   ))
                 )}
@@ -421,8 +481,8 @@ export const CourseDetailPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">Tạo chương học mới</h3>
-              <button onClick={() => setIsModuleModalOpen(false)}>
+              <h3 className="font-bold text-slate-800">{editingModule ? 'Sửa chương học' : 'Tạo chương học mới'}</h3>
+              <button onClick={() => { setIsModuleModalOpen(false); resetModuleForm(); }}>
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
@@ -450,7 +510,7 @@ export const CourseDetailPage: React.FC = () => {
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsModuleModalOpen(false)}
+                  onClick={() => { setIsModuleModalOpen(false); resetModuleForm(); }}
                   className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl"
                 >
                   Hủy
@@ -460,7 +520,7 @@ export const CourseDetailPage: React.FC = () => {
                   disabled={submitting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
                 >
-                  Lưu chương
+                  {editingModule ? 'Lưu thay đổi' : 'Lưu chương'}
                 </button>
               </div>
             </form>
@@ -473,8 +533,8 @@ export const CourseDetailPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">Thêm bài giảng mới</h3>
-              <button onClick={() => setIsLessonModalOpen(false)}>
+              <h3 className="font-bold text-slate-800">{editingLesson ? 'Sửa bài giảng' : 'Thêm bài giảng mới'}</h3>
+              <button onClick={() => { setIsLessonModalOpen(false); resetLessonForm(); }}>
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
@@ -507,19 +567,6 @@ export const CourseDetailPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Loại bài giảng</label>
-                <select
-                  value={newLessonType}
-                  onChange={(e) => setNewLessonType(e.target.value as any)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white"
-                >
-                  <option value="TEXT">Bài đọc / Giáo trình (Text)</option>
-                  <option value="VIDEO">Video hướng dẫn (Video)</option>
-                  <option value="DOCUMENT">Tài liệu PDF / Slide (Document)</option>
-                </select>
-              </div>
-
-              <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Nội dung chi tiết</label>
                 <textarea
                   rows={4}
@@ -544,7 +591,7 @@ export const CourseDetailPage: React.FC = () => {
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsLessonModalOpen(false)}
+                  onClick={() => { setIsLessonModalOpen(false); resetLessonForm(); }}
                   className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl"
                 >
                   Hủy
@@ -554,7 +601,7 @@ export const CourseDetailPage: React.FC = () => {
                   disabled={submitting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
                 >
-                  Lưu bài giảng
+                  {editingLesson ? 'Lưu thay đổi' : 'Lưu bài giảng'}
                 </button>
               </div>
             </form>

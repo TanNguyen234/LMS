@@ -12,6 +12,7 @@ import {
   X,
   AlertCircle,
   GraduationCap,
+  Pencil,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
@@ -25,6 +26,7 @@ export const CoursesPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // New course form state
@@ -60,29 +62,52 @@ export const CoursesPage: React.FC = () => {
     }
   }, [user]);
 
-  const handleCreateCourse = async (e: React.FormEvent) => {
+  const resetCourseForm = () => {
+    setNewCode('');
+    setNewTitle('');
+    setNewDesc('');
+    setNewCredits(3);
+    setEditingCourse(null);
+  };
+
+  const handleSaveCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
       const lecturerId = user?.role === 'LECTURER' ? user.id : selectedLecturerId;
-      const created = await api.createCourse({
-        code: newCode.toUpperCase().trim(),
-        title: newTitle.trim(),
-        description: newDesc.trim(),
-        credits: Number(newCredits),
-        lecturer_id: lecturerId,
-      });
-      setCourses((prev) => [created, ...prev]);
+      if (editingCourse) {
+        await api.updateCourse(editingCourse.id, {
+          title: newTitle.trim(),
+          description: newDesc.trim(),
+          credits: Number(newCredits),
+          lecturer_id: lecturerId,
+        });
+      } else {
+        await api.createCourse({
+          code: newCode.toUpperCase().trim(),
+          title: newTitle.trim(),
+          description: newDesc.trim(),
+          credits: Number(newCredits),
+          lecturer_id: lecturerId,
+        });
+      }
+      await fetchCourses();
       setIsModalOpen(false);
-      // Reset form
-      setNewCode('');
-      setNewTitle('');
-      setNewDesc('');
-      setNewCredits(3);
+      resetCourseForm();
     } catch (err: any) {
-      alert('Lỗi tạo khóa học: ' + err.message);
+      alert((editingCourse ? 'Lỗi cập nhật khóa học: ' : 'Lỗi tạo khóa học: ') + err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleToggleArchive = async (course: Course) => {
+    const status = course.status === 'ARCHIVED' ? 'ACTIVE' : 'ARCHIVED';
+    try {
+      await api.updateCourse(course.id, { status });
+      await fetchCourses();
+    } catch (err: any) {
+      alert('Lỗi cập nhật trạng thái khóa học: ' + err.message);
     }
   };
 
@@ -134,7 +159,7 @@ export const CoursesPage: React.FC = () => {
 
         {user?.role === 'ADMIN' && (
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => { resetCourseForm(); setIsModalOpen(true); }}
             className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition shrink-0"
           >
             <Plus className="w-4 h-4" />
@@ -223,32 +248,59 @@ export const CoursesPage: React.FC = () => {
                   <span className="font-medium text-slate-600">{c.credits} tín chỉ</span>
                 </div>
 
-                <Link
-                  to={`/courses/${c.id}`}
-                  className="font-semibold text-blue-600 hover:text-blue-700 flex items-center space-x-1 group-hover:translate-x-0.5 transition"
-                >
-                  <span>Chi tiết</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
+                <div className="flex items-center gap-3">
+                  {user?.role === 'ADMIN' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingCourse(c);
+                          setNewCode(c.code);
+                          setNewTitle(c.title);
+                          setNewDesc(c.description || '');
+                          setNewCredits(Number(c.credits));
+                          setSelectedLecturerId(String(c.lecturer_id || c.lecturerId));
+                          setIsModalOpen(true);
+                        }}
+                        className="font-semibold text-slate-600 hover:text-blue-600 inline-flex items-center gap-1"
+                        aria-label={`Sửa khóa học ${c.code}`}
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Sửa
+                      </button>
+                      <button
+                        onClick={() => handleToggleArchive(c)}
+                        className="font-semibold text-slate-600 hover:text-amber-700"
+                      >
+                        {c.status === 'ARCHIVED' ? 'Mở lại' : 'Lưu trữ'}
+                      </button>
+                    </>
+                  )}
+                  <Link
+                    to={`/courses/${c.id}`}
+                    className="font-semibold text-blue-600 hover:text-blue-700 flex items-center space-x-1 group-hover:translate-x-0.5 transition"
+                  >
+                    <span>Chi tiết</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Create Course Modal */}
+      {/* Create / Edit Course Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <h2 className="text-lg font-bold text-slate-800">Tạo khóa học mới</h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100">
+              <h2 className="text-lg font-bold text-slate-800">{editingCourse ? 'Cập nhật khóa học' : 'Tạo khóa học mới'}</h2>
+              <button onClick={() => { setIsModalOpen(false); resetCourseForm(); }} className="p-1 rounded-lg hover:bg-slate-100">
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateCourse} className="space-y-4 mt-4">
-              <div className="grid grid-cols-3 gap-3">
+            <form onSubmit={handleSaveCourse} className="space-y-4 mt-4">
+              {!editingCourse && <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-1">
                   <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Mã môn học</label>
                   <input
@@ -273,7 +325,7 @@ export const CoursesPage: React.FC = () => {
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
                   />
                 </div>
-              </div>
+              </div>}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tên môn học</label>
@@ -318,7 +370,7 @@ export const CoursesPage: React.FC = () => {
               <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => { setIsModalOpen(false); resetCourseForm(); }}
                   className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50"
                 >
                   Hủy
@@ -328,7 +380,7 @@ export const CoursesPage: React.FC = () => {
                   disabled={submitting}
                   className="px-4 py-2 rounded-xl bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Đang tạo...' : 'Lưu khóa học'}
+                  {submitting ? 'Đang lưu...' : 'Lưu khóa học'}
                 </button>
               </div>
             </form>
