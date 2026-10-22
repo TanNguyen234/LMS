@@ -39,6 +39,7 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
     fullName: Optional[str] = None
     role: Optional[str] = None
     isActive: Optional[bool] = None

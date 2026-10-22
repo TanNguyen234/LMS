@@ -122,6 +122,13 @@ def update_user(user_id: uuid.UUID, user_in: UserUpdate, db: Session = Depends(g
     if not u:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    if user_in.email is not None:
+        email = str(user_in.email).strip().lower()
+        duplicate = db.query(User.UserId).filter(User.Email == email, User.UserId != user_id).first()
+        if duplicate:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is already in use")
+        u.Email = email
+
     if user_in.fullName is not None:
         u.FullName = user_in.fullName.strip()
     if user_in.role is not None:

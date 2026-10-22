@@ -1,9 +1,15 @@
+import asyncio
 import uuid
 import json
 from datetime import datetime, timezone, timedelta
+from httpx import ASGITransport, AsyncClient
 import pytest
 from backend.app.db.session import SessionLocal
-from backend.app.models.models import User, Course, Enrollment, Assignment, Submission, Quiz, QuizQuestion, Grade
+from backend.app.core.security import create_access_token
+from backend.app.models.models import (
+    User, Course, Enrollment, Assignment, Submission, Quiz, QuizQuestion,
+    QuizAttempt, Grade, Notification,
+)
 
 
 # ==============================================================================
@@ -119,6 +125,17 @@ def test_challenger_auth_invalid_credentials_adversarial(client):
     # 7. Empty authorization header
     r7 = client.get("/api/auth/me", headers={"Authorization": "Bearer "})
     assert r7.status_code in [401, 403]
+
+    with SessionLocal() as db:
+        student = db.query(User).filter(User.Email == "student1@university.edu.vn").one()
+        expired_token = create_access_token(
+            subject=student.UserId,
+            role=student.Role,
+            email=student.Email,
+            expires_delta=timedelta(seconds=-60),
+        )
+    r8 = client.get("/api/auth/me", headers={"Authorization": f"Bearer {expired_token}"})
+    assert r8.status_code == 401
 
 
 # ------------------------------------------------------------------------------
@@ -451,7 +468,9 @@ def test_challenger_quiz_secret_protection_full_lifecycle(client, lecturer1_toke
         "score": 3.0,
         "sortOrder": 3
     }, headers=lec_headers)
-    assert q3.status_code == 201
+    assert q3.status_code == 400
+    assert "invalid questiontype" in q3.json()["detail"].lower()
+    assert secret_key_3 not in q3.text
 
     # --- AUDIT PHASE 1: Quiz detail & Start Attempt secret protection ---
 
@@ -536,4 +555,212 @@ def test_challenger_quiz_attempt_submit_execution(client, lecturer1_token, stude
     sub_data = r_submit.json()
     assert sub_data["status"] == "SUBMITTED"
     assert sub_data["score"] == 10.0
+
+
+def test_challenger_concurrent_quiz_start_and_submit_have_single_effects(
+    client, lecturer1_token, student1_token
+):
+    """Exercise real SQL Server-backed start/submit endpoints concurrently."""
+    course_id = "10000000-0000-0000-0000-000000000001"
+    lecturer_headers = {"Authorization": f"Bearer {lecturer1_token}"}
+    student_headers = {"Authorization": f"Bearer {student1_token}"}
+    suffix = uuid.uuid4().hex
+    now = datetime.now(timezone.utc)
+
+    created = client.post(
+        f"/api/courses/{course_id}/quizzes",
+        json={
+            "title": f"Concurrent attempt regression {suffix}",
+            "startAt": (now - timedelta(minutes=1)).isoformat(),
+            "endAt": (now + timedelta(hours=1)).isoformat(),
+            "timeLimitMinutes": 30,
+            "maxAttempts": 2,
+            "passingScore": 1.0,
+            "isPublished": True,
+        },
+        headers=lecturer_headers,
+    )
+    assert created.status_code == 201, created.text
+    quiz_id = created.json()["quizId"]
+
+    question = client.post(
+        f"/api/quizzes/{quiz_id}/questions",
+        json={
+            "questionText": f"Concurrent test question {suffix}?",
+            "questionType": "SINGLE_CHOICE",
+            "optionsJson": json.dumps([
+                {"key": "A", "text": "Choice A"},
+                {"key": "B", "text": "Choice B"},
+            ]),
+            "correctAnswer": "A",
+            "score": 2.0,
+            "sortOrder": 1,
+        },
+        headers=lecturer_headers,
+    )
+    assert question.status_code == 201, question.text
+
+    async def post_simultaneously(path: str, headers: dict, payload: dict | None = None):
+        barrier = asyncio.Barrier(5)
+
+        async def post_once():
+            transport = ASGITransport(app=client.app, raise_app_exceptions=False)
+            async with AsyncClient(transport=transport, base_url="http://lms.test") as http:
+                await barrier.wait()
+                return await http.post(path, headers=headers, json=payload, timeout=30)
+
+        return await asyncio.gather(*(post_once() for _ in range(5)))
+
+    starts = asyncio.run(
+        post_simultaneously(
+            f"/api/quizzes/{quiz_id}/attempts/start",
+            student_headers,
+        )
+    )
+    assert [response.status_code for response in starts] == [200] * 5, [
+        (response.status_code, response.text) for response in starts
+    ]
+    attempt_ids = {response.json()["attemptId"] for response in starts}
+    assert len(attempt_ids) == 1, [response.json() for response in starts]
+    attempt_id = next(iter(attempt_ids))
+    question_id = str(starts[0].json()["questions"][0]["questionId"])
+
+    submissions = asyncio.run(
+        post_simultaneously(
+            f"/api/quiz-attempts/{attempt_id}/submit",
+            student_headers,
+            {"answers": {question_id: "A"}},
+        )
+    )
+    submit_statuses = [response.status_code for response in submissions]
+    assert submit_statuses.count(200) == 1, [
+        (response.status_code, response.text) for response in submissions
+    ]
+    assert submit_statuses.count(400) == 4, [
+        (response.status_code, response.text) for response in submissions
+    ]
+    assert next(response for response in submissions if response.status_code == 200).json()["status"] == "SUBMITTED"
+
+    with SessionLocal() as db:
+        attempt_rows = db.query(QuizAttempt).filter(QuizAttempt.QuizId == quiz_id).all()
+        grade_rows = db.query(Grade).filter(
+            Grade.SourceType == "QUIZ",
+            Grade.SourceId == quiz_id,
+        ).all()
+        notification_rows = db.query(Notification).filter(
+            Notification.Type == "QUIZ",
+            Notification.RelatedUrl == f"/courses/{course_id}/quizzes/{quiz_id}",
+        ).all()
+        assert len(attempt_rows) == 1
+        assert attempt_rows[0].Status == "SUBMITTED"
+        assert len(grade_rows) == 1
+        assert float(grade_rows[0].Score) == 2.0
+        assert len(notification_rows) == 1
+
+
+def test_challenger_quiz_expiry_rejects_start_and_expires_active_attempt(
+    client, lecturer1_token, student1_token
+):
+    """Use SQL Server state plus real API requests to verify both quiz expiry paths."""
+    course_id = "10000000-0000-0000-0000-000000000001"
+    lecturer_headers = {"Authorization": f"Bearer {lecturer1_token}"}
+    student_headers = {"Authorization": f"Bearer {student1_token}"}
+    suffix = uuid.uuid4().hex
+    now = datetime.now(timezone.utc)
+
+    expired_window = client.post(
+        f"/api/courses/{course_id}/quizzes",
+        json={
+            "title": f"Expired window regression {suffix}",
+            "startAt": (now - timedelta(hours=2)).isoformat(),
+            "endAt": (now - timedelta(minutes=1)).isoformat(),
+            "timeLimitMinutes": 30,
+            "maxAttempts": 1,
+            "passingScore": 1.0,
+            "isPublished": True,
+        },
+        headers=lecturer_headers,
+    )
+    assert expired_window.status_code == 201, expired_window.text
+    expired_window_id = expired_window.json()["quizId"]
+    question = client.post(
+        f"/api/quizzes/{expired_window_id}/questions",
+        json={
+            "questionText": f"Expired window question {suffix}?",
+            "questionType": "SINGLE_CHOICE",
+            "optionsJson": json.dumps([{"key": "A", "text": "A"}, {"key": "B", "text": "B"}]),
+            "correctAnswer": "A",
+            "score": 2.0,
+            "sortOrder": 1,
+        },
+        headers=lecturer_headers,
+    )
+    assert question.status_code == 201, question.text
+    rejected_start = client.post(
+        f"/api/quizzes/{expired_window_id}/attempts/start",
+        headers=student_headers,
+    )
+    assert rejected_start.status_code == 400
+    assert "availability window has ended" in rejected_start.json()["detail"].lower()
+
+    now = datetime.now(timezone.utc)
+    timed_quiz = client.post(
+        f"/api/courses/{course_id}/quizzes",
+        json={
+            "title": f"Expired attempt regression {suffix}",
+            "startAt": (now - timedelta(minutes=1)).isoformat(),
+            "endAt": (now + timedelta(hours=1)).isoformat(),
+            "timeLimitMinutes": 1,
+            "maxAttempts": 1,
+            "passingScore": 1.0,
+            "isPublished": True,
+        },
+        headers=lecturer_headers,
+    )
+    assert timed_quiz.status_code == 201, timed_quiz.text
+    timed_quiz_id = timed_quiz.json()["quizId"]
+    question = client.post(
+        f"/api/quizzes/{timed_quiz_id}/questions",
+        json={
+            "questionText": f"Expired attempt question {suffix}?",
+            "questionType": "SINGLE_CHOICE",
+            "optionsJson": json.dumps([{"key": "A", "text": "A"}, {"key": "B", "text": "B"}]),
+            "correctAnswer": "A",
+            "score": 2.0,
+            "sortOrder": 1,
+        },
+        headers=lecturer_headers,
+    )
+    assert question.status_code == 201, question.text
+    started = client.post(
+        f"/api/quizzes/{timed_quiz_id}/attempts/start",
+        headers=student_headers,
+    )
+    assert started.status_code == 200, started.text
+    attempt_id = started.json()["attemptId"]
+    question_id = str(started.json()["questions"][0]["questionId"])
+
+    with SessionLocal() as db:
+        attempt = db.query(QuizAttempt).filter(QuizAttempt.AttemptId == attempt_id).one()
+        # Leave margin beyond the one-minute limit plus grace window because
+        # SQL Server DATETIME2(0) rounds StartedAt to whole seconds.
+        attempt.StartedAt = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=5)
+        db.commit()
+
+    rejected_submit = client.post(
+        f"/api/quiz-attempts/{attempt_id}/submit",
+        json={"answers": {question_id: "A"}},
+        headers=student_headers,
+    )
+    assert rejected_submit.status_code == 400
+    assert "deadline has passed" in rejected_submit.json()["detail"].lower()
+
+    with SessionLocal() as db:
+        attempt = db.query(QuizAttempt).filter(QuizAttempt.AttemptId == attempt_id).one()
+        assert attempt.Status == "EXPIRED"
+        assert db.query(Grade).filter(Grade.SourceType == "QUIZ", Grade.SourceId == timed_quiz_id).count() == 0
+        assert db.query(Notification).filter(
+            Notification.Type == "QUIZ",
+            Notification.RelatedUrl == f"/courses/{course_id}/quizzes/{timed_quiz_id}",
+        ).count() == 0
 
