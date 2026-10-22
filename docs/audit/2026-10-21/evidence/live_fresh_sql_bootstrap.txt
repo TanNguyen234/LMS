@@ -1,0 +1,10 @@
+INFO  [alembic.runtime.migration] Context impl MSSQLImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running stamp_revision  -> 6f2d4db8312a
+DATABASE_CREATED=UniversityLms_Test_Bootstrap_20261021_1014
+SCHEMA=database/01_schema.sql (all GO batches executed)
+SEED=database/02_seed.sql (transaction committed)
+SEED_VALIDATION=PASS; TABLES=12; MIN_ROWS=10
+ROW_COUNTS=Users:10, Courses:10, Enrollments:10, Modules:10, Lessons:10, Assignments:10, Submissions:10, Quizzes:10, QuizQuestions:10, QuizAttempts:10, Grades:10, Notifications:10
+ALEMBIC_STAMP=PASS; DATABASE=UniversityLms_Test_Bootstrap_20261021_1014; REVISION=6f2d4db8312a
+FRESH_SQLSERVER_BOOTSTRAP=PASS

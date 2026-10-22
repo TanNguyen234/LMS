@@ -1,0 +1,4 @@
+GET /health status=200
+health={"app": "University LMS API", "database_connected": true, "environment": "development", "status": "ok", "status_detail": "healthy"}
+GET /openapi.json status=200
+OPENAPI_OPERATIONS=51

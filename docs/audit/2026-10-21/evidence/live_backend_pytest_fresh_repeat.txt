@@ -1,0 +1,226 @@
+.FFFFF..........................F...........                             [100%]
+================================== FAILURES ===================================
+_______________________ test_auth_logins_and_user_dtos ________________________
+
+    def test_auth_logins_and_user_dtos():
+        for email, role in [
+            ("admin@university.edu.vn", "ADMIN"),
+            ("lecturer1@university.edu.vn", "LECTURER"),
+            ("student1@university.edu.vn", "STUDENT")
+        ]:
+            r = client.post("/api/auth/login", json={"email": email, "password": "[REDACTED_TEST_PASSWORD]"})
+>           assert r.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+backend\tests\test_recon2_challenger.py:36: AssertionError
+__________________________ test_dashboards_contracts __________________________
+
+    def test_dashboards_contracts():
+        # Admin login
+        r_adm = client.post("/api/auth/login", json={"email": "admin@university.edu.vn", "password": "[REDACTED_TEST_PASSWORD]"})
+>       adm_token = r_adm.json()["access_token"]
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'access_token'
+
+backend\tests\test_recon2_challenger.py:48: KeyError
+____________________ test_courses_returned_have_course_id _____________________
+
+    def test_courses_returned_have_course_id():
+        r_adm = client.post("/api/auth/login", json={"email": "admin@university.edu.vn", "password": "[REDACTED_TEST_PASSWORD]"})
+>       adm_token = r_adm.json()["access_token"]
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'access_token'
+
+backend\tests\test_recon2_challenger.py:78: KeyError
+________________________ test_quiz_question_type_enum _________________________
+
+    def test_quiz_question_type_enum():
+        r_lec = client.post("/api/auth/login", json={"email": "lecturer1@university.edu.vn", "password": "[REDACTED_TEST_PASSWORD]"})
+>       lec_token = r_lec.json()["access_token"]
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'access_token'
+
+backend\tests\test_recon2_challenger.py:90: KeyError
+_______________ test_student_grades_and_self_enrollment_denial ________________
+
+    def test_student_grades_and_self_enrollment_denial():
+        r_stu = client.post("/api/auth/login", json={"email": "student1@university.edu.vn", "password": "[REDACTED_TEST_PASSWORD]"})
+>       stu_token = r_stu.json()["access_token"]
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'access_token'
+
+backend\tests\test_recon2_challenger.py:135: KeyError
+____ test_challenger_quiz_expiry_rejects_start_and_expires_active_attempt _____
+
+client = <starlette.testclient.TestClient object at 0x000002997A5C1F40>
+lecturer1_token = '[REDACTED_AUTH_TOKEN]'
+student1_token = '[REDACTED_AUTH_TOKEN]'
+
+    def test_challenger_quiz_expiry_rejects_start_and_expires_active_attempt(
+        client, lecturer1_token, student1_token
+    ):
+        """Use SQL Server state plus real API requests to verify both quiz expiry paths."""
+        course_id = "10000000-0000-0000-0000-000000000001"
+        lecturer_headers = {"Authorization": f"Bearer {lecturer1_token}"}
+        student_headers = {"Authorization": f"Bearer {student1_token}"}
+        suffix = uuid.uuid4().hex
+        now = datetime.now(timezone.utc)
+
+        expired_window = client.post(
+            f"/api/courses/{course_id}/quizzes",
+            json={
+                "title": f"Expired window regression {suffix}",
+                "startAt": (now - timedelta(hours=2)).isoformat(),
+                "endAt": (now - timedelta(minutes=1)).isoformat(),
+                "timeLimitMinutes": 30,
+                "maxAttempts": 1,
+                "passingScore": 1.0,
+                "isPublished": True,
+            },
+            headers=lecturer_headers,
+        )
+        assert expired_window.status_code == 201, expired_window.text
+        expired_window_id = expired_window.json()["quizId"]
+        question = client.post(
+            f"/api/quizzes/{expired_window_id}/questions",
+            json={
+                "questionText": f"Expired window question {suffix}?",
+                "questionType": "SINGLE_CHOICE",
+                "optionsJson": json.dumps([{"key": "A", "text": "A"}, {"key": "B", "text": "B"}]),
+                "correctAnswer": "A",
+                "score": 2.0,
+                "sortOrder": 1,
+            },
+            headers=lecturer_headers,
+        )
+        assert question.status_code == 201, question.text
+        rejected_start = client.post(
+            f"/api/quizzes/{expired_window_id}/attempts/start",
+            headers=student_headers,
+        )
+        assert rejected_start.status_code == 400
+        assert "availability window has ended" in rejected_start.json()["detail"].lower()
+
+        now = datetime.now(timezone.utc)
+        timed_quiz = client.post(
+            f"/api/courses/{course_id}/quizzes",
+            json={
+                "title": f"Expired attempt regression {suffix}",
+                "startAt": (now - timedelta(minutes=1)).isoformat(),
+                "endAt": (now + timedelta(hours=1)).isoformat(),
+                "timeLimitMinutes": 1,
+                "maxAttempts": 1,
+                "passingScore": 1.0,
+                "isPublished": True,
+            },
+            headers=lecturer_headers,
+        )
+        assert timed_quiz.status_code == 201, timed_quiz.text
+        timed_quiz_id = timed_quiz.json()["quizId"]
+        question = client.post(
+            f"/api/quizzes/{timed_quiz_id}/questions",
+            json={
+                "questionText": f"Expired attempt question {suffix}?",
+                "questionType": "SINGLE_CHOICE",
+                "optionsJson": json.dumps([{"key": "A", "text": "A"}, {"key": "B", "text": "B"}]),
+                "correctAnswer": "A",
+                "score": 2.0,
+                "sortOrder": 1,
+            },
+            headers=lecturer_headers,
+        )
+        assert question.status_code == 201, question.text
+        started = client.post(
+            f"/api/quizzes/{timed_quiz_id}/attempts/start",
+            headers=student_headers,
+        )
+        assert started.status_code == 200, started.text
+        attempt_id = started.json()["attemptId"]
+        question_id = str(started.json()["questions"][0]["questionId"])
+
+        with SessionLocal() as db:
+            attempt = db.query(QuizAttempt).filter(QuizAttempt.AttemptId == attempt_id).one()
+            attempt.StartedAt = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=2)
+            db.commit()
+
+        rejected_submit = client.post(
+            f"/api/quiz-attempts/{attempt_id}/submit",
+            json={"answers": {question_id: "A"}},
+            headers=student_headers,
+        )
+>       assert rejected_submit.status_code == 400
+E       assert 200 == 400
+E        +  where 200 = <Response [200 OK]>.status_code
+
+backend\tests\test_challenger_recon.py:753: AssertionError
+============================== warnings summary ===============================
+backend\venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\Download\LMS\backend\venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+backend\app\schemas\schemas.py:55
+  D:\Download\LMS\backend\app\schemas\schemas.py:55: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class UserResponse(UserBase):
+
+backend\app\schemas\schemas.py:96
+  D:\Download\LMS\backend\app\schemas\schemas.py:96: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class CourseResponse(CourseBase):
+
+backend\app\schemas\schemas.py:109
+  D:\Download\LMS\backend\app\schemas\schemas.py:109: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class EnrollmentResponse(BaseModel):
+
+backend\app\schemas\schemas.py:154
+  D:\Download\LMS\backend\app\schemas\schemas.py:154: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class LessonResponse(LessonBase):
+
+backend\app\schemas\schemas.py:185
+  D:\Download\LMS\backend\app\schemas\schemas.py:185: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class ModuleResponse(ModuleBase):
+
+backend\app\schemas\schemas.py:251
+  D:\Download\LMS\backend\app\schemas\schemas.py:251: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class AssignmentResponse(AssignmentBase):
+
+backend\app\schemas\schemas.py:282
+  D:\Download\LMS\backend\app\schemas\schemas.py:282: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class SubmissionResponse(BaseModel):
+
+backend\app\schemas\schemas.py:334
+  D:\Download\LMS\backend\app\schemas\schemas.py:334: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizQuestionResponse(BaseModel):
+
+backend\app\schemas\schemas.py:348
+  D:\Download\LMS\backend\app\schemas\schemas.py:348: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizQuestionStudentResponse(BaseModel):
+
+backend\app\schemas\schemas.py:426
+  D:\Download\LMS\backend\app\schemas\schemas.py:426: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizResponse(QuizBase):
+
+backend\app\schemas\schemas.py:437
+  D:\Download\LMS\backend\app\schemas\schemas.py:437: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizStudentResponse(QuizBase):
+
+backend\app\schemas\schemas.py:462
+  D:\Download\LMS\backend\app\schemas\schemas.py:462: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class QuizAttemptResponse(BaseModel):
+
+backend\app\schemas\schemas.py:492
+  D:\Download\LMS\backend\app\schemas\schemas.py:492: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class GradeResponse(BaseModel):
+
+backend\app\schemas\schemas.py:512
+  D:\Download\LMS\backend\app\schemas\schemas.py:512: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class NotificationResponse(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED backend/tests/test_recon2_challenger.py::test_auth_logins_and_user_dtos
+FAILED backend/tests/test_recon2_challenger.py::test_dashboards_contracts - K...
+FAILED backend/tests/test_recon2_challenger.py::test_courses_returned_have_course_id
+FAILED backend/tests/test_recon2_challenger.py::test_quiz_question_type_enum
+FAILED backend/tests/test_recon2_challenger.py::test_student_grades_and_self_enrollment_denial
+FAILED backend/tests/test_challenger_recon.py::test_challenger_quiz_expiry_rejects_start_and_expires_active_attempt
+6 failed, 38 passed, 15 warnings in 11.05s

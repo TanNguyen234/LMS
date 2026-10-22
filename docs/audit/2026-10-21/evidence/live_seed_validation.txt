@@ -1,0 +1,5 @@
+COMMAND=execute database/04_seed_validation.sql
+DATABASE=UniversityLms_Test_20261021_0124
+TABLES=12
+ROW_COUNTS=Users:33, Courses:26, Enrollments:23, Modules:24, Lessons:24, Assignments:47, Submissions:26, Quizzes:42, QuizQuestions:47, QuizAttempts:32, Grades:35, Notifications:39
+RESULT=SUCCESS: Seed validation passed 12 tables x 10 rows and referential integrity checks.

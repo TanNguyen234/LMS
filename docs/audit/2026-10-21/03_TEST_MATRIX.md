@@ -1,29 +1,49 @@
-# Test matrix — 2026-10-21 forensic branch
+# Test matrix — 2026-10-21 forensic acceptance
 
-All commands below were actually executed on this working tree. CWD and evidence are recorded per row. Full SQL integration and write-enabled browser journeys remain blocked; read-only role journeys are recorded below.
+All commands listed below were executed from the stated working directory. Database URLs, passwords and tokens are omitted. Logs contain no credentials. The default application database `UniversityLms` was not used for test writes.
 
-| Command | CWD / environment | Exit | Result | Evidence |
-|---|---|---:|---|---|
-| npm ci | frontend; Node/npm workspace runtime | 0 | 113 packages installed | evidence/final_npm_ci.txt |
-| npm run build | frontend; after npm ci and final source edits | 0 | TypeScript check and Vite build passed | evidence/final_frontend_build.txt |
-| npm run lint | frontend; after npm ci and final source edits | 0 | exit 0 with 17 warnings; warnings are not suppressed | evidence/final_frontend_lint.txt |
-| backend/venv/Scripts/python.exe -m pytest backend/tests/test_forensic_contracts.py -q | repo root; local backend venv; pure contracts, no DB calls | 0 | 15 passed, 15 dependency/deprecation warnings | follow-up result in evidence/live_readonly_browser.md |
-| backend/venv/Scripts/python.exe -m pytest --collect-only -q backend/tests | repo root; local backend venv | 0 | 41 collected: 26 pre-existing + 15 pure contract tests | follow-up result in evidence/live_readonly_browser.md |
-| backend/venv/Scripts/python.exe -m pytest backend/tests -q | repo root; local backend venv; database fixture guard enabled | 1 | 15 passed, 6 skipped (direct-client module guard), 20 errors at shared integration fixture because configured DB is not UniversityLms_Test_<id>. No integration test body ran; this is a safety block, not a product assertion failure. | follow-up result in evidence/live_readonly_browser.md |
-| backend/venv/Scripts/python.exe -m py_compile backend/app/api/routes/assignments.py backend/tests/test_forensic_contracts.py | repo root; backend venv | 0 | changed route and regression test parse | follow-up result in evidence/live_readonly_browser.md |
-| Live browser role journeys | frontend `http://127.0.0.1:5173`, backend `http://127.0.0.1:8000`, `backend/.env` target; in-app Chromium UI and Uvicorn access logs | n/a | Actual ADMIN, LECTURER, STUDENT sign-ins and read-only pages loaded. Reproduced assignment GET 500 before fix; same endpoint returned 200 after fix. No create, submit, grade, quiz start, migration, or other DB write was made. | evidence/live_readonly_browser.md |
-| backend/venv/Scripts/python.exe -c "from backend.app.main import app; ..." | repo root; builds local app.openapi(), no server or DB | 0 | 51 method/path operations enumerated | evidence/openapi_paths.txt |
-| git diff --check | repo root; follow-up evidence changes | 0 | no whitespace errors in the follow-up diff | evidence/live_readonly_browser.md |
+## Final passing checks
 
-## Baseline evidence
+| Command / action | CWD and target | Exit/result | Evidence |
+|---|---|---:|---|
+| `npm ci` | `frontend`; Node/npm workspace runtime | 0; 113 packages installed | [evidence/final_npm_ci.txt](evidence/final_npm_ci.txt) |
+| `npm run build` | `frontend`; final AuthContext change | 0; TypeScript and Vite build passed | [evidence/live_frontend_build_final.txt](evidence/live_frontend_build_final.txt) |
+| `npm run lint` | `frontend`; final source | 0; 15 nonblocking warnings | [evidence/live_frontend_lint_final.txt](evidence/live_frontend_lint_final.txt) |
+| `backend/venv/Scripts/python.exe -m pytest backend/tests -q` | repo root; SQL Server DB `UniversityLms_Test_20261021_0124` | 0; 44 passed, 15 warnings | [evidence/live_backend_pytest_final_44.txt](evidence/live_backend_pytest_final_44.txt) |
+| `python -m pytest -q backend/tests/test_recon2_challenger.py backend/tests/test_forensic_contracts.py backend/tests/test_challenger_recon.py backend/tests/test_acceptance.py` | repo root; SQL Server DB `UniversityLms_Test_20261021_0124`; modules reversed | 0; 44 passed, 15 warnings | [evidence/live_backend_pytest_reverse_order.txt](evidence/live_backend_pytest_reverse_order.txt) |
+| Same reversed full-suite command | repo root; separately bootstrapped `UniversityLms_Test_Repeat_20261021_1027` | 0; 44 passed, 15 warnings | [evidence/live_backend_pytest_fresh_repeat_final.txt](evidence/live_backend_pytest_fresh_repeat_final.txt) |
+| `python -m pytest ...::test_challenger_concurrent_quiz_start_and_submit_have_single_effects -q` | repo root; disposable SQL Server test DB | 0; 1 passed; 5 concurrent starts share one attempt and only one submit persists | [evidence/live_quiz_concurrency_test.txt](evidence/live_quiz_concurrency_test.txt) |
+| Quiz expiration integration case | repo root; disposable SQL Server test DB | 0; expired window rejected; active attempt becomes `EXPIRED`, without Grade/Notification | [evidence/live_quiz_expiry_test.txt](evidence/live_quiz_expiry_test.txt) |
+| Expired JWT adversarial test | repo root; disposable SQL Server test DB | 0; expired signed token rejected | [evidence/live_expired_token_test.txt](evidence/live_expired_token_test.txt) |
+| `backend/venv/Scripts/python.exe -m py_compile` for changed Python modules and E2E script | repo root; Python 3.12 | 0 | [evidence/live_py_compile_final.txt](evidence/live_py_compile_final.txt) |
+| `database/01_schema.sql` + `database/02_seed.sql` + `database/04_seed_validation.sql` | new DB `UniversityLms_Test_Repeat_20261021_1027` | pass; 12 domain tables, 10 seed rows each, referential checks pass | [evidence/live_fresh_repeat_bootstrap.txt](evidence/live_fresh_repeat_bootstrap.txt) |
+| `backend/venv/Scripts/python.exe -m alembic -c backend/alembic.ini stamp head` | `UniversityLms_Test_Repeat_20261021_1027` | 0; revision `6f2d4db8312a` | [evidence/live_alembic_repeat_stamp.txt](evidence/live_alembic_repeat_stamp.txt) |
+| `database/04_seed_validation.sql` after final SQL suite/E2E | E2E DB and repeat DB | pass; all 12 business tables >=10 rows, referential checks pass | [evidence/live_seed_validation_final.txt](evidence/live_seed_validation_final.txt), [evidence/live_seed_validation_repeat_final.txt](evidence/live_seed_validation_repeat_final.txt) |
+| `GET /health`; `GET /openapi.json` | API `127.0.0.1:8001`, SQL Server-backed | 200; DB connected; OpenAPI exposes 51 operations | [evidence/live_http_health_openapi.txt](evidence/live_http_health_openapi.txt) |
+| Live Chrome DevTools run `python scripts/run_live_crud_e2e.py` | visible Chrome at CDP 9333; Vite `127.0.0.1:5174`; API `127.0.0.1:8001`; DB `UniversityLms_Test_20261021_0124` | 0; 29 operations, 43 successful writes, 226 2xx API responses, 10 SQL persistence checks, 0 unexpected console errors | [evidence/crud-e2e/live_crud_e2e.log](evidence/crud-e2e/live_crud_e2e.log) and [stdout](evidence/crud-e2e/live_crud_e2e_verified.stdout.log) |
+| Screenshot inspection | actual DOM main content in the same browser run | lesson content visible; quiz result shows `2.5 / 2.5`; question edit visible | [evidence/crud-e2e/student_published_lesson.png](evidence/crud-e2e/student_published_lesson.png), [student_quiz_result.png](evidence/crud-e2e/student_quiz_result.png), [lecturer_quiz_question_edit.png](evidence/crud-e2e/lecturer_quiz_question_edit.png) |
 
-At the original snapshot, frontend build passed, lint exited 0 with 16 warnings and the 26 existing backend test functions were collected but not run. See evidence/baseline_frontend.txt and 00_BASELINE.md.
+## Browser evidence by role
 
-## Not run / blocked
+- **ADMIN:** login/reload/logout, user create/edit/deactivate/reactivate; course create/edit/archive/reactivate; enrollment add/drop/re-enroll. Browser writes returned 2xx and SQL rows were checked.
+- **LECTURER:** login/reload/logout; module and lesson create/edit/publish/unpublish; assignment create/edit/close/reopen; quiz/question create/edit/publish/unpublish; view student submission, grade it, and view attempts.
+- **STUDENT:** login/reload/logout; view course and published lesson; confirm closed assignment cannot be submitted; submit text assignment; start and submit timed quiz with same attempt UUID; see score/feedback/gradebook; expired token receives 401, clears local session and redirects to login.
+- Two DevTools “Failed to load resource” entries are expected, and only expected, for GET `/api/auth/me` returning 401 in the expired-token test. The script matches each log against an actual API response. Any other non-2xx response, console exception or console error fails the run.
+- Delete semantics tested are reversible lifecycle actions: deactivate, archive, drop, unpublish and close. Physical deletion of users/courses/modules/lessons/assignments/quizzes/questions is not an implemented API feature. File attachments are out of scope; the UI and API are text-only.
 
-- All SQL Server integration cases were not run against a disposable database. The suite guard refused the configured UniversityLms database; the creation command for UniversityLms_Test_<id> was rejected by command policy.
-- SQL schema creation, seed import, seed validation, Alembic migration/stamp, persistence checks and concurrency tests: NOT RUN.
-- Dedicated HTTP /health and /openapi.json probes: NOT RUN. The app was exercised through real browser API requests; the 51-operation inventory was generated locally from app.openapi().
-- Full mutating browser E2E: NOT RUN. The real-browser pass was limited to sign-in and GET-only role journeys because no disposable DB is available. Quiz Start→Submit, assignment submission, grading, and create/update actions remain UNKNOWN. `scripts/run_devtools_e2e.py` requires `LMS_E2E_TEST_DATABASE=UniversityLms_Test_<id>` and was not run.
-- Chrome DevTools MCP could not open a page because its configured Chrome profile was already running. Browser interactions and DOM console logs were captured with the in-app Chromium browser; HTTP statuses came from the live Uvicorn access log. This is not recorded as a Chrome DevTools Network-panel run.
-- No claim of 0 open P0/P1 defects is based on integration evidence. Static implementation is present; end-to-end state remains unverified.
+## Failed probes retained as evidence
+
+The earlier files `evidence/independent_review.md` and `evidence/live_readonly_browser.md` record the initial pre-bootstrap state and say the write journeys were NOT RUN. They are historical baseline evidence, superseded by the successful full SQL Server suite and Chrome run recorded above; do not read their initial status as the final result.
+
+Three retained failure/test outputs contained transient demo-password or JWT text from test diagnostics. Those credential strings have been redacted, and trailing whitespace in captured terminal output has been normalized, while preserving test outcomes and surrounding output; no password or token is included in the committed evidence.
+
+- An initial reversed-order run against the older Bootstrap database returned 5 failures and 23 setup errors because the named database had no `Users` table at the time it was queried. A separately bootstrapped repeat DB was created and all schema/seed/validation/stamp steps were re-run there; the final clean repeat suite passed. The old Bootstrap DB was not used as final evidence and was not deleted.
+- The first reversed-order full suite on the new repeat DB exposed an order dependency: the module-level TestClient tests depended on another module initializing sentinel passwords. It also exposed a boundary-sensitive expiry test that backdated exactly two minutes despite a one-minute limit plus grace. The test fixture now initializes seeded test passwords itself, and the expiry case uses a five-minute margin. Focused tests and the final reversed 44-test suite pass. See [evidence/live_backend_pytest_fresh_repeat.txt](evidence/live_backend_pytest_fresh_repeat.txt), [evidence/live_order_independence_focused.txt](evidence/live_order_independence_focused.txt), and [evidence/live_backend_pytest_fresh_repeat_final.txt](evidence/live_backend_pytest_fresh_repeat_final.txt).
+- The initial E2E classified the two intentional expired-token resource 401s as console errors. The harness now whitelists only exact `/api/auth/me` 401 resource entries and checks their count against the actual responses. A transient CDP page-target handshake also led to bounded retry logic. The final browser run passed; diagnostics remain in `evidence/crud-e2e/`.
+- The Chrome DevTools MCP service could not attach because its configured profile was already running. The live E2E used the dedicated Chrome CDP endpoint on port 9333 and inspected actual DOM, network responses, console events and SQL persistence. No mocked browser or API responses were used.
+
+## Not run / limitations
+
+- No production deployment, external uptime probe, paid service, or real stakeholder UAT approval was performed. PM approval marks and cost/EVM scenarios remain explicitly simulated planning artifacts.
+- No hard-delete flow or file-upload flow exists in the MVP, so neither is claimed as tested.
+- The test DBs are retained; no database was dropped or reset. API/frontend/Chrome sessions remain available for direct inspection.

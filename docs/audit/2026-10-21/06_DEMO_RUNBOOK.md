@@ -1,69 +1,81 @@
-# Disposable SQL Server test and demo runbook
+# Local demo and live acceptance runbook — 2026-10-21
 
-This runbook is for local Windows SQL Server Express. Use only a newly created database named UniversityLms_Test_<unique-id>. Never point tests at UniversityLms or another shared/user database. The current audit branch did not create this database because command policy rejected the create command; steps below are instructions for the next authorized test run, not evidence they were completed.
+This runbook describes the tested local workflow on the existing SQL Server and visible Chrome. It never targets the user database `UniversityLms`. Use a newly created, uniquely named `UniversityLms_Test_<id>` database and retain it after testing; no cleanup step drops databases. The audited run used `UniversityLms_Test_20261021_0124` for browser/backend checks and `UniversityLms_Test_Repeat_20261021_1027` for clean bootstrap/repeat-suite checks.
 
-## 1. Provision a disposable test database
+## 1. Create an isolated test database
 
-1. Open SSMS and connect to the local SQL Server Express instance.
-2. In a query connected to master, create a new unique test database, for example UniversityLms_Test_20261021. Confirm the selected database name before running scripts.
-3. In SSMS, select that new database and run, in order:
-   - database/01_schema.sql
-   - database/02_seed.sql
-   - database/04_seed_validation.sql
-4. Confirm 12 tables have at least 10 rows each and validation returns no error. The validation script is static, not run in this audit.
+1. In SSMS, connect to the existing SQL Server instance and create a fresh database with a unique `UniversityLms_Test_<id>` name. Do not reuse `UniversityLms` or another shared database.
+2. Select the new database and run `database/01_schema.sql`, then `database/02_seed.sql`, then `database/04_seed_validation.sql`.
+3. Confirm that the seed validation reports all 12 business tables and passes the referential checks. Preserve the output as evidence. Do not run `database/03_reset.sql`.
 
-Do not run database/03_reset.sql. Do not use the existing UniversityLms database. No auto-drop/cleanup command is included.
+The scripts use the existing SQL Server installation. This workflow does not require installing `sqlcmd` or an ODBC driver.
 
-## 2. Point backend and Alembic at the disposable database
+## 2. Select the test DB for Python commands
 
-Copy backend/.env.example to backend/.env if no local file exists. Set DATABASE_URL to the disposable database, for example:
+In each PowerShell session that runs backend commands, select the exact test database by name:
 
-    mssql+pyodbc://localhost%5CSQLEXPRESS/UniversityLms_Test_20261021?driver=SQL+Server&trusted_connection=yes&TrustServerCertificate=yes
+```powershell
+$env:LMS_E2E_TEST_DATABASE = 'UniversityLms_Test_<id>'
+```
 
-Keep the URL and all credentials private. For pytest from the repository root, set DATABASE_URL only in the current PowerShell process to the test URL; do not write it into a tracked file. Confirm the database name before starting any command. The conftest and recon2 module guards require the UniversityLms_Test_ prefix.
+The repository's local `.env` supplies the SQL Server connection settings; do not print, copy into tracked files, or include credentials in evidence. The test scripts reject a database name without the `UniversityLms_Test_` prefix. If `.env` points at the wrong SQL Server instance, stop and select the intended existing instance without changing the shared database.
 
-The fresh SQL script creates the current schema. After successful seed validation, stamp Alembic at head; do not run the historical initial revision as an empty-database bootstrap:
+After schema, seed and validation succeed, stamp the fresh SQL schema at the current migration head:
 
-    backend\venv\Scripts\python.exe -m alembic -c backend/alembic.ini stamp head
+```powershell
+backend\venv\Scripts\python.exe -m alembic -c backend/alembic.ini stamp head
+```
 
-For an existing disposable database already at revision efd8af3f19c3, review the data and then apply the incremental revision with Alembic upgrade head. The migration prechecks duplicate source grades and unsupported question types. Do not run either command on a non-disposable database.
+Then run the integration suite:
 
-## 3. Run backend checks
+```powershell
+backend\venv\Scripts\python.exe -m pytest backend/tests -q
+```
 
-From the repository root, with DATABASE_URL set only in the test shell:
+For order-independence verification, run the modules in a different order:
 
-    backend\venv\Scripts\python.exe -m pytest --collect-only -q backend/tests
-    backend\venv\Scripts\python.exe -m pytest backend/tests -q
+```powershell
+backend\venv\Scripts\python.exe -m pytest -q backend/tests/test_recon2_challenger.py backend/tests/test_forensic_contracts.py backend/tests/test_challenger_recon.py backend/tests/test_acceptance.py
+```
 
-The expected test database includes the seed records plus changes made by integration tests. To repeat, provision a new uniquely named database and reseed it; do not reset a shared database. Preserve the stdout/stderr and exit code in the dated evidence directory without connection strings or tokens.
+Every repeat run that needs a clean database must use another uniquely named test DB and repeat schema/seed/validation/stamp. Do not reset the user's DB.
 
-## 4. Start API and frontend
+## 3. Run the local API and frontend
 
-PowerShell window 1, repository root, API configured for the disposable DB:
+Start the API in a PowerShell window from the repository root, with the exact test DB name already selected:
 
-    backend\venv\Scripts\python.exe -m uvicorn backend.app.main:app --env-file backend/.env --host 127.0.0.1 --port 8000
+```powershell
+backend\venv\Scripts\python.exe scripts\serve_e2e_test_database.py
+```
 
-Check /health returns HTTP 200 with database_connected=true. Inspect /openapi.json only on this local test API.
+The launcher enforces the `UniversityLms_Test_` prefix and serves the SQL Server-backed API on `127.0.0.1:8001`. Confirm `/health` reports HTTP 200 and a connected database before testing.
 
-PowerShell window 2, frontend:
+Start Vite in another window:
 
-    Set-Location frontend
-    npm ci
-    npm run dev
+```powershell
+Set-Location frontend
+npm run dev -- --host 127.0.0.1 --port 5174
+```
 
-The UI should be available at http://localhost:5173.
+The app is served at `http://127.0.0.1:5174`; its `/api` proxy points to the local API at port 8001.
 
-## 5. Browser smoke/E2E
+## 4. Run the real Chrome E2E journey
 
-1. Start a dedicated test-only Chrome process/profile with remote debugging on port 9222. Do not reuse a personal Chrome profile.
-2. In the same PowerShell session, set LMS_E2E_TEST_DATABASE to the exact disposable database name actually used by the running API.
-3. Run scripts/run_devtools_e2e.py from the repository root. It refuses to run without the test-database name, requires an available student quiz, checks start and submit both return 200 with the same attemptId, verifies the server maxScore and checks the student response/DOM for answer leakage. It asserts no unexpected API 4xx/5xx and JavaScript exceptions.
-4. The script does not launch, terminate or kill Chrome processes. It writes screenshots and a DevTools audit log only after it reaches those steps. No screenshot or E2E log from this branch is claimed.
+Use a test Chrome session with remote debugging on port 9333. The runner uses the visible browser, actual UI controls, actual HTTP requests and SQL Server persistence checks; it does not mock browser or API responses. It does not close Chrome, API or Vite.
 
-The current script covers the Admin, Lecturer and Student page smoke flows plus the timed quiz journey. It does not yet automate every planned user-management, course-enrollment and assignment-grading scenario from the full E2E acceptance table; those remain an additional release gate.
+In the PowerShell session, set the same exact database name used by the API and run:
 
-## 6. Demo accounts and safe finish
+```powershell
+$env:LMS_E2E_TEST_DATABASE = 'UniversityLms_Test_<id>'
+backend\venv\Scripts\python.exe scripts\run_live_crud_e2e.py
+```
 
-Seed accounts use admin@university.edu.vn, lecturer1@university.edu.vn and student1@university.edu.vn. Their development password initializer runs only when APP_ENV=development. Use accounts only in the disposable demo database.
+The script verifies its connected database with `SELECT DB_NAME()`, uses the seeded admin, lecturer and student accounts, and fails on unapproved API rejections, JavaScript exceptions or `console.error`. It writes the run log and screenshots beneath `docs/audit/2026-10-21/evidence/crud-e2e/`.
 
-Never commit .env, token values, database contents or screenshots containing personal data. Do not drop the test database automatically; request approval before deletion.
+The acceptance flow covers add/edit/view and reversible lifecycle actions for the implemented product features: users, courses, enrollments, lessons/modules, assignments, grades, quizzes and questions. Current deletion behavior is reversible (deactivate, archive, drop, unpublish or close). Physical deletion endpoints for users, courses, modules, lessons, assignments, quizzes and questions are not implemented; this runbook does not claim those flows.
+
+## 5. Test accounts and data safety
+
+Seeded test accounts are `admin@university.edu.vn`, `lecturer1@university.edu.vn` and `student1@university.edu.vn`. The local E2E runner initializes/uses development test credentials; credential values are intentionally omitted from this report. Do not use or disclose real user passwords or tokens in logs/screenshots.
+
+Keep both test databases for review unless the user separately asks to remove them. Never commit `.env`, database URLs, credentials, tokens or personal data. Do not run any database drop/reset command against `UniversityLms`.

@@ -1,0 +1,4 @@
+DATABASE=UniversityLms_Test_20261021_0124
+TABLES=12; MIN_ROWS=23
+ROW_COUNTS=Users:35, Courses:26, Enrollments:23, Modules:25, Lessons:25, Assignments:54, Submissions:29, Quizzes:47, QuizQuestions:53, QuizAttempts:36, Grades:39, Notifications:44
+RESULT=PASS (04_seed_validation.sql)

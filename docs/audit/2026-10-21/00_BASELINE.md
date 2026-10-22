@@ -32,6 +32,19 @@
 
 Repo test tại snapshot ban đầu có 10 test_acceptance, 10 test_challenger_recon và 6 test_recon2_challenger. Đây là test count tĩnh, không phải kết quả pass.
 
+## Kết quả follow-up sau khi có quyền dùng DB test riêng
+
+Các ghi nhận ở trên là lịch sử đúng tại baseline; chúng được thay thế cho trạng thái hiện tại bởi các phép kiểm tra dưới đây. PR #1 đã merge vào `main` (merge commit `3c722e0a46a7804b60232000d8115e492ef6978b`). Fix branch tiếp tục chứa thay đổi mới sau merge; base commit của working tree trước lượt sửa cuối là `821ddf21210f275b167b4345c176bc1ce525ffc3`.
+
+- API test và browser E2E chạy trên `UniversityLms_Test_20261021_0124`; tên DB được xác minh bằng `SELECT DB_NAME()`. DB ứng dụng `UniversityLms` không được sử dụng cho ghi.
+- Bootstrap độc lập cuối cùng tạo `UniversityLms_Test_Repeat_20261021_1027`; `01_schema.sql`, `02_seed.sql`, `04_seed_validation.sql` chạy thành công, 12 bảng nghiệp vụ có 10 hàng seed mỗi bảng, Alembic stamp ở `6f2d4db8312a`.
+- Backend full suite pass 44/44 theo thứ tự chuẩn và thứ tự file đảo ngược. Lần chạy thứ tự ngược đầu trên DB Bootstrap cũ cho thấy DB tại thời điểm chạy không có bảng `Users`; lần chạy đó không được tính là pass. DB mới Repeat được tạo và kiểm tra riêng; full suite thứ tự ngược trên DB mới pass 44/44. Xem `evidence/live_backend_pytest_independent_reverse.txt`, `evidence/live_fresh_repeat_bootstrap.txt`, `evidence/live_backend_pytest_fresh_repeat_final.txt`.
+- Chrome DevTools E2E cuối trên API thật và Vite thật: 29 thao tác qua ADMIN, LECTURER, STUDENT; 43 browser writes thành công; 226 API responses 2xx và hai 401 duy nhất là GET `/api/auth/me` trong kiểm tra token hết hạn; 10 kiểm tra SQL persistence; 0 lỗi console ngoài 2 resource log tương ứng. Xem `evidence/crud-e2e/live_crud_e2e.log` và stdout.
+- Build frontend exit 0; lint exit 0 với 15 cảnh báo style/hooks không chặn. Backend suite 44 passed, 15 warning phụ thuộc/deprecation.
+- CRG không khả dụng trong phiên này; kết luận được dựa trên source/rg, test SQL Server, HTTP probe và trình duyệt Chrome thật. Không tuyên bố review graph-backed.
+
+Các log hiện hành và giới hạn còn lại được ghi tại [03_TEST_MATRIX.md](03_TEST_MATRIX.md) và [05_RELEASE_GATE.md](05_RELEASE_GATE.md). Không có claim deployment hay uptime ngoài môi trường local.
+
 
 ## Safety probe discovered during this branch
 

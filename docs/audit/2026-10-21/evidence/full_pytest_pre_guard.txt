@@ -44,7 +44,7 @@ Integration tests require an isolated SQL Server database named UniversityLms_Te
 ________________________ test_quiz_question_type_enum _________________________
 
     def test_quiz_question_type_enum():
-        r_lec = client.post("/api/auth/login", json={"email": "lecturer1@university.edu.vn", "password": "Demo@123"})
+        r_lec = client.post("/api/auth/login", json={"email": "lecturer1@university.edu.vn", "password": "[REDACTED_TEST_PASSWORD]"})
         lec_token = r_lec.json()["access_token"]
 
         r_courses = client.get("/api/courses", headers={"Authorization": f"Bearer {lec_token}"})
