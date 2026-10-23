@@ -47,7 +47,9 @@ export function DashboardPage() {
         if (item.submittedAt || item.status === 'CLOSED') return false;
         return Date.parse(item.dueAt) >= now || item.allowLate;
       }
-      return Date.parse(item.dueAt) >= now && (item.attemptsUsed ?? 0) < (item.maxAttempts ?? 1);
+      return Date.parse(item.dueAt) >= now && (
+        item.inProgress || ((item.submittedAttempts ?? 0) === 0 && (item.attemptsUsed ?? 0) < (item.maxAttempts ?? 1))
+      );
     })
     .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt))
     .slice(0, 4);
@@ -74,10 +76,10 @@ export function DashboardPage() {
     ];
 
   const links = user?.role === 'ADMIN'
-    ? [{ path: '/users', label: 'Quản lý tài khoản', Icon: Users }, { path: '/courses', label: 'Quản lý học phần', Icon: BookOpen }]
+    ? [{ path: '/insights', label: 'Phân tích vận hành', Icon: BookOpen }, { path: '/users', label: 'Quản lý tài khoản', Icon: Users }, { path: '/courses', label: 'Quản lý học phần', Icon: BookOpen }]
     : user?.role === 'LECTURER'
-    ? [{ path: '/assignments', label: 'Chấm bài nộp', Icon: ClipboardList }, { path: '/quizzes', label: 'Quản lý quiz', Icon: CheckSquare }, { path: '/grades', label: 'Bảng điểm', Icon: FileText }]
-    : [{ path: '/study-plan', label: 'Xem kế hoạch học tập', Icon: CalendarDays }, { path: '/assignments', label: 'Nộp bài tập', Icon: ClipboardList }, { path: '/grades', label: 'Xem kết quả', Icon: FileText }];
+    ? [{ path: '/insights', label: 'Bàn làm việc giảng viên', Icon: ClipboardList }, { path: '/assignments', label: 'Chấm bài nộp', Icon: ClipboardList }, { path: '/quizzes', label: 'Quản lý quiz', Icon: CheckSquare }, { path: '/grades', label: 'Bảng điểm', Icon: FileText }]
+    : [{ path: '/insights', label: 'Phân tích kết quả', Icon: CalendarDays }, { path: '/study-plan', label: 'Xem kế hoạch học tập', Icon: CalendarDays }, { path: '/assignments', label: 'Nộp bài tập', Icon: ClipboardList }, { path: '/grades', label: 'Xem kết quả', Icon: FileText }];
 
   const reload = () => { setLoading(true); setRefresh((value) => value + 1); };
 
