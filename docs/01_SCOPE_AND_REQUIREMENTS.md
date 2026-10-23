@@ -83,6 +83,9 @@ Trong phạm vi project, xây dựng web LMS đáp ứng các luồng học tậ
 | FR-14 | Notification list/mark-read | Should |
 | FR-15 | Dashboard summary | Should |
 | FR-16 | Student xem bài tập và quiz sắp đến hạn từ môn đã đăng ký; không lộ dữ liệu của sinh viên khác | Should |
+| FR-17 | Lecturer xem analytics của lớp phụ trách và hàng đợi chấm bài, có thể thực hiện chấm trực tiếp qua backend hiện có | Should |
+| FR-18 | Student xem thống kê điểm thực tế theo môn, không tự quy đổi thành GPA chính thức | Should |
+| FR-19 | Admin xem analytics trạng thái học phần, người dùng và backlog chấm điểm | Should |
 
 ## 6. Non-functional requirements
 
