@@ -1,6 +1,10 @@
 # 00 — Course Context & Required Deliverables
 
-## 1. Bối cảnh học phần
+## 1. Bối cảnh học phần và mức độ xác nhận
+
+**Yêu cầu cô đã giao (theo thông tin sinh viên xác nhận ngày 23/10/2026):** tên đề tài “Quản lý dự án xây dựng hệ thống quản lý học tập trực tuyến (LMS) cho trường đại học”; dùng **Trello** quản lý dự án và **draw.io** vẽ sơ đồ. Chưa có rubric, danh sách deliverable, số tuần, ngân sách, mức độ bắt buộc lập trình, yêu cầu deployment hay loại sơ đồ cụ thể.
+
+**Tất cả mục còn lại trong tài liệu là phương án nhóm tự lựa chọn**, không được mô tả là yêu cầu chính thức của cô. Xem [bộ khởi động Trello/draw.io](coursework-trello-drawio/README.md).
 
 Đây là **đồ án cuối kỳ môn Quản lý dự án phần mềm**, không phải đồ án chuyên sâu về kiến trúc hệ thống hay đồ án tốt nghiệp.
 
@@ -17,7 +21,7 @@ Hệ thống LMS được xây dựng như **case study + prototype minh họa**
 
 Không được hy sinh các deliverable quản lý dự án chỉ để thêm tính năng kỹ thuật.
 
-## 2. Deliverable bắt buộc của học phần
+## 2. Danh mục deliverable tham khảo do nhóm đề xuất (KHÔNG phải danh sách cô giao)
 
 ### A. Project initiation
 - Project Charter.
@@ -92,9 +96,9 @@ Không được hy sinh các deliverable quản lý dự án chỉ để thêm t
 - Lessons learned.
 - Future enhancements ngoài scope.
 
-## 3. Mức độ prototype yêu cầu
+## 3. Mức độ prototype đề xuất nếu nhóm chọn lập trình minh họa
 
-Prototype phải đủ để demo:
+Nếu cô xác nhận có yêu cầu triển khai prototype chạy thật, nên đủ để demo:
 
 1. Admin đăng nhập, quản lý user/course/enrollment.
 2. Lecturer quản lý nội dung, assignment, quiz và chấm điểm.
@@ -111,7 +115,7 @@ Không yêu cầu:
 - production cloud architecture;
 - microservices.
 
-## 4. Quy tắc nhất quán tài liệu
+## 4. Quy tắc nhất quán tài liệu nội bộ
 
 Mọi con số dùng trong báo cáo phải lấy từ một baseline duy nhất. Nếu thay đổi duration, team, budget hoặc scope thì phải cập nhật các file liên quan, không để mỗi chương dùng một số liệu khác nhau.
 
