@@ -81,3 +81,10 @@ Mã yêu cầu (CR ID): CR-[NĂM]-[SỐ THỨ TỰ] (Ví dụ: CR-2026-001)
 | **CR-01** | Tuần 5 | Đại diện Giảng viên | Thêm tính năng chat thảo luận trực tiếp giữa sinh viên và giảng viên trong khóa học. | Scope: Thêm module chat; Schedule: +3 tuần; Cost: +60 triệu VNĐ. Làm trễ đường găng. | **DEFERRED (Hoãn)** | Ghi nhận vào `FUTURE_ENHANCEMENTS.md` cho giai đoạn 2; giữ nguyên baseline prototype. |
 | **CR-02** | Tuần 8 | Phòng Đào tạo | Bổ sung trường thông tin `StudentCode` (MSSV) và `StaffCode` (Mã GV) trong tài khoản người dùng để phục vụ quản lý học vụ. | Scope: Nhỏ; Schedule: 0 ngày (lồng vào thiết kế bảng Users); Cost: 0 VNĐ; Không lệch đường găng. | **APPROVED (Duyệt)** | Đã cập nhật vào schema CSDL `01_schema.sql` và model Pydantic tương ứng. |
 | **CR-03** | Tuần 11 | Đại diện Sinh viên | Tích hợp cổng thanh toán trực tuyến tiền mua giáo trình học tập. | Scope: Lớn; Schedule: +4 tuần; Rủi ro bảo mật tài chính cao; Out-of-scope đồ án. | **REJECTED (Từ chối)** | Bác bỏ vì vi phạm Scope baseline môn học; hướng dẫn sinh viên thanh toán qua kênh kế toán trường. |
+
+
+---
+
+## 5. Yêu cầu thay đổi phát sinh trên repo ngày 23/10/2026 (ngoài nhật ký mô phỏng)
+
+Có một bản code thử nghiệm về dashboard, study planner và analytics trên nhánh `feat/student-workload-and-dashboard-20261023`, kèm [CR-2026-10-23](14_CHANGE_REQUEST_2026-10-23.md). **Trạng thái: PROPOSED — CHƯA ĐƯỢC CCB PHÊ DUYỆT.** Đây không phải CR-01/02/03 giả định ở bảng ví dụ, không sửa baseline 20 tuần/1,2 tỷ, không tự tăng FR-01–FR-15 thành FR-19. Nếu đưa vào phạm vi nghiệm thu, cần phân tích impact, cập nhật WBS/CPM/budget/RTM/UAT và chứng minh kiểm thử thật trước khi chấp thuận.
