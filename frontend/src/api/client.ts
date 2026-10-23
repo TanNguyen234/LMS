@@ -630,24 +630,19 @@ export const api = {
   async gradeSubmission(submissionId: string | number, data: {
     score: number;
     feedback?: string;
-    weight_percent?: number;
-    weightPercent?: number;
-  }): Promise<Grade> {
-    const payload = {
-      score: data.score,
-      feedback: data.feedback || '',
-    };
+  }): Promise<Submission> {
+    // The endpoint returns the updated submission, not a Grade entity.
     const res = await request<any>(`/submissions/${submissionId}/grade`, {
       method: 'PUT',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ score: data.score, feedback: data.feedback || '' }),
     });
     return {
       ...res,
-      id: res.gradeId,
-      course_id: res.courseId,
+      id: res.submissionId,
+      assignment_id: res.assignmentId,
       student_id: res.studentId,
-      max_score: res.maxScore,
-      graded_at: res.gradedAt,
+      submission_text: res.contentText,
+      submitted_at: res.submittedAt,
     };
   },
 
