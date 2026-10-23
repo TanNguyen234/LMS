@@ -78,6 +78,7 @@ def get_student_workload(
     # Single left join: no per-assignment HTTP calls, and submission is bound to this student.
     assignments = (
         db.query(Assignment, Submission)
+        .select_from(Assignment)
         .outerjoin(
             Submission,
             and_(
