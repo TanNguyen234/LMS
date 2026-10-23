@@ -45,7 +45,8 @@ Trong phạm vi project, xây dựng web LMS đáp ứng các luồng học tậ
 - Xem notification.
 
 ### Shared
-- Dashboard cơ bản theo role.
+- Dashboard theo role với số liệu thật, đường dẫn hành động phù hợp quyền.
+- Student read-only workload dashboard cho bài tập/quiz đã công bố, lấy từ các môn đăng ký ACTIVE.
 - Pagination + search cho danh sách lớn.
 - Audit bằng timestamp ở các entity chính, chưa cần audit-log table riêng.
 
@@ -81,6 +82,7 @@ Trong phạm vi project, xây dựng web LMS đáp ứng các luồng học tậ
 | FR-13 | Student xem grades | Must |
 | FR-14 | Notification list/mark-read | Should |
 | FR-15 | Dashboard summary | Should |
+| FR-16 | Student xem bài tập và quiz sắp đến hạn từ môn đã đăng ký; không lộ dữ liệu của sinh viên khác | Should |
 
 ## 6. Non-functional requirements
 
