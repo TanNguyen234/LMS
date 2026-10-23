@@ -131,6 +131,14 @@ Tabs:
 - Quiz and assignment links preserve the selected authorized course.
 - Display statuses are advisory; backend remains authoritative when submitting.
 
+### Analytics workspace by role (feature branch)
+
+- Shared route `/insights`, authenticated; API enforces ADMIN/LECTURER/STUDENT independently.
+- Lecturer: active teaching courses, published content counters, student enrollment counts, pending/graded submission ratio, first 60 submissions awaiting grade. Search by student/course/assignment and filter by course. Open full submission from existing authorized endpoint, enter score and feedback, save using existing grade endpoint; show failures truthfully.
+- Student: active enrolled course grade summary, per-course unweighted average of grades recorded so far (0–10), latest 20 grade records. No fabricated GPA, no class ranking or unsupported official academic classification.
+- Admin: account role distribution, active/inactive accounts, course lifecycle, active enrollment counts, published content, grading backlog. Counts are database snapshots, not uptime or system-health claims.
+- All analytics: empty/loading/error/retry states, usable desktop and tablet layout, no fabricated sample results.
+
 ## 5. UX rules
 
 - Disable impossible action nhưng vẫn handle server error.
