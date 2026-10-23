@@ -104,7 +104,7 @@ Tabs:
 - Due date
 - Description
 - Existing submission
-- Text/file submission
+- Text-only submission (MVP does not upload files)
 - Status/score/feedback
 
 ### Quiz View
@@ -121,6 +121,15 @@ Tabs:
 ### Notifications
 - Unread/read
 - Mark read
+
+### Student study plan (implemented in feature branch)
+
+- Student-only route `/study-plan` reachable from navigation and dashboard.
+- Active-enrollment workload: published assignments and published quizzes, ordered by deadline.
+- Course/search/status filters and explicit empty/loading/error/retry states.
+- Deadlines rendered in device local time, with quiz opening time and used attempts.
+- Quiz and assignment links preserve the selected authorized course.
+- Display statuses are advisory; backend remains authoritative when submitting.
 
 ## 5. UX rules
 
