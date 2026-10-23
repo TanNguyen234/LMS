@@ -56,3 +56,28 @@ Context: course final project in Software Project Management. This is a bounded,
 ## Change-control interpretation
 
 This enhancement supports FR-15 and newly documented FR-16. Technical completion is **source pushed**, not **UAT accepted**. PM baseline sign-off, cost variance and stakeholder approvals are unchanged and should not be represented as completed for this branch.
+
+
+## Second-stage functional depth — analytics and lecturer workbench
+
+A subsequent change on the same branch adds:
+- `GET /api/analytics/teaching` (LECTURER): authorized active courses; grouped student, published lesson, published quiz, assignment and grading counts; oldest 60 pending submissions and total count across lecturer's courses.
+- `GET /api/analytics/learning` (STUDENT): only recorded grade items from student's active courses, with per-course and global **unweighted observed** mean on a ten-point scale. Missing grades return null, not a fabricated 0/GPA.
+- `GET /api/analytics/operations` (ADMIN): real user role distribution, active account count, course lifecycle, current enrollment, published content and grading backlog.
+- `/insights` (three-role frontend): course overview charts, lecturer grade queue with on-demand retrieval of the full authorized submission and inline save via existing endpoint, student course result charts, admin activity snapshot.
+- `frontend/src/api/client.ts`: corrected `gradeSubmission` response normalization to an actual Submission, matching backend; old method falsely modeled a Grade.
+- `/grades?course=<UUID>`: deep links select only a course already in the user's authorized course list. The empty gradebook no longer invents an academic classification.
+- Quiz workload state: distinguish an in-progress attempt from a submitted or exhausted one. Expired/exhausted attempts no longer automatically imply completion.
+- PM change request `docs/project-management/14_CHANGE_REQUEST_2026-10-23.md`, FR-17–FR-19 and dated scope documentation.
+
+### Added verification source
+
+`backend/tests/test_analytics.py` includes endpoint role enforcement, lecturer course/queue scoping, student's observed grade contracts and internal consistency of admin counts. These tests have **not been run against a live SQL Server in this session**.
+
+### Risks and remaining acceptance gates
+
+1. The analytics snapshot queries are bounded and suitable for demo-sized data. No production throughput benchmark, server-side pagination of all analytics records, caching, or scale claim.
+2. Queue shows up to 60 oldest pending records. The total pending value explicitly denotes the entire scoped set; searching filters the visible 60 only. This is not a complete historical export.
+3. Marking a grade requires the existing backend to accept score/feedback and commit the Submission, Grade and Notification atomically; confirm with the local SQL Server E2E before release.
+4. The UI now has multiple role-conditioned panels, so a clean `tsc` / Vite build and real-browser checks are required. Static source inspection alone does not make the PR merge-ready.
+5. If using the previous dated acceptance suite, keep its evidence separated: it proves the earlier baseline, **not** these new analytics features.
