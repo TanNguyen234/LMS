@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   FileText,
   Plus,
@@ -16,6 +17,8 @@ import type { Assignment, Course, Submission } from '../types';
 
 export const AssignmentsPage: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const requestedCourseId = searchParams.get('course');
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -52,7 +55,8 @@ export const AssignmentsPage: React.FC = () => {
         const data = await api.getCourses();
         setCourses(data);
         if (data.length > 0) {
-          setSelectedCourseId(String(data[0].id));
+          const matched = data.find((entry) => String(entry.id) === requestedCourseId);
+          setSelectedCourseId(String((matched || data[0]).id));
         }
       } catch (err) {
         console.error(err);
@@ -61,7 +65,7 @@ export const AssignmentsPage: React.FC = () => {
       }
     };
     fetchCourses();
-  }, []);
+  }, [requestedCourseId]);
 
   const fetchAssignments = async () => {
     if (!selectedCourseId) return;

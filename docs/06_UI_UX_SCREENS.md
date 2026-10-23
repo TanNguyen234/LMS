@@ -104,7 +104,7 @@ Tabs:
 - Due date
 - Description
 - Existing submission
-- Text/file submission
+- Text-only submission (file uploads outside current MVP)
 - Status/score/feedback
 
 ### Quiz View
@@ -129,3 +129,8 @@ Tabs:
 - Loading/empty/error state cho mỗi page.
 - Date hiển thị rõ timezone/local format.
 - Không dùng animation phức tạp.
+
+
+## 6. Cải tiến giao diện ngoài baseline
+
+Nhánh nâng cấp có `/study-plan` và `/insights` với các màn hình phân tích theo vai trò. Đây là **ứng viên cải tiến / prototype mở rộng**, không phải màn hình bắt buộc trong UAT baseline của dự án. Chi tiết kỹ thuật và đánh giá tác động nằm tại `docs/project-management/14_CHANGE_REQUEST_2026-10-23.md`. Không dùng số liệu mô phỏng làm kết quả triển khai thực tế hoặc tự thêm mục này vào WBS đã được cố định.

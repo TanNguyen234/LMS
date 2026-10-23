@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   CheckSquare,
   Plus,
@@ -23,6 +24,8 @@ type ActiveQuiz = Quiz & {
 
 export const QuizzesPage: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const requestedCourseId = searchParams.get('course');
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -62,7 +65,10 @@ export const QuizzesPage: React.FC = () => {
       try {
         const data = await api.getCourses();
         setCourses(data);
-        if (data.length > 0) setSelectedCourseId(String(data[0].id));
+        if (data.length > 0) {
+          const matched = data.find((entry) => String(entry.id) === requestedCourseId);
+          setSelectedCourseId(String((matched || data[0]).id));
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -70,7 +76,7 @@ export const QuizzesPage: React.FC = () => {
       }
     };
     fetchCourses();
-  }, []);
+  }, [requestedCourseId]);
 
   const fetchQuizzes = async () => {
     if (!selectedCourseId) return;

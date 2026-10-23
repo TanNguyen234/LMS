@@ -14,6 +14,10 @@ import type {
   Grade,
   Notification,
   DashboardStats,
+  StudentWorkloadResponse,
+  TeachingInsights,
+  LearningInsights,
+  OperationsInsights,
 } from '../types';
 
 const API_BASE = '/api';
@@ -626,24 +630,19 @@ export const api = {
   async gradeSubmission(submissionId: string | number, data: {
     score: number;
     feedback?: string;
-    weight_percent?: number;
-    weightPercent?: number;
-  }): Promise<Grade> {
-    const payload = {
-      score: data.score,
-      feedback: data.feedback || '',
-    };
+  }): Promise<Submission> {
+    // The endpoint returns the updated submission, not a Grade entity.
     const res = await request<any>(`/submissions/${submissionId}/grade`, {
       method: 'PUT',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ score: data.score, feedback: data.feedback || '' }),
     });
     return {
       ...res,
-      id: res.gradeId,
-      course_id: res.courseId,
+      id: res.submissionId,
+      assignment_id: res.assignmentId,
       student_id: res.studentId,
-      max_score: res.maxScore,
-      graded_at: res.gradedAt,
+      submission_text: res.contentText,
+      submitted_at: res.submittedAt,
     };
   },
 
@@ -901,6 +900,24 @@ export const api = {
     });
   },
 
+  // Student worklist: one server-side, enrollment-scoped read rather than an N+1 loop.
+  async getStudentWorkload(): Promise<StudentWorkloadResponse> {
+    return request<StudentWorkloadResponse>('/dashboard/student/workload');
+  },
+
+  // Role-scoped, persisted-data analytics. No fake or fallback API results.
+  async getTeachingInsights(): Promise<TeachingInsights> {
+    return request<TeachingInsights>('/analytics/teaching');
+  },
+
+  async getLearningInsights(): Promise<LearningInsights> {
+    return request<LearningInsights>('/analytics/learning');
+  },
+
+  async getOperationsInsights(): Promise<OperationsInsights> {
+    return request<OperationsInsights>('/analytics/operations');
+  },
+
   // Dashboard
   async getDashboardStats(role?: string): Promise<DashboardStats> {
     const userRole = (role || 'STUDENT').toLowerCase();
@@ -939,7 +956,6 @@ export const api = {
         pending_submissions_count: 0,
         upcoming_assignments_count: typeof res.upcomingAssignments === 'number' ? res.upcomingAssignments : (res.upcomingAssignments || []).length,
         quizzes_count: typeof res.availableQuizzes === 'number' ? res.availableQuizzes : (res.activeQuizzes || []).length,
-        gpa: res.gpa || 0.0,
         recent_notifications: notifs.slice(0, 5),
       };
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   FileText,
   CheckSquare,
@@ -9,6 +10,8 @@ import type { Grade, Course } from '../types';
 
 export const GradesPage: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const requestedCourseId = searchParams.get('course');
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [grades, setGrades] = useState<Grade[]>([]);
@@ -21,7 +24,8 @@ export const GradesPage: React.FC = () => {
         const courseList = await api.getCourses();
         setCourses(courseList);
         if (courseList.length > 0) {
-          setSelectedCourseId(String(courseList[0].id));
+          const selected = courseList.find((course) => String(course.id) === requestedCourseId);
+          setSelectedCourseId(String((selected || courseList[0]).id));
         }
       } catch (err) {
         console.error(err);
@@ -30,7 +34,7 @@ export const GradesPage: React.FC = () => {
       }
     };
     init();
-  }, [user]);
+  }, [user?.id, requestedCourseId]);
 
   const fetchGrades = async () => {
     if (!selectedCourseId) return;
@@ -57,9 +61,11 @@ export const GradesPage: React.FC = () => {
   }, [selectedCourseId, user]);
 
   const calculateStudentAverage = () => {
-    if (grades.length === 0) return 0;
-    const total = grades.reduce((acc, g) => acc + (g.score / g.max_score) * 10, 0);
-    return total / grades.length;
+    if (grades.length === 0) return null;
+    const valid = grades.filter((g) => g.max_score > 0);
+    if (!valid.length) return null;
+    const total = valid.reduce((acc, g) => acc + (g.score / g.max_score) * 10, 0);
+    return total / valid.length;
   };
 
   const getSourceBadge = (type: string) => {
@@ -108,7 +114,7 @@ export const GradesPage: React.FC = () => {
             <span className="text-xs font-semibold text-slate-400 uppercase">Điểm trung bình tạm tính</span>
             <div className="flex items-baseline space-x-2 mt-2">
               <span className="text-3xl font-extrabold text-blue-600">
-                {calculateStudentAverage().toFixed(2)}
+                {calculateStudentAverage() === null ? '—' : calculateStudentAverage()!.toFixed(2)}
               </span>
               <span className="text-xs text-slate-400">/ 10</span>
             </div>
@@ -123,10 +129,10 @@ export const GradesPage: React.FC = () => {
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-            <span className="text-xs font-semibold text-slate-400 uppercase">Xếp loại học lực</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase">Trạng thái dữ liệu</span>
             <div className="flex items-baseline space-x-2 mt-2">
               <span className="text-xl font-bold text-emerald-600">
-                {calculateStudentAverage() >= 8.5 ? 'Giỏi (Excellent)' : calculateStudentAverage() >= 7 ? 'Khá (Good)' : 'Đạt'}
+                {calculateStudentAverage() === null ? 'Chưa có kết quả' : 'Chỉ số tạm tính'}
               </span>
             </div>
           </div>

@@ -87,14 +87,16 @@ def get_student_dashboard(
         .filter(Enrollment.StudentId == student.UserId, Enrollment.Status == "ACTIVE")
         .all()
     )
-    course_ids = [e.CourseId for e in enrollments]
+    enrolled_ids = [e.CourseId for e in enrollments]
 
     enrolled_courses = (
         db.query(Course)
-        .filter(Course.CourseId.in_(course_ids), Course.Status == "ACTIVE")
+        .filter(Course.CourseId.in_(enrolled_ids), Course.Status == "ACTIVE")
         .all()
-        if course_ids else []
+        if enrolled_ids else []
     )
+    # Metric queries must use the same visible/active courses as the student view.
+    course_ids = [course.CourseId for course in enrolled_courses]
 
     # Submitted assignment ids
     submitted_assignment_ids = [

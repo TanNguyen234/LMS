@@ -106,3 +106,8 @@ Một buổi demo hoàn chỉnh phải thực hiện được:
 5. Lecturer chấm assignment.
 6. Student refresh và xem điểm/feedback.
 7. Role trái phép gọi API bị 401/403.
+
+
+## 8. Quản lý các yêu cầu cải tiến chưa được phê duyệt
+
+Bản cơ sở phạm vi này giữ nguyên **FR-01 đến FR-15**, WBS, mốc 20 tuần và ngân sách kế hoạch 1,2 tỷ VND theo `docs/08_PROJECT_MANAGEMENT.md`. Các chức năng bổ sung đã triển khai thử nghiệm trên nhánh `feat/student-workload-and-dashboard-20261023` **không tự động trở thành yêu cầu bắt buộc hay tiêu chí nghiệm thu dự án**. Xem đề xuất tại `docs/project-management/14_CHANGE_REQUEST_2026-10-23.md` và báo cáo `docs/audit/2026-10-23_PM_SCOPE_REVIEW.md`. Chỉ thay đổi baseline khi có quyết định trong quy trình Change Control và có cập nhật đầy đủ WBS, CPM, ngân sách, yêu cầu, test/UAT tương ứng.

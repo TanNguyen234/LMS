@@ -3,6 +3,8 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   GraduationCap,
   LayoutDashboard,
+  CalendarDays,
+  BarChart3,
   Users,
   BookOpen,
   FileText,
@@ -57,6 +59,8 @@ export const AppLayout: React.FC = () => {
 
   const navItems = [
     { label: 'Tổng quan', path: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
+    { label: 'Phân tích & Công việc', path: '/insights', icon: BarChart3, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
+    { label: 'Kế hoạch học tập', path: '/study-plan', icon: CalendarDays, roles: ['STUDENT'] },
     { label: 'Người dùng', path: '/users', icon: Users, roles: ['ADMIN'] },
     { label: 'Khóa học', path: '/courses', icon: BookOpen, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
     { label: 'Bài tập', path: '/assignments', icon: FileText, roles: ['LECTURER', 'STUDENT'] },

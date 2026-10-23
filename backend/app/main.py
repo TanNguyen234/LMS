@@ -18,6 +18,8 @@ from backend.app.api.routes.quizzes import router as quizzes_router
 from backend.app.api.routes.grades import router as grades_router
 from backend.app.api.routes.notifications import router as notifications_router
 from backend.app.api.routes.dashboard import router as dashboard_router
+from backend.app.api.routes.workload import router as workload_router
+from backend.app.api.routes.analytics import router as analytics_router
 
 
 @asynccontextmanager
@@ -88,6 +90,8 @@ app.include_router(quizzes_router, prefix=api_prefix)
 app.include_router(grades_router, prefix=api_prefix)
 app.include_router(notifications_router, prefix=api_prefix)
 app.include_router(dashboard_router, prefix=api_prefix)
+app.include_router(workload_router, prefix=api_prefix)
+app.include_router(analytics_router, prefix=api_prefix)
 
 
 # Serve Built React Frontend (SPA fallback)
