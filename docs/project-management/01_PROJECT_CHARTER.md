@@ -3,7 +3,8 @@
 > **Tài liệu đồ án học thuật mô phỏng.** Sponsor, khách hàng, phê duyệt, ngày và quy mô được giả định; bảng sign-off là mẫu, không phải chứng cứ phê duyệt thực tế.
 
 ## 1. Thông tin chung về dự án
-- **Tên dự án:** University Learning Management System (LMS) Implementation
+- **Tên đề tài môn học:** Quản lý dự án xây dựng hệ thống quản lý học tập trực tuyến (LMS) cho trường đại học
+- **Tên dự án phần mềm trong kịch bản:** University Learning Management System (LMS) Implementation
 - **Mã dự án:** PRJ-LMS-2026
 - **Môn học:** Quản lý dự án phần mềm (Software Project Management)
 - **Đơn vị chủ quản / Khách hàng giả định:** Ban Giám hiệu & Phòng Đào tạo Trường Đại học
