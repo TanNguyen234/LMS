@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { LoginPage } from '../pages/LoginPage';
 import { DashboardPage } from '../pages/DashboardPage';
+import { StudyPlannerPage } from '../pages/StudyPlannerPage';
 import { AdminUsersPage } from '../pages/AdminUsersPage';
 import { CoursesPage } from '../pages/CoursesPage';
 import { CourseDetailPage } from '../pages/CourseDetailPage';
@@ -43,6 +44,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="courses" element={<CoursesPage />} />
         <Route path="courses/:id" element={<CourseDetailPage />} />
         <Route path="assignments" element={<AssignmentsPage />} />
+        <Route path="study-plan" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudyPlannerPage /></ProtectedRoute>} />
         <Route path="quizzes" element={<QuizzesPage />} />
         <Route path="grades" element={<GradesPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
