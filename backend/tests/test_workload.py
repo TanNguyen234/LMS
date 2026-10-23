@@ -64,5 +64,5 @@ def test_student_workload_returns_only_authorized_courses(client, student1_token
         assert all(item["status"] in ("PUBLISHED", "CLOSED") for item in items)
         assert all("correctAnswer" not in item and "answersJson" not in item for item in items)
         assert all(datetime.fromisoformat(item["dueAt"].replace("Z", "+00:00")).utcoffset() == timedelta(0) for item in items)
-        due_values = [item["dueAt"] for item in items]
+        due_values = [datetime.fromisoformat(item["dueAt"].replace("Z", "+00:00")) for item in items]
         assert due_values == sorted(due_values)
