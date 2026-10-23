@@ -945,7 +945,6 @@ export const api = {
         pending_submissions_count: 0,
         upcoming_assignments_count: typeof res.upcomingAssignments === 'number' ? res.upcomingAssignments : (res.upcomingAssignments || []).length,
         quizzes_count: typeof res.availableQuizzes === 'number' ? res.availableQuizzes : (res.activeQuizzes || []).length,
-        gpa: res.gpa || 0.0,
         recent_notifications: notifs.slice(0, 5),
       };
     }
