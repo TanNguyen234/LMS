@@ -15,6 +15,9 @@ import type {
   Notification,
   DashboardStats,
   StudentWorkloadResponse,
+  TeachingInsights,
+  LearningInsights,
+  OperationsInsights,
 } from '../types';
 
 const API_BASE = '/api';
@@ -905,6 +908,19 @@ export const api = {
   // Student worklist: one server-side, enrollment-scoped read rather than an N+1 loop.
   async getStudentWorkload(): Promise<StudentWorkloadResponse> {
     return request<StudentWorkloadResponse>('/dashboard/student/workload');
+  },
+
+  // Role-scoped, persisted-data analytics. No fake or fallback API results.
+  async getTeachingInsights(): Promise<TeachingInsights> {
+    return request<TeachingInsights>('/analytics/teaching');
+  },
+
+  async getLearningInsights(): Promise<LearningInsights> {
+    return request<LearningInsights>('/analytics/learning');
+  },
+
+  async getOperationsInsights(): Promise<OperationsInsights> {
+    return request<OperationsInsights>('/analytics/operations');
   },
 
   // Dashboard
