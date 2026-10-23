@@ -14,6 +14,7 @@ import type {
   Grade,
   Notification,
   DashboardStats,
+  StudentWorkloadResponse,
 } from '../types';
 
 const API_BASE = '/api';
@@ -899,6 +900,11 @@ export const api = {
     return request<{ message: string }>('/notifications/read-all', {
       method: 'PATCH',
     });
+  },
+
+  // Student worklist: one server-side, enrollment-scoped read rather than an N+1 loop.
+  async getStudentWorkload(): Promise<StudentWorkloadResponse> {
+    return request<StudentWorkloadResponse>('/dashboard/student/workload');
   },
 
   // Dashboard
