@@ -32,3 +32,7 @@
 - Thời hạn, quy mô nhóm, tiêu chí đánh giá và mẫu báo cáo (nếu có)?
 
 **Lưu ý:** Không tạo tình trạng Trello đã làm xong, chữ ký giảng viên, ngân sách/tiến độ thực tế, link board chưa tồn tại hoặc kết quả test giả.
+
+## Phương án báo cáo tháng 10–11/2026
+
+Đã lập [lịch quản lý, dự toán giả định và kịch bản nghiệm thu có nhãn rõ ràng](03_KE_HOACH_THANG_10_11_2026.md). Trello board: https://trello.com/b/sLfApXgV. Ngày 23/10/2026: 9 danh sách, 39 thẻ; 8 milestone có due tháng 10–11 và 3 thẻ mô phỏng tương lai. Các thẻ đã tạo **không đồng nghĩa tiến độ Done hoặc kiểm thử PASS**. 15 .drawio chỉnh sửa được và Word chi tiết được bàn giao thành ZIP trong phiên trò chuyện; repo này chỉ lưu liên kết và kế hoạch bằng văn bản.
