@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Activity, ArrowRight, Award, BarChart3, BookOpen, CheckCircle2,
-  ClipboardCheck, Clock3, FileText, GraduationCap, RefreshCw,
+  Activity, ArrowRight, BookOpen, ClipboardCheck, RefreshCw,
   Search, ShieldCheck, Users, X,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
@@ -84,7 +83,7 @@ function TeachingPanel({ report, reload }: { report: TeachingInsights; reload: (
     return () => { live = false; };
   }, [selected]);
 
-  const saveGrade = async (event: React.FormEvent<HTMLFormElement>) => {
+  const saveGrade = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selected || !submission || saving) return;
     const value = Number(score);
