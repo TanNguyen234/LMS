@@ -308,6 +308,8 @@ export interface StudentWorkloadItem {
   submissionStatus?: string | null;
   attemptsUsed?: number | null;
   maxAttempts?: number | null;
+  submittedAttempts?: number | null;
+  inProgress?: boolean | null;
 }
 
 export interface StudentWorkloadResponse {
