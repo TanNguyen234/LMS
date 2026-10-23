@@ -290,3 +290,27 @@ export interface DashboardStats {
   gpa?: number;
   recent_notifications: Notification[];
 }
+
+
+/** Role-restricted learning tasks returned by GET /dashboard/student/workload. */
+export interface StudentWorkloadItem {
+  kind: 'ASSIGNMENT' | 'QUIZ';
+  id: string;
+  courseId: string;
+  courseCode: string;
+  courseTitle: string;
+  title: string;
+  dueAt: string;
+  status: string;
+  startAt?: string | null;
+  allowLate?: boolean | null;
+  submittedAt?: string | null;
+  submissionStatus?: string | null;
+  attemptsUsed?: number | null;
+  maxAttempts?: number | null;
+}
+
+export interface StudentWorkloadResponse {
+  generatedAt: string;
+  items: StudentWorkloadItem[];
+}
