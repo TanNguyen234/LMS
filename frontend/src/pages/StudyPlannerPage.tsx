@@ -7,7 +7,7 @@ import {
 import { api } from '../api/client';
 import type { StudentWorkloadItem } from '../types';
 
-type WorkState = 'DONE' | 'OPEN' | 'SCHEDULED' | 'LATE' | 'MISSED' | 'CLOSED';
+type WorkState = 'DONE' | 'OPEN' | 'SCHEDULED' | 'LATE' | 'MISSED' | 'CLOSED' | 'IN_PROGRESS' | 'EXHAUSTED';
 type WorkFilter = 'ACTION' | 'ALL' | 'DONE' | 'PAST';
 
 function workState(item: StudentWorkloadItem, now: number): WorkState {
@@ -18,7 +18,9 @@ function workState(item: StudentWorkloadItem, now: number): WorkState {
     if (deadline < now) return item.allowLate ? 'LATE' : 'MISSED';
     return 'OPEN';
   }
-  if ((item.attemptsUsed ?? 0) >= (item.maxAttempts ?? 1)) return 'DONE';
+  if (item.inProgress) return 'IN_PROGRESS';
+  if ((item.submittedAttempts ?? 0) > 0) return 'DONE';
+  if ((item.attemptsUsed ?? 0) >= (item.maxAttempts ?? 1)) return 'EXHAUSTED';
   if (deadline < now) return 'MISSED';
   if (item.startAt && Date.parse(item.startAt) > now) return 'SCHEDULED';
   return 'OPEN';
@@ -31,6 +33,8 @@ const labels: Record<WorkState, string> = {
   LATE: 'Có thể nộp muộn',
   MISSED: 'Đã hết hạn',
   CLOSED: 'Đã đóng',
+  IN_PROGRESS: 'Đang làm',
+  EXHAUSTED: 'Hết lượt làm',
 };
 
 const styles: Record<WorkState, string> = {
@@ -40,6 +44,8 @@ const styles: Record<WorkState, string> = {
   LATE: 'bg-amber-50 text-amber-800 border-amber-200',
   MISSED: 'bg-rose-50 text-rose-700 border-rose-200',
   CLOSED: 'bg-slate-100 text-slate-600 border-slate-200',
+  IN_PROGRESS: 'bg-violet-50 text-violet-700 border-violet-200',
+  EXHAUSTED: 'bg-rose-50 text-rose-700 border-rose-200',
 };
 
 function dateLabel(value: string): string {
@@ -78,10 +84,10 @@ export function StudyPlannerPage() {
     const counts = { action: 0, dueSoon: 0, done: 0, past: 0 };
     for (const item of items) {
       const state = workState(item, now);
-      if (state === 'OPEN' || state === 'LATE') counts.action++;
+      if (state === 'OPEN' || state === 'LATE' || state === 'IN_PROGRESS') counts.action++;
       if ((state === 'OPEN' || state === 'LATE') && Date.parse(item.dueAt) <= now + 7 * 86400000) counts.dueSoon++;
       if (state === 'DONE') counts.done++;
-      if (state === 'MISSED' || state === 'CLOSED') counts.past++;
+      if (state === 'MISSED' || state === 'CLOSED' || state === 'EXHAUSTED') counts.past++;
     }
     return counts;
   }, [items, now]);
@@ -91,9 +97,9 @@ export function StudyPlannerPage() {
     const q = search.trim().toLocaleLowerCase('vi-VN');
     if (course !== 'ALL' && item.courseId !== course) return false;
     if (q && ![item.title, item.courseTitle, item.courseCode].some((value) => value.toLocaleLowerCase('vi-VN').includes(q))) return false;
-    if (filter === 'ACTION') return ['OPEN', 'LATE', 'SCHEDULED'].includes(state);
+    if (filter === 'ACTION') return ['OPEN', 'LATE', 'SCHEDULED', 'IN_PROGRESS'].includes(state);
     if (filter === 'DONE') return state === 'DONE';
-    if (filter === 'PAST') return state === 'MISSED' || state === 'CLOSED';
+    if (filter === 'PAST') return ['MISSED', 'CLOSED', 'EXHAUSTED'].includes(state);
     return true;
   }).sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt)), [items, course, filter, search, now]);
 
@@ -195,7 +201,7 @@ export function StudyPlannerPage() {
                   </div>
                 </div>
                 <Link to={href} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700">
-                  {state === 'DONE' ? 'Xem lại' : 'Mở học phần'} <ArrowRight className="h-4 w-4" />
+                  {state === 'DONE' ? 'Xem lại' : state === 'IN_PROGRESS' ? 'Tiếp tục' : 'Mở học phần'} <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             </article>
