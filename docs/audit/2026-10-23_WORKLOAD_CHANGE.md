@@ -55,7 +55,7 @@ Context: course final project in Software Project Management. This is a bounded,
 
 ## Change-control interpretation
 
-This enhancement supports FR-15 and newly documented FR-16. Technical completion is **source pushed**, not **UAT accepted**. PM baseline sign-off, cost variance and stakeholder approvals are unchanged and should not be represented as completed for this branch.
+Correctness fixes support existing FR-15. The former FR-16–FR-19 enhancements are **proposals recorded in the unapproved CR**, not accepted baseline requirements. Technical completion is **source pushed**, not **UAT accepted**. PM baseline sign-off, cost variance and stakeholder approvals are unchanged and should not be represented as completed for this branch.
 
 
 ## Second-stage functional depth — analytics and lecturer workbench
@@ -68,7 +68,7 @@ A subsequent change on the same branch adds:
 - `frontend/src/api/client.ts`: corrected `gradeSubmission` response normalization to an actual Submission, matching backend; old method falsely modeled a Grade.
 - `/grades?course=<UUID>`: deep links select only a course already in the user's authorized course list. The empty gradebook no longer invents an academic classification.
 - Quiz workload state: distinguish an in-progress attempt from a submitted or exhausted one. Expired/exhausted attempts no longer automatically imply completion.
-- PM change request `docs/project-management/14_CHANGE_REQUEST_2026-10-23.md`, FR-17–FR-19 and dated scope documentation.
+- PM change request `docs/project-management/14_CHANGE_REQUEST_2026-10-23.md`, FR-16–FR-19 candidate requirements tracked in a pending Change Request, not the approved baseline.
 
 ### Added verification source
 
@@ -81,3 +81,8 @@ A subsequent change on the same branch adds:
 3. Marking a grade requires the existing backend to accept score/feedback and commit the Submission, Grade and Notification atomically; confirm with the local SQL Server E2E before release.
 4. The UI now has multiple role-conditioned panels, so a clean `tsc` / Vite build and real-browser checks are required. Static source inspection alone does not make the PR merge-ready.
 5. If using the previous dated acceptance suite, keep its evidence separated: it proves the earlier baseline, **not** these new analytics features.
+
+
+## PM scope correction — 23/10/2026
+
+The coursework topic is **Quản lý dự án xây dựng hệ thống quản lý học tập trực tuyến (LMS) cho trường đại học**. Development is supporting evidence; PM baselines take priority. The original FR-01–FR-15 remain the governing requirement set; `docs/01_SCOPE_AND_REQUIREMENTS.md` was restored accordingly. The new analytics/study-planner code is still in Draft PR #3 as an experimental scope-extension candidate. [See the PM scope review](2026-10-23_PM_SCOPE_REVIEW.md) and [pending change request](../project-management/14_CHANGE_REQUEST_2026-10-23.md). No unapproved scope, schedule, budget or UAT result may be treated as baseline.
