@@ -20,6 +20,7 @@ The dated forensic report is the source of truth for tested behavior, environmen
 - backend/tests: SQL Server integration suite and pure forensic contract tests.
 - database: schema, seed and validation SQL scripts.
 - frontend/src: API client, role-aware views and shared types.
+- Student-only `/study-plan`: deadline queue across active enrolled courses; read-only FastAPI workload endpoint; no new DB tables.
 - docs/project-management: the 13 academic project-management documents.
 - docs/audit/2026-10-21: current forensic baseline, contracts, test matrix, reconciliation, release gate and runbook.
 
@@ -41,6 +42,10 @@ Install and start the frontend from frontend:
     npm run dev
 
 The API docs are served at /docs, health at /health, and the local web app at http://localhost:5173.
+
+## Feature-branch notes
+
+The `feat/student-workload-and-dashboard-20261023` changes add a student workload view, role-appropriate action dashboard, course-aware links and safer metric labels. See [change summary and acceptance checklist](docs/audit/2026-10-23_WORKLOAD_CHANGE.md). The 2026-10-21 release gate verifies the older main baseline only; its PASS results must not be misattributed to this feature branch.
 
 ## Verification commands
 
