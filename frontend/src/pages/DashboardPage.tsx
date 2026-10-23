@@ -1,371 +1,187 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  BookOpen,
-  Users,
-  FileText,
-  CheckSquare,
-  Award,
-  ArrowRight,
-  TrendingUp,
-  Clock,
-  Sparkles,
+  ArrowRight, Bell, BookOpen, CalendarDays, CheckSquare, ClipboardList,
+  Clock3, FileText, GraduationCap, RefreshCw, Users,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
-import type { DashboardStats, Course, Assignment } from '../types';
+import type { Course, DashboardStats, StudentWorkloadItem } from '../types';
 
-export const DashboardPage: React.FC = () => {
+const number = (value?: number) => value ?? 0;
+
+export function DashboardPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [work, setWork] = useState<StudentWorkloadItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        const statsData = await api.getDashboardStats(user?.role);
-        setStats(statsData);
+    if (!user) return;
+    let live = true;
+    Promise.all([
+      api.getDashboardStats(user.role),
+      api.getCourses(),
+      user.role === 'STUDENT' ? api.getStudentWorkload() : Promise.resolve(null),
+    ]).then(([nextStats, nextCourses, workload]) => {
+      if (!live) return;
+      setStats(nextStats);
+      setCourses(nextCourses);
+      setWork(workload?.items ?? []);
+      setError(null);
+    }).catch((err: unknown) => {
+      if (live) setError(err instanceof Error ? err.message : 'Không thể tải tổng quan.');
+    }).finally(() => {
+      if (live) setLoading(false);
+    });
+    return () => { live = false; };
+  }, [user?.id, user?.role, refresh]);
 
-        const coursesData = await api.getCourses();
-        setCourses(coursesData.slice(0, 4));
-
-        if (coursesData.length > 0) {
-          const firstCourseAssignments = await api.getCourseAssignments(coursesData[0].id);
-          setAssignments(firstCourseAssignments.slice(0, 3));
-        }
-      } catch (err) {
-        console.error('Error fetching dashboard data:', err);
-      } finally {
-        setLoading(false);
+  const now = Date.now();
+  const outstanding = work
+    .filter((item) => {
+      if (item.kind === 'ASSIGNMENT') {
+        if (item.submittedAt || item.status === 'CLOSED') return false;
+        return Date.parse(item.dueAt) >= now || item.allowLate;
       }
-    };
+      return Date.parse(item.dueAt) >= now && (item.attemptsUsed ?? 0) < (item.maxAttempts ?? 1);
+    })
+    .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt))
+    .slice(0, 4);
 
-    loadDashboard();
-  }, [user]);
+  const metrics = user?.role === 'ADMIN'
+    ? [
+      { label: 'Tổng học phần', value: number(stats?.courses_count), Icon: BookOpen, detail: 'Theo dữ liệu hệ thống' },
+      { label: 'Sinh viên', value: number(stats?.students_count), Icon: GraduationCap, detail: 'Tài khoản đã đăng ký' },
+      { label: 'Giảng viên', value: number(stats?.lecturers_count), Icon: Users, detail: 'Tài khoản giảng dạy' },
+      { label: 'Thông báo gần đây', value: stats?.recent_notifications.length ?? 0, Icon: Bell, detail: 'Tối đa 5 thông báo mới nhất' },
+    ]
+    : user?.role === 'LECTURER'
+    ? [
+      { label: 'Học phần phụ trách', value: number(stats?.courses_count), Icon: BookOpen, detail: 'Theo phân công' },
+      { label: 'Sinh viên đang học', value: number(stats?.students_count), Icon: Users, detail: 'Trong các lớp phụ trách' },
+      { label: 'Bài nộp chờ chấm', value: number(stats?.pending_submissions_count), Icon: ClipboardList, detail: 'Cần nhận xét và chấm điểm' },
+      { label: 'Thông báo gần đây', value: stats?.recent_notifications.length ?? 0, Icon: Bell, detail: 'Tối đa 5 thông báo mới nhất' },
+    ]
+    : [
+      { label: 'Học phần đang học', value: number(stats?.courses_count), Icon: BookOpen, detail: 'Đăng ký còn hiệu lực' },
+      { label: 'Bài chưa nộp sắp hạn', value: number(stats?.upcoming_assignments_count), Icon: Clock3, detail: 'Do máy chủ thống kê' },
+      { label: 'Quiz được xuất bản', value: number(stats?.quizzes_count), Icon: CheckSquare, detail: 'Còn trong thời gian mở/đến hạn' },
+      { label: 'Thông báo gần đây', value: stats?.recent_notifications.length ?? 0, Icon: Bell, detail: 'Tối đa 5 thông báo mới nhất' },
+    ];
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  const links = user?.role === 'ADMIN'
+    ? [{ path: '/users', label: 'Quản lý tài khoản', Icon: Users }, { path: '/courses', label: 'Quản lý học phần', Icon: BookOpen }]
+    : user?.role === 'LECTURER'
+    ? [{ path: '/assignments', label: 'Chấm bài nộp', Icon: ClipboardList }, { path: '/quizzes', label: 'Quản lý quiz', Icon: CheckSquare }, { path: '/grades', label: 'Bảng điểm', Icon: FileText }]
+    : [{ path: '/study-plan', label: 'Xem kế hoạch học tập', Icon: CalendarDays }, { path: '/assignments', label: 'Nộp bài tập', Icon: ClipboardList }, { path: '/grades', label: 'Xem kết quả', Icon: FileText }];
+
+  const reload = () => { setLoading(true); setRefresh((value) => value + 1); };
 
   return (
     <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 sm:p-8 text-white shadow-lg shadow-blue-500/10">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <section className="relative overflow-hidden rounded-3xl bg-slate-900 p-7 text-white sm:p-9">
+        <div className="absolute -right-10 -top-24 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" aria-hidden="true" />
+        <div className="relative flex flex-wrap items-center justify-between gap-5">
           <div>
-            <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-white/10 rounded-full text-xs font-semibold text-blue-100 backdrop-blur-xs mb-3">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Học kỳ Fall 2026 • Phân hệ {user?.role}</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Xin chào, {user?.full_name}! 👋
-            </h1>
-            <p className="text-blue-100 text-sm mt-1 max-w-xl">
-              Chào mừng bạn quay lại Hệ thống LMS Đại học. Dưới đây là tóm tắt tiến độ và các đầu việc cần xử lý.
+            <span className="text-xs font-semibold uppercase tracking-widest text-sky-300">University LMS / Tổng quan</span>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Chào mừng, {user?.full_name}</h1>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300">
+              {user?.role === 'STUDENT'
+                ? 'Bài học, thời hạn và kết quả trong một nơi — được cập nhật từ các học phần của bạn.'
+                : user?.role === 'LECTURER'
+                ? 'Nắm nhanh tình hình lớp học, bài nộp đang chờ xử lý và thông báo mới.'
+                : 'Tổng quan người dùng, học phần và công việc quản trị của hệ thống.'}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              to="/courses"
-              className="px-4 py-2.5 bg-white text-blue-700 hover:bg-blue-50 font-semibold text-sm rounded-xl shadow-xs transition inline-flex items-center space-x-2 shrink-0"
-            >
-              <span>{user?.role === 'STUDENT' ? 'Khóa học của tôi' : 'Quản lý khóa học'}</span>
-              <ArrowRight className="w-4 h-4" />
+          <div className="flex flex-wrap gap-2">
+            <button onClick={reload} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-white/25 px-4 py-2.5 text-sm font-semibold hover:bg-white/10 disabled:opacity-50"><RefreshCw className="h-4 w-4" /> Làm mới</button>
+            <Link to={user?.role === 'STUDENT' ? '/study-plan' : '/courses'} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 hover:bg-slate-100">
+              {user?.role === 'STUDENT' ? 'Kế hoạch học tập' : 'Xem học phần'} <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* KPI Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {user?.role === 'ADMIN' && (
-          <>
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Khóa học hệ thống</span>
-                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                  <BookOpen className="w-5 h-5" />
+      {error && <div role="alert" className="flex items-center justify-between gap-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><span>Không thể tải tổng quan: {error}</span><button onClick={reload} className="font-semibold underline">Thử lại</button></div>}
+      {loading ? (
+        <div role="status" className="rounded-2xl border border-slate-200 bg-white p-16 text-center text-sm text-slate-500">Đang tải dữ liệu tổng quan...</div>
+      ) : !error && (
+        <>
+          <section aria-label="Chỉ số tổng quan" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {metrics.map(({ label, value, Icon, detail }) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="flex items-start justify-between gap-3 text-slate-500">
+                  <span className="text-xs font-semibold">{label}</span>
+                  <div className="rounded-xl bg-blue-50 p-2 text-blue-600"><Icon className="h-4 w-4" /></div>
                 </div>
+                <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{value}</p>
+                <p className="mt-1 text-xs text-slate-500">{detail}</p>
               </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-slate-800">{stats?.courses_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Khóa học đang vận hành</span>
-              </div>
-            </div>
+            ))}
+          </section>
 
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Sinh viên</span>
-                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-                  <Users className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-slate-800">{stats?.students_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Tài khoản sinh viên active</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Giảng viên</span>
-                <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
-                  <Users className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-slate-800">{stats?.lecturers_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Giảng viên cơ hữu</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Trạng thái hạ tầng</span>
-                <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl">
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-sm font-bold text-emerald-600 flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  100% Hoạt động bình thường
-                </span>
-                <span className="text-xs text-slate-400 block mt-1.5">SQL Server & FastAPI online</span>
-              </div>
-            </div>
-          </>
-        )}
-
-        {user?.role === 'LECTURER' && (
-          <>
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Khóa học phụ trách</span>
-                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-slate-800">{stats?.courses_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Khóa học đã phân công</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Bài nộp chờ chấm</span>
-                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
-                  <FileText className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-amber-600">{stats?.pending_submissions_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Cần chấm điểm & phản hồi</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Bài kiểm tra Quiz</span>
-                <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
-                  <CheckSquare className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-slate-800">{stats?.quizzes_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Đã tạo trong hệ thống</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Tổng số sinh viên</span>
-                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-                  <Users className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-slate-800">{stats?.students_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Sinh viên theo học các lớp</span>
-              </div>
-            </div>
-          </>
-        )}
-
-        {user?.role === 'STUDENT' && (
-          <>
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Khóa học đăng ký</span>
-                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-slate-800">{stats?.courses_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Lớp học phần đang tham gia</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Bài tập cần nộp</span>
-                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
-                  <Clock className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-amber-600">{stats?.upcoming_assignments_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Bài tập sắp tới hạn</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Quiz trực tuyến</span>
-                <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
-                  <CheckSquare className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-slate-800">{stats?.quizzes_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Bài kiểm tra sẵn sàng</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Điểm trung bình (GPA)</span>
-                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-                  <Award className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-emerald-600">
-                  {stats?.gpa !== undefined && stats?.gpa !== null ? stats.gpa.toFixed(2) : '8.80'}
-                </span>
-                <span className="text-xs text-slate-400 block mt-0.5">Thang điểm 10</span>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Grid Content: Courses & Quick Activities */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Course Overview */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-base font-bold text-slate-800">
-                {user?.role === 'STUDENT' ? 'Khóa học của bạn' : 'Danh sách khóa học tiêu biểu'}
-              </h2>
-              <p className="text-xs text-slate-400">Các môn học được phân bổ trong học kỳ này</p>
-            </div>
-            <Link to="/courses" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center space-x-1">
-              <span>Xem tất cả</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {courses.length === 0 ? (
-              <div className="col-span-2 text-center py-8 text-slate-400 text-sm">Chưa có khóa học nào.</div>
-            ) : (
-              courses.map((course) => (
-                <div
-                  key={course.id}
-                  className="p-4 rounded-xl border border-slate-100 hover:border-blue-200 bg-slate-50/50 hover:bg-blue-50/20 transition flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-blue-100 text-blue-700">
-                        {course.code}
-                      </span>
-                      <span className="text-[11px] text-slate-400">{course.credits} tín chỉ</span>
-                    </div>
-                    <h3 className="font-semibold text-slate-800 text-sm line-clamp-1">{course.title}</h3>
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">{course.description || 'Không có mô tả'}</p>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-5">
+              {user?.role === 'STUDENT' && (
+                <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div><h2 className="font-bold text-slate-900">Ưu tiên sắp tới</h2><p className="mt-1 text-xs text-slate-500">Bài tập và quiz chưa hoàn tất, sắp xếp theo hạn</p></div>
+                    <Link to="/study-plan" className="shrink-0 text-xs font-semibold text-blue-600 hover:underline">Xem kế hoạch →</Link>
                   </div>
-                  <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-400">GV: {course.lecturer_name || 'Đang cập nhật'}</span>
-                    <Link
-                      to={`/courses/${course.id}`}
-                      className="text-xs font-semibold text-blue-600 hover:underline"
-                    >
-                      Vào lớp →
-                    </Link>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Right Sidebar: Recent Tasks / Announcements */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-            <h2 className="text-base font-bold text-slate-800 mb-1">Đầu việc cần chú ý</h2>
-            <p className="text-xs text-slate-400 mb-4">Các deadline và thông báo mới nhất</p>
-
-            <div className="space-y-3">
-              {assignments.length > 0 ? (
-                assignments.map((a) => (
-                  <div key={a.id} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                    <div className="flex items-start justify-between">
-                      <span className="text-xs font-semibold text-slate-800 line-clamp-1">{a.title}</span>
-                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded shrink-0 ml-2">
-                        {a.max_score} đ
-                      </span>
-                    </div>
-                    <div className="flex items-center text-[11px] text-slate-400 mt-1.5 space-x-1">
-                      <Clock className="w-3 h-3 text-slate-400" />
-                      <span>Hạn: {new Date(a.due_date).toLocaleDateString('vi-VN')}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-4 text-xs text-slate-400">Không có bài tập gấp cần xử lý.</div>
+                  {outstanding.length ? <div className="space-y-2">
+                    {outstanding.map((item) => (
+                      <Link key={`${item.kind}-${item.id}`} to={item.kind === 'ASSIGNMENT' ? `/assignments?course=${encodeURIComponent(item.courseId)}` : `/quizzes?course=${encodeURIComponent(item.courseId)}`} className="flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50 p-3 transition hover:border-blue-200 hover:bg-blue-50/30">
+                        <div className="min-w-0"><span className="text-[11px] font-semibold text-blue-600">{item.courseCode} · {item.kind === 'ASSIGNMENT' ? 'Bài tập' : 'Quiz'}</span><p className="truncate text-sm font-semibold text-slate-800">{item.title}</p></div>
+                        <span className="shrink-0 text-right text-[11px] text-slate-500">{new Date(item.dueAt).toLocaleDateString('vi-VN')}<ArrowRight className="ml-auto mt-1 h-3.5 w-3.5" /></span>
+                      </Link>
+                    ))}
+                  </div> : <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-500">Không có công việc đang chờ trong các học phần hiện tại.</p>}
+                </section>
               )}
-            </div>
-          </div>
 
-          {/* Quick Shortcuts */}
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 text-white shadow-xs">
-            <h3 className="text-sm font-bold mb-2">Thao tác nhanh</h3>
-            <div className="space-y-2">
-              <Link
-                to="/assignments"
-                className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 transition text-xs font-medium"
-              >
-                <span>{user?.role === 'LECTURER' ? 'Chấm điểm bài nộp sinh viên' : 'Xem danh sách bài tập'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-              <Link
-                to="/quizzes"
-                className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 transition text-xs font-medium"
-              >
-                <span>{user?.role === 'LECTURER' ? 'Tạo câu hỏi trắc nghiệm' : 'Làm bài kiểm tra'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-              <Link
-                to="/grades"
-                className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 transition text-xs font-medium"
-              >
-                <span>{user?.role === 'LECTURER' ? 'Sổ điểm lớp học phần' : 'Xem bảng điểm cá nhân'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+              <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div><h2 className="font-bold text-slate-900">{user?.role === 'STUDENT' ? 'Học phần của bạn' : 'Học phần gần đây'}</h2><p className="mt-1 text-xs text-slate-500">Mở học phần để xem nội dung và hoạt động</p></div>
+                  <Link to="/courses" className="text-xs font-semibold text-blue-600 hover:underline">Tất cả →</Link>
+                </div>
+                {courses.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {courses.slice(0, 4).map((course) => (
+                    <Link key={course.id} to={`/courses/${course.id}`} className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/60 p-4 transition hover:border-blue-300 hover:bg-blue-50/40">
+                      <div><span className="rounded-lg bg-blue-100 px-2 py-1 text-[11px] font-bold text-blue-700">{course.code}</span><h3 className="mt-3 line-clamp-2 text-sm font-bold text-slate-900 group-hover:text-blue-700">{course.title}</h3><p className="mt-1 line-clamp-2 text-xs text-slate-500">{course.description || 'Chưa có mô tả học phần'}</p></div>
+                      <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-blue-700">Mở học phần <ArrowRight className="h-3.5 w-3.5" /></span>
+                    </Link>
+                  ))}
+                </div> : <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-500">Chưa có học phần phù hợp với tài khoản hiện tại.</p>}
+              </section>
             </div>
+
+            <aside className="space-y-5">
+              <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                <h2 className="font-bold text-slate-900">Thao tác nhanh</h2>
+                <div className="mt-4 space-y-2">
+                  {links.map(({ path, label, Icon }) => (
+                    <Link key={path} to={path} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-3 text-sm font-medium text-slate-700 transition hover:bg-blue-50 hover:text-blue-700">
+                      <span className="inline-flex items-center gap-2"><Icon className="h-4 w-4" />{label}</span><ArrowRight className="h-4 w-4" />
+                    </Link>
+                  ))}
+                </div>
+              </section>
+              <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="flex items-center justify-between"><h2 className="font-bold text-slate-900">Thông báo</h2><Link to="/notifications" className="text-xs font-semibold text-blue-600 hover:underline">Xem tất cả →</Link></div>
+                {stats?.recent_notifications.length ? <div className="mt-3 divide-y divide-slate-100">
+                  {stats.recent_notifications.slice(0, 4).map((notification) => (
+                    <div key={notification.id} className="py-3"><p className="text-sm font-semibold text-slate-800">{notification.title}</p><p className="mt-1 line-clamp-2 text-xs text-slate-500">{notification.message}</p></div>
+                  ))}
+                </div> : <p className="mt-4 text-sm text-slate-500">Chưa có thông báo gần đây.</p>}
+              </section>
+            </aside>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
-};
+}
