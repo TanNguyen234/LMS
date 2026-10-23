@@ -17,6 +17,7 @@ from backend.app.db.session import get_db
 from backend.app.models.models import (
     Assignment, Course, Enrollment, Quiz, QuizAttempt, Submission, User,
 )
+from backend.app.api.routes.quizzes import effective_attempt_deadline
 
 router = APIRouter(prefix="/dashboard/student", tags=["Dashboard"])
 
@@ -36,6 +37,8 @@ class WorkloadItem(BaseModel):
     submissionStatus: Optional[str] = None
     attemptsUsed: Optional[int] = None
     maxAttempts: Optional[int] = None
+    submittedAttempts: Optional[int] = None
+    inProgress: Optional[bool] = None
 
 
 class StudentWorkloadResponse(BaseModel):
@@ -114,17 +117,24 @@ def get_student_workload(
         .all()
     )
     quiz_ids = [quiz.QuizId for quiz in quizzes]
-    attempts_by_quiz: dict[uuid.UUID, int] = {}
+    attempts_by_quiz: dict[uuid.UUID, list[QuizAttempt]] = {}
     if quiz_ids:
-        # Include expired attempts: they can consume an attempt according to quiz rules.
+        # Existing attempts can be submitted, in progress or expired. All consume an attempt.
         for attempt in db.query(QuizAttempt).filter(
             QuizAttempt.StudentId == student.UserId,
             QuizAttempt.QuizId.in_(quiz_ids),
         ).all():
-            attempts_by_quiz[attempt.QuizId] = attempts_by_quiz.get(attempt.QuizId, 0) + 1
+            attempts_by_quiz.setdefault(attempt.QuizId, []).append(attempt)
 
+    now = datetime.now(timezone.utc)
     for quiz in quizzes:
         course = course_by_id[quiz.CourseId]
+        attempts = attempts_by_quiz.get(quiz.QuizId, [])
+        active = any(
+            attempt.Status == 'IN_PROGRESS'
+            and now <= effective_attempt_deadline(attempt.StartedAt, quiz.TimeLimitMinutes, quiz.EndAt)
+            for attempt in attempts
+        )
         items.append(WorkloadItem(
             kind="QUIZ",
             id=quiz.QuizId,
@@ -135,8 +145,10 @@ def get_student_workload(
             dueAt=utc_datetime(quiz.EndAt),
             startAt=utc_datetime(quiz.StartAt),
             status="PUBLISHED",
-            attemptsUsed=attempts_by_quiz.get(quiz.QuizId, 0),
+            attemptsUsed=len(attempts),
             maxAttempts=quiz.MaxAttempts,
+            submittedAttempts=sum(attempt.Status == 'SUBMITTED' for attempt in attempts),
+            inProgress=active,
         ))
 
     items.sort(key=lambda item: (item.dueAt, item.kind, str(item.id)))
