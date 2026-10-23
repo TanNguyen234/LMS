@@ -104,7 +104,7 @@ Tabs:
 - Due date
 - Description
 - Existing submission
-- Text-only submission (MVP does not upload files)
+- Text-only submission (file uploads outside current MVP)
 - Status/score/feedback
 
 ### Quiz View
@@ -122,23 +122,6 @@ Tabs:
 - Unread/read
 - Mark read
 
-### Student study plan (implemented in feature branch)
-
-- Student-only route `/study-plan` reachable from navigation and dashboard.
-- Active-enrollment workload: published assignments and published quizzes, ordered by deadline.
-- Course/search/status filters and explicit empty/loading/error/retry states.
-- Deadlines rendered in device local time, with quiz opening time and used attempts.
-- Quiz and assignment links preserve the selected authorized course.
-- Display statuses are advisory; backend remains authoritative when submitting.
-
-### Analytics workspace by role (feature branch)
-
-- Shared route `/insights`, authenticated; API enforces ADMIN/LECTURER/STUDENT independently.
-- Lecturer: active teaching courses, published content counters, student enrollment counts, pending/graded submission ratio, first 60 submissions awaiting grade. Search by student/course/assignment and filter by course. Open full submission from existing authorized endpoint, enter score and feedback, save using existing grade endpoint; show failures truthfully.
-- Student: active enrolled course grade summary, per-course unweighted average of grades recorded so far (0–10), latest 20 grade records. No fabricated GPA, no class ranking or unsupported official academic classification.
-- Admin: account role distribution, active/inactive accounts, course lifecycle, active enrollment counts, published content, grading backlog. Counts are database snapshots, not uptime or system-health claims.
-- All analytics: empty/loading/error/retry states, usable desktop and tablet layout, no fabricated sample results.
-
 ## 5. UX rules
 
 - Disable impossible action nhưng vẫn handle server error.
@@ -146,3 +129,8 @@ Tabs:
 - Loading/empty/error state cho mỗi page.
 - Date hiển thị rõ timezone/local format.
 - Không dùng animation phức tạp.
+
+
+## 6. Cải tiến giao diện ngoài baseline
+
+Nhánh nâng cấp có `/study-plan` và `/insights` với các màn hình phân tích theo vai trò. Đây là **ứng viên cải tiến / prototype mở rộng**, không phải màn hình bắt buộc trong UAT baseline của dự án. Chi tiết kỹ thuật và đánh giá tác động nằm tại `docs/project-management/14_CHANGE_REQUEST_2026-10-23.md`. Không dùng số liệu mô phỏng làm kết quả triển khai thực tế hoặc tự thêm mục này vào WBS đã được cố định.
