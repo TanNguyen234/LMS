@@ -109,7 +109,7 @@ def get_student_workload(
 
     quizzes = (
         db.query(Quiz)
-        .filter(Quiz.CourseId.in_(course_ids), Quiz.IsPublished.is_(True))
+        .filter(Quiz.CourseId.in_(course_ids), Quiz.IsPublished == True)
         .all()
     )
     quiz_ids = [quiz.QuizId for quiz in quizzes]
