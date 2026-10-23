@@ -45,8 +45,7 @@ Trong phạm vi project, xây dựng web LMS đáp ứng các luồng học tậ
 - Xem notification.
 
 ### Shared
-- Dashboard theo role với số liệu thật, đường dẫn hành động phù hợp quyền.
-- Student read-only workload dashboard cho bài tập/quiz đã công bố, lấy từ các môn đăng ký ACTIVE.
+- Dashboard cơ bản theo role.
 - Pagination + search cho danh sách lớn.
 - Audit bằng timestamp ở các entity chính, chưa cần audit-log table riêng.
 
@@ -82,10 +81,6 @@ Trong phạm vi project, xây dựng web LMS đáp ứng các luồng học tậ
 | FR-13 | Student xem grades | Must |
 | FR-14 | Notification list/mark-read | Should |
 | FR-15 | Dashboard summary | Should |
-| FR-16 | Student xem bài tập và quiz sắp đến hạn từ môn đã đăng ký; không lộ dữ liệu của sinh viên khác | Should |
-| FR-17 | Lecturer xem analytics của lớp phụ trách và hàng đợi chấm bài, có thể thực hiện chấm trực tiếp qua backend hiện có | Should |
-| FR-18 | Student xem thống kê điểm thực tế theo môn, không tự quy đổi thành GPA chính thức | Should |
-| FR-19 | Admin xem analytics trạng thái học phần, người dùng và backlog chấm điểm | Should |
 
 ## 6. Non-functional requirements
 
@@ -111,3 +106,8 @@ Một buổi demo hoàn chỉnh phải thực hiện được:
 5. Lecturer chấm assignment.
 6. Student refresh và xem điểm/feedback.
 7. Role trái phép gọi API bị 401/403.
+
+
+## 8. Quản lý các yêu cầu cải tiến chưa được phê duyệt
+
+Bản cơ sở phạm vi này giữ nguyên **FR-01 đến FR-15**, WBS, mốc 20 tuần và ngân sách kế hoạch 1,2 tỷ VND theo `docs/08_PROJECT_MANAGEMENT.md`. Các chức năng bổ sung đã triển khai thử nghiệm trên nhánh `feat/student-workload-and-dashboard-20261023` **không tự động trở thành yêu cầu bắt buộc hay tiêu chí nghiệm thu dự án**. Xem đề xuất tại `docs/project-management/14_CHANGE_REQUEST_2026-10-23.md` và báo cáo `docs/audit/2026-10-23_PM_SCOPE_REVIEW.md`. Chỉ thay đổi baseline khi có quyết định trong quy trình Change Control và có cập nhật đầy đủ WBS, CPM, ngân sách, yêu cầu, test/UAT tương ứng.
