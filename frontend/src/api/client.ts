@@ -16,6 +16,8 @@ import type {
   DashboardStats,
 } from '../types';
 
+import { apiErrorMessageVi } from '../utils/vi';
+
 const API_BASE = '/api';
 
 export class ApiError extends Error {
@@ -42,10 +44,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+  } catch {
+    throw new ApiError(0, apiErrorMessageVi(0));
+  }
 
   if (!response.ok) {
     let errorDetail = 'Request failed';
@@ -60,7 +64,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     } catch {
       errorDetail = response.statusText || `HTTP Error ${response.status}`;
     }
-    throw new ApiError(response.status, errorDetail, errorData);
+    throw new ApiError(response.status, apiErrorMessageVi(response.status, errorDetail), errorData);
   }
 
   if (response.status === 204) {

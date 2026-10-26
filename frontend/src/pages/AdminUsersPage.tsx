@@ -130,7 +130,7 @@ export const AdminUsersPage: React.FC = () => {
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Tìm theo tên, email, username..."
+            placeholder="Tìm theo họ tên, thư điện tử hoặc tên đăng nhập..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
@@ -146,7 +146,7 @@ export const AdminUsersPage: React.FC = () => {
             className="px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
           >
             <option value="ALL">Tất cả vai trò</option>
-            <option value="ADMIN">Admin (Quản trị)</option>
+            <option value="ADMIN">Quản trị viên</option>
             <option value="LECTURER">Giảng viên</option>
             <option value="STUDENT">Sinh viên</option>
           </select>
@@ -166,9 +166,9 @@ export const AdminUsersPage: React.FC = () => {
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <th className="py-3.5 px-4">ID</th>
+                <th className="py-3.5 px-4">Mã tài khoản</th>
                 <th className="py-3.5 px-4">Họ và tên</th>
-                <th className="py-3.5 px-4">Tài khoản & Email</th>
+                <th className="py-3.5 px-4">Tài khoản và thư điện tử</th>
                 <th className="py-3.5 px-4">Vai trò</th>
                 <th className="py-3.5 px-4">Trạng thái</th>
                 <th className="py-3.5 px-4">Ngày tạo</th>
@@ -201,7 +201,7 @@ export const AdminUsersPage: React.FC = () => {
                     <td className="py-3.5 px-4">
                       {u.role === 'ADMIN' && (
                         <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">
-                          Admin
+                          Quản trị viên
                         </span>
                       )}
                       {u.role === 'LECTURER' && (
@@ -304,7 +304,7 @@ export const AdminUsersPage: React.FC = () => {
               </div>}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Email trường</label>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Thư điện tử trường</label>
                 <input
                   type="email"
                   required
@@ -325,7 +325,7 @@ export const AdminUsersPage: React.FC = () => {
                   >
                     <option value="STUDENT">Sinh viên</option>
                     <option value="LECTURER">Giảng viên</option>
-                    <option value="ADMIN">Admin</option>
+                    <option value="ADMIN">Quản trị viên</option>
                   </select>
                 </div>
 

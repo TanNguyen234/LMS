@@ -1,0 +1,36 @@
+{
+  "status": "REVIEWED",
+  "graph_coverage": "UNAVAILABLE; source and rg used",
+  "source_hashes": "source-hashes.json",
+  "scope": "12 existing frontend files plus presentation helper and focused tests; no backend, database, seed or migration changes",
+  "findings_fixed": [
+    "Administrator quick links previously reached role-restricted routes",
+    "Health panel asserted 100 percent availability without monitoring data",
+    "Grade card inferred academic classification from an unweighted partial average",
+    "Missing display enums defaulted to a published state; now show unknown",
+    "Vietnamese labels and accessible login/menu names"
+  ],
+  "preserved": [
+    "API enum values, payloads, endpoints and existing demo records",
+    "Existing grade arithmetic; explanation and classification display corrected",
+    "Raw API status and response data available to callers"
+  ],
+  "verification": {
+    "node --test tests/vi-presentation.test.mjs": "PASS 4/4; focused-green.log",
+    "tsc -p tsconfig.app.json --noEmit": "PASS; typecheck.log",
+    "vite build": "PASS; build.log",
+    "oxlint": "Exit 0; existing effect/dependency/Fast Refresh warnings retained in lint.log",
+    "git diff --check": "PASS; only LF/CRLF notice",
+    "impeccable detect --json pages layout": "Exit 0; empty detector findings, impeccable-detect-final.json"
+  },
+  "levels": [
+    "unit",
+    "static",
+    "local browser integration"
+  ],
+  "not_run": [
+    "Full backend suite, because this bounded UI work does not authorize test database resets",
+    "Write-path UAT, load testing, full accessibility audit, deployment"
+  ],
+  "runtime_note": "Historical HMR AuthProvider console event before final captures retained; reload recovered, no later errors recorded in final capture sequence. Original document HTTP status UNKNOWN."
+}

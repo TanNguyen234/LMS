@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { dashboardActions, roleLabel } from '../utils/vi';
 import type { DashboardStats, Course, Assignment } from '../types';
 
 export const DashboardPage: React.FC = () => {
@@ -61,7 +62,7 @@ export const DashboardPage: React.FC = () => {
           <div>
             <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-white/10 rounded-full text-xs font-semibold text-blue-100 backdrop-blur-xs mb-3">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Học kỳ Fall 2026 • Phân hệ {user?.role}</span>
+              <span>Không gian học tập • {roleLabel(user?.role)}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
               Xin chào, {user?.full_name}! 👋
@@ -95,7 +96,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="mt-3">
                 <span className="text-2xl font-bold text-slate-800">{stats?.courses_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Khóa học đang vận hành</span>
+                <span className="text-xs text-slate-400 block mt-0.5">Khóa học được ghi nhận</span>
               </div>
             </div>
 
@@ -108,7 +109,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="mt-3">
                 <span className="text-2xl font-bold text-slate-800">{stats?.students_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Tài khoản sinh viên active</span>
+                <span className="text-xs text-slate-400 block mt-0.5">Tài khoản sinh viên</span>
               </div>
             </div>
 
@@ -121,23 +122,23 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="mt-3">
                 <span className="text-2xl font-bold text-slate-800">{stats?.lecturers_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Giảng viên cơ hữu</span>
+                <span className="text-xs text-slate-400 block mt-0.5">Tài khoản giảng viên</span>
               </div>
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Trạng thái hạ tầng</span>
+                <span className="text-xs font-semibold text-slate-500 uppercase">Theo dõi hệ thống</span>
                 <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl">
                   <TrendingUp className="w-5 h-5" />
                 </div>
               </div>
               <div className="mt-3">
-                <span className="text-sm font-bold text-emerald-600 flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  100% Hoạt động bình thường
+                <span className="text-sm font-bold text-slate-600 flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+                  Chưa có dữ liệu giám sát
                 </span>
-                <span className="text-xs text-slate-400 block mt-1.5">SQL Server & FastAPI online</span>
+                <span className="text-xs text-slate-400 block mt-1.5">Trạng thái máy chủ cần được kiểm tra riêng</span>
               </div>
             </div>
           </>
@@ -173,7 +174,7 @@ export const DashboardPage: React.FC = () => {
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Bài kiểm tra Quiz</span>
+                <span className="text-xs font-semibold text-slate-500 uppercase">Bài kiểm tra</span>
                 <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
                   <CheckSquare className="w-5 h-5" />
                 </div>
@@ -229,7 +230,7 @@ export const DashboardPage: React.FC = () => {
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Quiz trực tuyến</span>
+                <span className="text-xs font-semibold text-slate-500 uppercase">Bài kiểm tra trực tuyến</span>
                 <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
                   <CheckSquare className="w-5 h-5" />
                 </div>
@@ -267,7 +268,7 @@ export const DashboardPage: React.FC = () => {
               <h2 className="text-base font-bold text-slate-800">
                 {user?.role === 'STUDENT' ? 'Khóa học của bạn' : 'Danh sách khóa học tiêu biểu'}
               </h2>
-              <p className="text-xs text-slate-400">Các môn học được phân bổ trong học kỳ này</p>
+              <p className="text-xs text-slate-400">Danh sách môn học trong hệ thống</p>
             </div>
             <Link to="/courses" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center space-x-1">
               <span>Xem tất cả</span>
@@ -313,7 +314,7 @@ export const DashboardPage: React.FC = () => {
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
             <h2 className="text-base font-bold text-slate-800 mb-1">Đầu việc cần chú ý</h2>
-            <p className="text-xs text-slate-400 mb-4">Các deadline và thông báo mới nhất</p>
+            <p className="text-xs text-slate-400 mb-4">Các hạn nộp và thông báo mới nhất</p>
 
             <div className="space-y-3">
               {assignments.length > 0 ? (
@@ -341,27 +342,12 @@ export const DashboardPage: React.FC = () => {
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 text-white shadow-xs">
             <h3 className="text-sm font-bold mb-2">Thao tác nhanh</h3>
             <div className="space-y-2">
-              <Link
-                to="/assignments"
-                className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 transition text-xs font-medium"
-              >
-                <span>{user?.role === 'LECTURER' ? 'Chấm điểm bài nộp sinh viên' : 'Xem danh sách bài tập'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-              <Link
-                to="/quizzes"
-                className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 transition text-xs font-medium"
-              >
-                <span>{user?.role === 'LECTURER' ? 'Tạo câu hỏi trắc nghiệm' : 'Làm bài kiểm tra'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-              <Link
-                to="/grades"
-                className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 transition text-xs font-medium"
-              >
-                <span>{user?.role === 'LECTURER' ? 'Sổ điểm lớp học phần' : 'Xem bảng điểm cá nhân'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+              {dashboardActions(user?.role).map((action) => (
+                <Link key={action.path} to={action.path} className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 transition text-xs font-medium">
+                  <span>{action.label}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              ))}
             </div>
           </div>
         </div>

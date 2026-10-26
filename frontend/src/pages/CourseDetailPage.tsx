@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { statusLabel } from '../utils/vi';
 import type { Course, Module, Lesson, Enrollment, User } from '../types';
 
 export const CourseDetailPage: React.FC = () => {
@@ -241,7 +242,7 @@ export const CourseDetailPage: React.FC = () => {
               </span>
               <span className="text-xs text-slate-500">{course.credits} Tín chỉ</span>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                {course.status}
+                {statusLabel(course.status)}
               </span>
             </div>
             <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">{course.title}</h1>
@@ -288,7 +289,7 @@ export const CourseDetailPage: React.FC = () => {
                 : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}
           >
-            Chương trình & Bài giảng ({modules.reduce((acc, m) => acc + m.lessons.length, 0)})
+            Chương trình và bài giảng ({modules.reduce((acc, m) => acc + m.lessons.length, 0)})
           </button>
 
           {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
@@ -439,7 +440,7 @@ export const CourseDetailPage: React.FC = () => {
                 <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase">
                   <th className="py-3 px-4">Mã sinh viên / ID</th>
                   <th className="py-3 px-4">Họ và tên</th>
-                  <th className="py-3 px-4">Email</th>
+                  <th className="py-3 px-4">Thư điện tử</th>
                   <th className="py-3 px-4">Trạng thái</th>
                   <th className="py-3 px-4">Ngày ghi danh</th>
                   {user?.role === 'ADMIN' && <th className="py-3 px-4 text-right">Thao tác</th>}
@@ -460,7 +461,7 @@ export const CourseDetailPage: React.FC = () => {
                       <td className="py-3 px-4 text-xs text-slate-500">{e.student_email || '—'}</td>
                       <td className="py-3 px-4">
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${e.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-                          {e.status}
+                          {statusLabel(e.status)}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-xs text-slate-400">
@@ -578,7 +579,7 @@ export const CourseDetailPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Đường dẫn Media / Slide URL (Tùy chọn)</label>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Đường dẫn học liệu hoặc trang trình chiếu (tùy chọn)</label>
                 <input
                   type="text"
                   value={newLessonMedia}

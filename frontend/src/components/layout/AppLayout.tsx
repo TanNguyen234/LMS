@@ -60,7 +60,7 @@ export const AppLayout: React.FC = () => {
     { label: 'Người dùng', path: '/users', icon: Users, roles: ['ADMIN'] },
     { label: 'Khóa học', path: '/courses', icon: BookOpen, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
     { label: 'Bài tập', path: '/assignments', icon: FileText, roles: ['LECTURER', 'STUDENT'] },
-    { label: 'Bài kiểm tra (Quiz)', path: '/quizzes', icon: CheckSquare, roles: ['LECTURER', 'STUDENT'] },
+    { label: 'Bài kiểm tra', path: '/quizzes', icon: CheckSquare, roles: ['LECTURER', 'STUDENT'] },
     { label: 'Bảng điểm', path: '/grades', icon: Award, roles: ['STUDENT', 'LECTURER'] },
     { label: 'Thông báo', path: '/notifications', icon: Bell, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
   ];
@@ -70,7 +70,7 @@ export const AppLayout: React.FC = () => {
   const getRoleBadge = (role?: string) => {
     switch (role) {
       case 'ADMIN':
-        return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">Admin</span>;
+        return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">Quản trị viên</span>;
       case 'LECTURER':
         return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">Giảng viên</span>;
       case 'STUDENT':
@@ -89,7 +89,9 @@ export const AppLayout: React.FC = () => {
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="md:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100"
-              title="Toggle sidebar"
+              title={sidebarOpen ? "Đóng điều hướng" : "Mở điều hướng"}
+              aria-label={sidebarOpen ? "Đóng điều hướng" : "Mở điều hướng"}
+              aria-expanded={sidebarOpen}
             >
               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -98,8 +100,8 @@ export const AppLayout: React.FC = () => {
                 <GraduationCap className="w-6 h-6" />
               </div>
               <div>
-                <span className="font-bold text-lg text-slate-800 tracking-tight block leading-none">University LMS</span>
-                <span className="text-xs text-slate-400 font-medium">Hệ thống Quản lý Học tập Đại học</span>
+                <span className="font-bold text-lg text-slate-800 tracking-tight block leading-none">LMS Đại học</span>
+                <span className="hidden sm:block text-xs text-slate-400 font-medium">Hệ thống quản lý học tập trực tuyến</span>
               </div>
             </Link>
           </div>
@@ -198,7 +200,7 @@ export const AppLayout: React.FC = () => {
         {/* Sidebar Desktop */}
         <aside className="hidden md:block w-64 shrink-0">
           <nav className="bg-white rounded-2xl border border-slate-200/80 p-3 shadow-xs space-y-1 sticky top-24">
-            <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Menu Chính</div>
+            <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Điều hướng</div>
             {allowedNav.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname.startsWith(item.path);
@@ -270,7 +272,7 @@ export const AppLayout: React.FC = () => {
       </div>
 
       <footer className="mt-auto border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
-        University LMS • Đồ án Quản lý Dự án Phần mềm • Dual-Track Monolith Architecture
+        LMS Đại học • Hệ thống quản lý học tập trực tuyến
       </footer>
     </div>
   );

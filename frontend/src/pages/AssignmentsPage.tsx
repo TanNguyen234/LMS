@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { statusLabel } from '../utils/vi';
 import type { Assignment, Course, Submission } from '../types';
 
 export const AssignmentsPage: React.FC = () => {
@@ -265,7 +266,7 @@ export const AssignmentsPage: React.FC = () => {
                   <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-xs">
                     Điểm tối đa: {a.max_score}đ
                   </span>
-                  {user?.role !== 'STUDENT' && <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${a.status === 'CLOSED' ? 'bg-slate-100 text-slate-600' : a.status === 'DRAFT' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{a.status || 'PUBLISHED'}</span>}
+                  {user?.role !== 'STUDENT' && <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${a.status === 'CLOSED' ? 'bg-slate-100 text-slate-600' : a.status === 'DRAFT' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{statusLabel(a.status)}</span>}
                   <span className="flex items-center text-xs text-slate-400 space-x-1">
                     <Calendar className="w-3.5 h-3.5" />
                     <span>Hạn nộp: {new Date(a.due_date).toLocaleDateString('vi-VN')}</span>

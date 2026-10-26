@@ -24,7 +24,7 @@ export const LoginPage: React.FC = () => {
       await login(email, password);
       navigate(from, { replace: true });
     } catch (err: any) {
-      setError(err.message || 'Email hoặc mật khẩu không chính xác.');
+      setError(err.message || 'Thư điện tử hoặc mật khẩu không chính xác.');
     } finally {
       setLoading(false);
     }
@@ -43,8 +43,8 @@ export const LoginPage: React.FC = () => {
           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto shadow-lg shadow-blue-500/30 mb-4">
             <GraduationCap className="w-9 h-9" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">University LMS Portal</h1>
-          <p className="text-slate-400 text-sm mt-1">Cổng thông tin Đào tạo & Quản lý Học tập</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Cổng học tập trực tuyến</h1>
+          <p className="text-slate-400 text-sm mt-1">Dành cho giảng viên, sinh viên và quản trị viên</p>
         </div>
 
         {/* Login Card */}
@@ -60,12 +60,13 @@ export const LoginPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
-                Email hoặc Tên đăng nhập
+              <label htmlFor="login-email" className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                Thư điện tử hoặc tên đăng nhập
               </label>
               <div className="relative">
                 <Mail className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
+                  id="login-email"
                   type="text"
                   required
                   value={email}
@@ -77,12 +78,13 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+              <label htmlFor="login-password" className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
                 Mật khẩu
               </label>
               <div className="relative">
                 <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
+                  id="login-password"
                   type="password"
                   required
                   value={password}
@@ -112,7 +114,7 @@ export const LoginPage: React.FC = () => {
           {/* Quick Demo Switcher */}
           <div className="mt-8 pt-6 border-t border-slate-100">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-3 text-center">
-              Tài khoản mẫu báo cáo (Demo Accounts)
+              Tài khoản dùng thử
             </span>
             <div className="grid grid-cols-3 gap-2">
               <button
@@ -121,7 +123,7 @@ export const LoginPage: React.FC = () => {
                 className="p-2 rounded-xl border border-purple-200 hover:bg-purple-50 text-left transition flex flex-col items-center text-center"
               >
                 <Shield className="w-4 h-4 text-purple-600 mb-1" />
-                <span className="text-xs font-bold text-purple-900 block">Admin</span>
+                <span className="text-xs font-bold text-purple-900 block">Quản trị viên</span>
                 <span className="text-[10px] text-purple-500 truncate w-full">Quản trị</span>
               </button>
 
@@ -131,7 +133,7 @@ export const LoginPage: React.FC = () => {
                 className="p-2 rounded-xl border border-blue-200 hover:bg-blue-50 text-left transition flex flex-col items-center text-center"
               >
                 <BookOpen className="w-4 h-4 text-blue-600 mb-1" />
-                <span className="text-xs font-bold text-blue-900 block">Lecturer</span>
+                <span className="text-xs font-bold text-blue-900 block">Giảng viên</span>
                 <span className="text-[10px] text-blue-500 truncate w-full">TS. Nam</span>
               </button>
 
@@ -141,7 +143,7 @@ export const LoginPage: React.FC = () => {
                 className="p-2 rounded-xl border border-emerald-200 hover:bg-emerald-50 text-left transition flex flex-col items-center text-center"
               >
                 <User className="w-4 h-4 text-emerald-600 mb-1" />
-                <span className="text-xs font-bold text-emerald-900 block">Student</span>
+                <span className="text-xs font-bold text-emerald-900 block">Sinh viên</span>
                 <span className="text-[10px] text-emerald-500 truncate w-full">Nguyễn An</span>
               </button>
             </div>

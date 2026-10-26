@@ -1,0 +1,16 @@
+{
+  "frontend/index.html": "d1a302f97473406774ebeee01407180a2346089dfbc765eac6e6624ef26aa969",
+  "frontend/src/api/client.ts": "f04e97c4c474dd5d6a1bee91c13612a812bd543f69e27845212366d9bbae9dfe",
+  "frontend/src/components/auth/ProtectedRoute.tsx": "6038940cb304bbef109ac9a47db9fdaa159e1a4beea69551e3bf63ad54e4eb8c",
+  "frontend/src/components/layout/AppLayout.tsx": "2974aaa74614f7edd7ab78d971708ae9ac26357e5a7d0462fd09eb769a5f8342",
+  "frontend/src/pages/AdminUsersPage.tsx": "c7a3e9de264c2ad87ca25bb8deeb098425b098d5333f677339f977c3e95fdda6",
+  "frontend/src/pages/AssignmentsPage.tsx": "0136348f0c39568b6a2e692b815cf91d5190a14061abd4cfe20e8ca489abecb4",
+  "frontend/src/pages/CourseDetailPage.tsx": "85e16b25b5420c211cf820ae88da7d034fc55437b9819e54fd953945c5a49513",
+  "frontend/src/pages/CoursesPage.tsx": "ca790f44ad5672f951a2ff0f599664e5fe1d83a4871fe4c98d11179d4de6eba0",
+  "frontend/src/pages/DashboardPage.tsx": "b2025fa6c1cae274b8c4e3ce6eb5a444f5a7f961eeb4004ba7af1a843b684967",
+  "frontend/src/pages/GradesPage.tsx": "cb1b2f1d35228ecc08ab2c50b91996676ad9bb7e93507490d20127ca81ba2445",
+  "frontend/src/pages/LoginPage.tsx": "d0a134a73f276ab4356dad5f1f98d26750281cb91ad388fd118afcfdbb3bf509",
+  "frontend/src/pages/QuizzesPage.tsx": "b9095818bc884f40b65d2f27fc902d1ccfdef2b528c60304aff61d1fd5e91a10",
+  "frontend/src/utils/vi.ts": "2def05a935a7b70df7182f522d4c85c4d2cae2b885c97fe2727ff56f8fa7311b",
+  "frontend/tests/vi-presentation.test.mjs": "228f84f71db7baaa3b4df5130ff9a17f1c0aec0ea993451ebecd16ec486af87c"
+}

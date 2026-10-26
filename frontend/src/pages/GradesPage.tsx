@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { formatScore } from '../utils/vi';
 import type { Grade, Course } from '../types';
 
 export const GradesPage: React.FC = () => {
@@ -73,7 +74,7 @@ export const GradesPage: React.FC = () => {
       case 'QUIZ':
         return (
           <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-100 text-purple-700">
-            <CheckSquare className="w-3 h-3 mr-1" /> Quiz
+            <CheckSquare className="w-3 h-3 mr-1" /> Bài kiểm tra
           </span>
         );
       default:
@@ -91,12 +92,12 @@ export const GradesPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
-            {user?.role === 'STUDENT' ? 'Bảng điểm & Kết quả học tập cá nhân' : 'Sổ điểm Lớp học phần (Gradebook)'}
+            {user?.role === 'STUDENT' ? 'Bảng điểm và kết quả học tập cá nhân' : 'Sổ điểm lớp học phần'}
           </h1>
           <p className="text-sm text-slate-500">
             {user?.role === 'STUDENT'
               ? 'Theo dõi kết quả đánh giá các cột điểm thành phần và nhận xét từ giảng viên'
-              : 'Xem tổng hợp điểm số các cột điểm bài tập, quiz và đánh giá quá trình'}
+              : 'Xem tổng hợp điểm số các cột điểm bài tập, bài kiểm tra và đánh giá quá trình'}
           </p>
         </div>
       </div>
@@ -108,7 +109,7 @@ export const GradesPage: React.FC = () => {
             <span className="text-xs font-semibold text-slate-400 uppercase">Điểm trung bình tạm tính</span>
             <div className="flex items-baseline space-x-2 mt-2">
               <span className="text-3xl font-extrabold text-blue-600">
-                {calculateStudentAverage().toFixed(2)}
+                {formatScore(grades.length ? calculateStudentAverage() : null, 2)}
               </span>
               <span className="text-xs text-slate-400">/ 10</span>
             </div>
@@ -123,14 +124,18 @@ export const GradesPage: React.FC = () => {
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-            <span className="text-xs font-semibold text-slate-400 uppercase">Xếp loại học lực</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase">Tình trạng ghi nhận điểm</span>
             <div className="flex items-baseline space-x-2 mt-2">
               <span className="text-xl font-bold text-emerald-600">
-                {calculateStudentAverage() >= 8.5 ? 'Giỏi (Excellent)' : calculateStudentAverage() >= 7 ? 'Khá (Good)' : 'Đạt'}
+                {grades.length ? 'Đã có điểm thành phần' : 'Chưa có điểm thành phần'}
               </span>
             </div>
           </div>
         </div>
+      )}
+
+      {user?.role === 'STUDENT' && (
+        <p className="text-sm text-slate-600">Điểm trung bình tạm tính từ các điểm đã ghi nhận, chưa áp dụng trọng số học phần. Kết quả này chưa xác định việc đạt học phần.</p>
       )}
 
       {/* Course Selector */}
@@ -191,7 +196,7 @@ export const GradesPage: React.FC = () => {
                       ) : (
                         <div>
                           <div className="font-semibold text-slate-800">{g.student_name || 'Sinh viên'}</div>
-                          <div className="text-xs text-slate-400 font-mono">ID: #{g.student_id}</div>
+                          <div className="text-xs text-slate-400 font-mono">Mã sinh viên: {g.student_id}</div>
                         </div>
                       )}
                     </td>

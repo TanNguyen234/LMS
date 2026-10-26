@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { statusLabel } from '../utils/vi';
 import type { Quiz, QuizAttempt, QuizQuestion, Course } from '../types';
 
 type ActiveQuiz = Quiz & {
@@ -137,7 +138,7 @@ export const QuizzesPage: React.FC = () => {
       setIsCreateQuizModalOpen(false);
       resetQuizForm();
     } catch (err: any) {
-      alert((editingQuiz ? 'Lỗi cập nhật bài quiz: ' : 'Lỗi tạo bài quiz: ') + err.message);
+      alert((editingQuiz ? 'Lỗi cập nhật bài kiểm tra: ' : 'Lỗi tạo bài kiểm tra: ') + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -274,7 +275,7 @@ export const QuizzesPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Bài kiểm tra Trắc nghiệm (Quiz)</h1>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Bài kiểm tra trắc nghiệm</h1>
           <p className="text-sm text-slate-500">
             {user?.role === 'STUDENT'
               ? 'Làm bài kiểm tra đánh giá kiến thức trực tuyến với cơ chế chấm điểm tự động'
@@ -289,7 +290,7 @@ export const QuizzesPage: React.FC = () => {
             className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
-            <span>Tạo bài Quiz mới</span>
+            <span>Tạo bài kiểm tra mới</span>
           </button>
         )}
       </div>
@@ -322,7 +323,7 @@ export const QuizzesPage: React.FC = () => {
         <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center text-slate-400">
           <CheckSquare className="w-12 h-12 text-slate-300 mx-auto mb-2" />
           <h3 className="font-semibold text-slate-700">Chưa có bài kiểm tra nào</h3>
-          <p className="text-sm mt-1">Chưa có bài quiz nào trong khóa học này.</p>
+          <p className="text-sm mt-1">Chưa có bài kiểm tra nào trong khóa học này.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -444,7 +445,7 @@ export const QuizzesPage: React.FC = () => {
                 <div className="flex-1 overflow-y-auto space-y-6 my-4 pr-1">
                   {!activeQuiz.questions || activeQuiz.questions.length === 0 ? (
                     <div className="py-8 text-center text-slate-400 text-sm">
-                      Chưa có câu hỏi nào trong bài quiz này. Giảng viên vui lòng thêm câu hỏi trước.
+                      Chưa có câu hỏi nào trong bài kiểm tra này. Giảng viên vui lòng thêm câu hỏi trước.
                     </div>
                   ) : (
                     activeQuiz.questions.map((q, idx) => (
@@ -513,14 +514,14 @@ export const QuizzesPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">{editingQuiz ? 'Cập nhật bài Quiz' : 'Tạo bài Quiz mới'}</h3>
+              <h3 className="font-bold text-slate-800">{editingQuiz ? 'Cập nhật bài kiểm tra' : 'Tạo bài kiểm tra mới'}</h3>
               <button onClick={() => { setIsCreateQuizModalOpen(false); resetQuizForm(); }}>
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
             <form onSubmit={handleSaveQuiz} className="space-y-4 mt-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tiêu đề bài Quiz</label>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tiêu đề bài kiểm tra</label>
                 <input
                   type="text"
                   required
@@ -579,7 +580,7 @@ export const QuizzesPage: React.FC = () => {
                   disabled={submitting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
                 >
-                  {editingQuiz ? 'Lưu thay đổi' : 'Lưu bài Quiz'}
+                  {editingQuiz ? 'Lưu thay đổi' : 'Lưu bài kiểm tra'}
                 </button>
               </div>
             </form>
@@ -607,7 +608,7 @@ export const QuizzesPage: React.FC = () => {
                   value={questionText}
                   onChange={(e) => setQuestionText(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                  placeholder="Kiến trúc Monolith có ưu điểm cốt lõi nào?"
+                  placeholder="Nội dung câu hỏi trắc nghiệm"
                 />
               </div>
 
@@ -692,7 +693,7 @@ export const QuizzesPage: React.FC = () => {
               {quizAttempts.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">Chưa có lượt làm bài.</p> : quizAttempts.map((attempt) => (
                 <div key={attempt.id} className="py-3 flex items-center justify-between gap-3">
                   <div><p className="font-semibold text-sm text-slate-800">{attempt.student_name || 'Sinh viên'}{attempt.student_code ? ` (${attempt.student_code})` : ''}</p><p className="text-xs text-slate-500">Bắt đầu: {new Date(attempt.started_at).toLocaleString('vi-VN')}</p></div>
-                  <div className="text-right"><p className="text-sm font-bold text-slate-800">{attempt.score ?? '—'} điểm</p><p className="text-xs text-slate-500">{attempt.status || '—'}{attempt.submitted_at ? ` · ${new Date(attempt.submitted_at).toLocaleString('vi-VN')}` : ''}</p></div>
+                  <div className="text-right"><p className="text-sm font-bold text-slate-800">{attempt.score ?? '—'} điểm</p><p className="text-xs text-slate-500">{statusLabel(attempt.status)}{attempt.submitted_at ? ` · ${new Date(attempt.submitted_at).toLocaleString('vi-VN')}` : ''}</p></div>
                 </div>
               ))}
             </div>

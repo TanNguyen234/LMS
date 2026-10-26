@@ -191,9 +191,9 @@ export const CoursesPage: React.FC = () => {
               className="px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
             >
               <option value="ALL">Tất cả trạng thái</option>
-              <option value="ACTIVE">Đang mở (Active)</option>
-              <option value="DRAFT">Bản nháp (Draft)</option>
-              <option value="ARCHIVED">Đã lưu trữ (Archived)</option>
+              <option value="ACTIVE">Đang mở</option>
+              <option value="DRAFT">Bản nháp</option>
+              <option value="ARCHIVED">Đã lưu trữ</option>
             </select>
           </div>
         )}
