@@ -100,6 +100,67 @@ backend/venv/Scripts/python.exe -m pytest backend/tests/test_forensic_contracts.
 
 Các bài kiểm tra backend tích hợp cần một SQL Server database riêng có tên bắt đầu bằng `UniversityLms_Test_`. Hướng dẫn chuẩn bị database và chạy đầy đủ suite nằm trong [runbook kiểm thử local](docs/audit/2026-10-21/06_DEMO_RUNBOOK.md).
 
+## Chức năng theo vai trò
+
+### Quản trị viên (ADMIN)
+
+- Xem tổng quan số lượng người dùng, khóa học, sinh viên, giảng viên và lượt ghi danh.
+- Tạo, cập nhật, tìm kiếm và lọc tài khoản theo vai trò hoặc trạng thái; kích hoạt hay tạm khóa tài khoản.
+- Tạo khóa học, phân công giảng viên, chỉnh sửa thông tin, lưu trữ hoặc mở lại khóa học.
+- Ghi danh sinh viên vào khóa học và rút ghi danh; xem danh sách lớp.
+- Trong trang chi tiết khóa học, tạo và cập nhật chương học, bài giảng; xuất bản hoặc ẩn nội dung.
+- Nhận thông báo cá nhân và đánh dấu thông báo đã đọc.
+
+Backend cũng cho phép ADMIN quản lý bài tập, bài kiểm tra và xem sổ điểm. Các trang này có thể mở trực tiếp tại `/assignments`, `/quizzes` và `/grades`, nhưng hiện không xuất hiện trong menu điều hướng của quản trị viên.
+
+### Giảng viên (LECTURER)
+
+- Xem số khóa học được phân công, số sinh viên đang học và số bài nộp cần chấm.
+- Xem khóa học được phân công và danh sách sinh viên trong lớp.
+- Với khóa học mình phụ trách, tạo và cập nhật chương học, bài giảng; xuất bản hoặc ẩn nội dung.
+- Tạo và cập nhật bài tập, đặt hạn nộp và điểm tối đa; xuất bản hoặc đóng bài tập.
+- Xem bài nộp, chấm điểm và gửi nhận xét cho sinh viên.
+- Tạo và cập nhật bài kiểm tra, câu hỏi; xuất bản hoặc ẩn bài kiểm tra, xem trước nội dung và xem các lượt làm bài.
+- Xem sổ điểm của khóa học mình phụ trách.
+- Xem và đánh dấu đã đọc thông báo cá nhân.
+
+### Sinh viên (STUDENT)
+
+- Xem tổng quan các khóa học đang học, bài tập sắp đến hạn, bài kiểm tra còn mở và thông báo chưa đọc.
+- Xem các khóa học đang hoạt động mà mình đã được ghi danh; mở chương và bài giảng đã xuất bản.
+- Xem bài tập được giao, nộp câu trả lời dạng văn bản và cập nhật bài nộp theo điều kiện của bài tập.
+- Làm bài kiểm tra trắc nghiệm có giới hạn thời gian và số lượt; xem điểm sau khi nộp.
+- Xem điểm và nhận xét của mình theo từng khóa học.
+- Xem và đánh dấu đã đọc thông báo cá nhân.
+
+### Phạm vi và quyền truy cập
+
+- Giảng viên chỉ quản lý nội dung, bài tập, bài kiểm tra và điểm của khóa học được phân công.
+- Sinh viên chỉ xem nội dung đã xuất bản trong khóa học đang hoạt động mà mình có ghi danh còn hiệu lực.
+- Bài nộp hiện chỉ lưu văn bản; chức năng tải tệp trực tiếp chưa được hỗ trợ. Sinh viên có thể đưa liên kết tài liệu vào nội dung bài nộp.
+- Bài kiểm tra tự động chấm câu hỏi một lựa chọn và đúng/sai. Quyền được kiểm tra ở backend; việc ẩn nút trên giao diện không thay thế kiểm tra quyền phía máy chủ.
+- Sinh viên không tự ghi danh khóa học; việc ghi danh do quản trị viên thực hiện.
+
+## Tài khoản thử nghiệm
+
+Các tài khoản bên dưới được tạo bởi [`database/02_seed.sql`](database/02_seed.sql). Tất cả dùng chung mật khẩu `Demo@123` sau khi API khởi động với `APP_ENV=development`.
+
+| Vai trò | Tài khoản |
+| --- | --- |
+| ADMIN | `admin@university.edu.vn` |
+| LECTURER | `lecturer1@university.edu.vn`, `lecturer2@university.edu.vn`, `lecturer3@university.edu.vn` |
+| STUDENT | `student1@university.edu.vn`, `student2@university.edu.vn`, `student3@university.edu.vn`, `student4@university.edu.vn`, `student5@university.edu.vn`, `student6@university.edu.vn` |
+
+Chỉ sử dụng các thông tin này với database local dùng dữ liệu demo. Không dùng tài khoản hoặc khóa JWT mặc định ở môi trường triển khai.
+
+## Cấu trúc repository
+
+- `backend/app`: API, xác thực, phân quyền, mô hình và truy cập database.
+- `backend/tests`: kiểm tra hợp đồng và kiểm thử backend.
+- `database`: script schema, dữ liệu mẫu, kiểm tra seed và truy vấn demo.
+- `frontend/src`: giao diện, các trang theo vai trò, client gọi API và kiểu dữ liệu.
+- `docs`: kiến trúc, yêu cầu, API, thiết kế database, kế hoạch và bằng chứng kiểm thử.
+
 ## Tài liệu dự án
 
 - [Tổng quan kiến trúc](docs/03_ARCHITECTURE.md).
