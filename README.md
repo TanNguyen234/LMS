@@ -1,83 +1,108 @@
-# University Learning Management System (LMS)
+# University LMS
 
-University LMS is an academic project prototype for course content, assignment text submissions, timed quizzes, grading and notifications. The project keeps a FastAPI backend, SQL Server database and React/Vite web frontend.
+University LMS là ứng dụng quản lý học tập dành cho môi trường đại học. Hệ thống hỗ trợ quản lý tài khoản, khóa học, nội dung giảng dạy, bài tập, bài kiểm tra, điểm số và thông báo.
 
-## Current verification
+Đây là dự án mẫu phục vụ học tập và trình diễn. Cấu hình mặc định cùng tài khoản seed chỉ dành cho môi trường local.
 
-The dated forensic report is the source of truth for tested behavior, environment limits and release status: [docs/audit/2026-10-21/05_RELEASE_GATE.md](docs/audit/2026-10-21/05_RELEASE_GATE.md). The prior audit files in docs/audit are historical snapshots and are not current release evidence.
+## Công nghệ
 
-## Technology
+- Backend: Python 3.12, FastAPI, SQLAlchemy, Alembic và pyodbc.
+- Cơ sở dữ liệu: Microsoft SQL Server.
+- Frontend: React, TypeScript, Vite và React Router.
+- Xác thực: JWT với phân quyền theo vai trò ở backend.
 
-- Backend: Python 3.12, FastAPI, SQLAlchemy, Alembic, pyodbc.
-- Database: Microsoft SQL Server.
-- Frontend: React 19, TypeScript, Vite, React Router 7 and a fetch-based API client.
-- Roles: ADMIN, LECTURER and STUDENT. Authorization is enforced by the API.
-- Assignment submission MVP: text only. The frontend does not upload files.
+## Yêu cầu
 
-## Repository guide
+- Git.
+- Python 3.12.
+- Node.js và npm.
+- Microsoft SQL Server cùng ODBC Driver tương ứng với cấu hình máy.
 
-- backend/app: API routes, schemas, models, authentication and database session.
-- backend/tests: SQL Server integration suite and pure forensic contract tests.
-- database: schema, seed and validation SQL scripts.
-- frontend/src: API client, role-aware views and shared types.
-- docs/project-management: the 13 academic project-management documents.
-- docs/audit/2026-10-21: current forensic baseline, contracts, test matrix, reconciliation, release gate and runbook.
+## Cài đặt và chạy local
 
-## Safe local setup
+### 1. Clone mã nguồn
 
-Use a disposable SQL Server database named UniversityLms_Test_<id> for verification. Do not point test commands at a personal or shared UniversityLms database. Follow [the dated demo and test runbook](docs/audit/2026-10-21/06_DEMO_RUNBOOK.md) for schema, seed, Alembic and startup steps. Local secrets belong in an ignored .env file and must not be committed.
+```powershell
+git clone https://github.com/TanNguyen234/LMS.git
+Set-Location LMS
+```
 
-Install backend dependencies from the repository root with:
+### 2. Tạo cơ sở dữ liệu và nạp dữ liệu mẫu
 
-    python -m pip install -r backend/requirements.txt
+Tạo một database local, chẳng hạn `UniversityLms_Dev`, trên SQL Server. Trong SSMS hoặc công cụ tương đương, chọn database vừa tạo rồi chạy lần lượt:
 
-Start the API from the repository root after configuring its DATABASE_URL for the disposable database:
+1. [`database/01_schema.sql`](database/01_schema.sql) — tạo bảng và ràng buộc.
+2. [`database/02_seed.sql`](database/02_seed.sql) — thêm dữ liệu demo.
+3. [`database/04_seed_validation.sql`](database/04_seed_validation.sql) — kiểm tra số lượng và quan hệ dữ liệu.
 
-    python -m uvicorn backend.app.main:app --reload --port 8000
+Có thể chạy [`database/03_demo_queries.sql`](database/03_demo_queries.sql) để xem một số truy vấn minh họa. Các script schema và seed dành cho database mới; không chạy lặp lại trên database đã có dữ liệu.
 
-Install and start the frontend from frontend:
+### 3. Cài backend và cấu hình kết nối
 
-    npm ci
-    npm run dev
+Từ thư mục gốc của repository, tạo virtual environment, cài thư viện và sao chép file cấu hình mẫu:
 
-The API docs are served at /docs, health at /health, and the local web app at http://localhost:5173.
+```powershell
+python -m venv backend/venv
+backend/venv/Scripts/python.exe -m pip install -r backend/requirements.txt
+Copy-Item backend/.env.example .env
+```
 
-## Verification commands
+Mở `.env` và cập nhật `DATABASE_URL` theo SQL Server, database và ODBC Driver trên máy. Ví dụ với SQL Server Express và Windows Authentication:
 
-From frontend:
+```dotenv
+DATABASE_URL=mssql+pyodbc://localhost\\SQLEXPRESS/UniversityLms_Dev?driver=SQL+Server&trusted_connection=yes&TrustServerCertificate=yes
+```
 
-    npm ci
-    npm run build
-    npm run lint
+Thay `localhost\\SQLEXPRESS`, tên database và `driver` nếu cấu hình local khác. File `.env` nằm ở thư mục gốc vì backend được khởi chạy từ đó; file này đã được Git bỏ qua. `APP_ENV` cần giữ là `development` để bật khởi tạo mật khẩu demo.
 
-From the repository root, after configuring an isolated SQL Server database:
+### 4. Khởi chạy backend
 
-    backend\venv\Scripts\python.exe -m pytest backend/tests -q
+Trong cửa sổ PowerShell tại thư mục gốc:
 
-The pytest fixture refuses to run database integration tests unless the configured database name begins with UniversityLms_Test_. Pure contract tests can be run separately with:
+```powershell
+backend/venv/Scripts/python.exe -m uvicorn backend.app.main:app --reload --port 8000
+```
 
-    backend\venv\Scripts\python.exe -m pytest backend/tests/test_forensic_contracts.py -q
+FastAPI sẽ kết nối database khi khởi động. Trong môi trường `development`, backend tự đặt mật khẩu cho các tài khoản seed có mật khẩu đánh dấu chưa khởi tạo.
 
-Do not interpret an unavailable database, a collected test count, a previous screenshot or a historical report as a passing integration or browser test.
+### 5. Cài và chạy frontend
 
-## Demo seed accounts
+Mở cửa sổ terminal thứ hai:
 
-The SQL seed defines demo accounts for each role; the development-only password initializer uses the demo password described in the seed. Use them only in a local disposable environment. Do not reuse demo credentials in a deployed environment.
+```powershell
+Set-Location frontend
+npm ci
+npm run dev
+```
 
-## Project-management documents
+Mở ứng dụng tại [http://localhost:5173](http://localhost:5173). Vite chuyển tiếp các request `/api` đến `http://127.0.0.1:8000` theo cấu hình mặc định. Có thể đổi địa chỉ backend bằng biến môi trường `LMS_API_PROXY_TARGET`.
 
-The actual files are the numbered set under docs/project-management:
+## Kiểm tra dịch vụ
 
-1. [Project Charter](docs/project-management/01_PROJECT_CHARTER.md)
-2. [Stakeholder Register](docs/project-management/02_STAKEHOLDER_REGISTER.md)
-3. [RACI Matrix](docs/project-management/03_RACI_MATRIX.md)
-4. [Scope Baseline and WBS](docs/project-management/04_SCOPE_BASELINE_WBS.md)
-5. [WBS Dictionary](docs/project-management/05_WBS_DICTIONARY.md)
-6. [Schedule and CPM](docs/project-management/06_SCHEDULE_CPM_GANTT.md)
-7. [Resource and Budget Baseline](docs/project-management/07_RESOURCE_AND_BUDGET_BASELINE.md)
-8. [Risk Register](docs/project-management/08_RISK_REGISTER.md)
-9. [Quality Plan](docs/project-management/09_QUALITY_PLAN_AND_GATES.md)
-10. [Communication Plan](docs/project-management/10_COMMUNICATION_PLAN.md)
-11. [Change Management Plan](docs/project-management/11_CHANGE_MANAGEMENT_PLAN.md)
-12. [UAT Scenarios](docs/project-management/12_UAT_AND_ACCEPTANCE_EVIDENCE.md)
-13. [Project Closure Scenario](docs/project-management/13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md)
+- Giao diện web: [http://localhost:5173](http://localhost:5173).
+- Backend health check: [http://localhost:8000/health](http://localhost:8000/health). Phản hồi thành công yêu cầu backend kết nối được SQL Server.
+- Tài liệu API: [http://localhost:8000/docs](http://localhost:8000/docs).
+
+## Chạy kiểm tra
+
+Kiểm tra frontend từ thư mục `frontend`:
+
+```powershell
+npm run lint
+npm run build
+```
+
+Kiểm tra backend không cần database từ thư mục gốc:
+
+```powershell
+backend/venv/Scripts/python.exe -m pytest backend/tests/test_forensic_contracts.py -q
+```
+
+Các bài kiểm tra backend tích hợp cần một SQL Server database riêng có tên bắt đầu bằng `UniversityLms_Test_`. Hướng dẫn chuẩn bị database và chạy đầy đủ suite nằm trong [runbook kiểm thử local](docs/audit/2026-10-21/06_DEMO_RUNBOOK.md).
+
+## Tài liệu dự án
+
+- [Tổng quan kiến trúc](docs/03_ARCHITECTURE.md).
+- [Vai trò và use case](docs/02_ROLES_USE_CASES.md).
+- [Thiết kế cơ sở dữ liệu](docs/04_DATABASE_DESIGN.md).
+- [Danh sách API](docs/05_API_SPEC.md).
