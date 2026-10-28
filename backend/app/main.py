@@ -18,6 +18,7 @@ from backend.app.api.routes.quizzes import router as quizzes_router
 from backend.app.api.routes.grades import router as grades_router
 from backend.app.api.routes.notifications import router as notifications_router
 from backend.app.api.routes.dashboard import router as dashboard_router
+from backend.app.api.routes.upload import router as upload_router
 
 
 @asynccontextmanager
@@ -88,7 +89,22 @@ app.include_router(quizzes_router, prefix=api_prefix)
 app.include_router(grades_router, prefix=api_prefix)
 app.include_router(notifications_router, prefix=api_prefix)
 app.include_router(dashboard_router, prefix=api_prefix)
+app.include_router(upload_router, prefix=api_prefix)
 
+
+
+# Static directories for materials, assignments, submissions
+frontend_public = (Path(__file__).resolve().parents[2] / "frontend" / "public").resolve()
+materials_dir = frontend_public / "materials"
+assignments_dir = frontend_public / "assignments"
+submissions_dir = frontend_public / "submissions"
+
+if materials_dir.exists():
+    app.mount("/materials", StaticFiles(directory=str(materials_dir)), name="materials")
+if assignments_dir.exists():
+    app.mount("/assignments", StaticFiles(directory=str(assignments_dir)), name="assignments")
+if submissions_dir.exists():
+    app.mount("/submissions", StaticFiles(directory=str(submissions_dir)), name="submissions")
 
 # Serve Built React Frontend (SPA fallback)
 frontend_dist = (Path(__file__).resolve().parents[2] / "frontend" / "dist").resolve()

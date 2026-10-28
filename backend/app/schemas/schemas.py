@@ -32,6 +32,9 @@ class UserBase(BaseModel):
     isActive: bool = True
     studentCode: Optional[str] = None
     staffCode: Optional[str] = None
+    cohort: Optional[str] = None
+    major: Optional[str] = None
+    className: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -45,6 +48,9 @@ class UserUpdate(BaseModel):
     isActive: Optional[bool] = None
     studentCode: Optional[str] = None
     staffCode: Optional[str] = None
+    cohort: Optional[str] = None
+    major: Optional[str] = None
+    className: Optional[str] = None
     password: Optional[str] = None
 
 
@@ -72,6 +78,7 @@ class CourseBase(BaseModel):
     semester: str
     academicYear: str
     credits: int
+    sectionCode: Optional[str] = None
     status: str = "ACTIVE"  # 'DRAFT', 'ACTIVE', 'ARCHIVED'
 
 
@@ -86,6 +93,7 @@ class CourseUpdate(BaseModel):
     semester: Optional[str] = None
     academicYear: Optional[str] = None
     credits: Optional[int] = None
+    sectionCode: Optional[str] = None
     status: Optional[str] = None
 
 
@@ -259,6 +267,7 @@ class AssignmentResponse(AssignmentBase):
 
 class SubmissionCreate(BaseModel):
     contentText: Optional[str] = None
+    fileUrl: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -267,10 +276,23 @@ class SubmissionCreate(BaseModel):
     def normalize_content(cls, value: Optional[str]) -> Optional[str]:
         return value.strip() if value is not None else None
 
+    @field_validator("fileUrl")
+    @classmethod
+    def validate_file_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            return None
+        # Reject fake filenames; require valid uploaded URL path
+        if not (value.startswith("/submissions/") or value.startswith("http://") or value.startswith("https://")):
+            raise ValueError("fileUrl must be a valid uploaded file URL starting with /submissions/")
+        return value
+
     @model_validator(mode="after")
-    def require_text_content(self):
-        if not self.contentText:
-            raise ValueError("Text submission content is required; file uploads are not supported")
+    def require_content_or_file(self):
+        if not self.contentText and not self.fileUrl:
+            raise ValueError("Either text submission content or an uploaded file is required")
         return self
 
 

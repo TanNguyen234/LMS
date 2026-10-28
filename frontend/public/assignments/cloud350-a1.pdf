@@ -1,0 +1,47 @@
+%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+4 0 obj << /Length 770 >>
+stream
+BT
+/F1 14 Tf
+40 750 Td
+(DE BAI TAP 1: CLOUD350 - Dien toan Dam may) Tj
+/F1 9 Tf
+0 -25 Td
+(Hoc phan: CLOUD350 - Dien toan Dam may) Tj
+0 -16 Td
+(Thoi gian lam bai: 2 tuan | Diem so toi da: 10 diem) Tj
+0 -16 Td
+(--------------------------------------------------) Tj
+0 -16 Td
+(I. YEU CAU DE BAI:) Tj
+0 -16 Td
+(   - Ap dung kien thuc ve Dich vu IaaS/PaaS/SaaS, Docker Container va Trien khai Cloud de hoan thanh yeu cau.) Tj
+0 -16 Td
+(   - Viet bao cao giai thich logic thiet ke va ket qua kiem thu.) Tj
+0 -16 Td
+(II. TIEU CHI DANH GIA \[RUBRIC\]:) Tj
+0 -16 Td
+(   - Tinh dung dan cua giai phap: 40% tong so diem.) Tj
+0 -16 Td
+(   - Chat luong ma nguon / bieu do thiet ke: 30% tong so diem.) Tj
+0 -16 Td
+(   - Bao cao ro rang, dung format hoc thuat: 30% tong so diem.) Tj
+ET
+endstream
+endobj
+5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000224 00000 n 
+0000000300 00000 n 
+trailer << /Size 6 /Root 1 0 R >>
+startxref
+377
+%%EOF

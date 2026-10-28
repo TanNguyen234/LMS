@@ -24,6 +24,9 @@ class User(Base):
     IsActive = Column(Boolean, nullable=False, default=True)
     StudentCode = Column(String(30), nullable=True)
     StaffCode = Column(String(30), nullable=True)
+    Cohort = Column(String(50), nullable=True)
+    Major = Column(String(100), nullable=True)
+    ClassName = Column(String(50), nullable=True)
     CreatedAt = Column(DateTime, nullable=False, default=utcnow)
 
     # Relationships
@@ -46,6 +49,7 @@ class Course(Base):
     Semester = Column(String(20), nullable=False)
     AcademicYear = Column(String(20), nullable=False)
     Credits = Column(SmallInteger, nullable=False)
+    SectionCode = Column(String(30), nullable=True)
     Status = Column(String(20), nullable=False, default="ACTIVE")  # 'DRAFT', 'ACTIVE', 'ARCHIVED'
     CreatedAt = Column(DateTime, nullable=False, default=utcnow)
 

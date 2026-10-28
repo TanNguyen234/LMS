@@ -1,0 +1,53 @@
+%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+4 0 obj << /Length 883 >>
+stream
+BT
+/F1 14 Tf
+40 750 Td
+(BAI THUC HANH LAB 01: PM401) Tj
+/F1 9 Tf
+0 -25 Td
+(Mon hoc: PM401 - Quan ly Du an CNTT) Tj
+0 -16 Td
+(Yeu cau thuc hanh tai phong may hoac may tinh ca nhan.) Tj
+0 -16 Td
+(--------------------------------------------------) Tj
+0 -16 Td
+(1. MUC TIEU BAI THUC HANH:) Tj
+0 -16 Td
+(   - Cung co kien thuc ly thuyet thong qua bai tap thuc te.) Tj
+0 -16 Td
+(   - Rèn luyen ky nang debug va kiem tra ket qua.) Tj
+0 -16 Td
+(2. CAC BUOC THUC HIEN:) Tj
+0 -16 Td
+(   - Buoc 1: Tao repository ma nguon va clone ve may tinh.) Tj
+0 -16 Td
+(   - Buoc 2: Viet ma nguon theo dung dac ta ky thuat trong de.) Tj
+0 -16 Td
+(   - Buoc 3: Chay cac bo test case mau de kiem thu chuc nang.) Tj
+0 -16 Td
+(3. QUY DINH NOP BAI:) Tj
+0 -16 Td
+(   - Dong goi toan bo ma nguon va file bao cao PDF vao file ZIP.) Tj
+0 -16 Td
+(   - Nop dung han tren he thong LMS theo quy dinh giang vien.) Tj
+ET
+endstream
+endobj
+5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000224 00000 n 
+0000000300 00000 n 
+trailer << /Size 6 /Root 1 0 R >>
+startxref
+377
+%%EOF

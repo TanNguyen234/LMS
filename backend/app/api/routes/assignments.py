@@ -256,9 +256,11 @@ def submit_assignment(
     if not course or course.Status != "ACTIVE":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Course is not active")
 
-    # Validate non-empty content
-    if not sub_in.contentText or not sub_in.contentText.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Text submission content is required")
+    # Validate non-empty content or file
+    has_text = bool(sub_in.contentText and sub_in.contentText.strip())
+    has_file = bool(sub_in.fileUrl and sub_in.fileUrl.strip())
+    if not has_text and not has_file:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Either text submission content or an uploaded file is required")
 
     now = datetime.now(timezone.utc)
     due_at = parse_datetime(a.DueAt)
@@ -286,7 +288,7 @@ def submit_assignment(
                 detail="Cannot modify a submission that has already been graded"
             )
         existing_sub.ContentText = sub_in.contentText
-        existing_sub.FileUrl = None
+        existing_sub.FileUrl = sub_in.fileUrl
         existing_sub.Status = sub_status
         existing_sub.UpdatedAt = now
         db.commit()
@@ -299,7 +301,7 @@ def submit_assignment(
             StudentId=current_user.UserId,
             SubmittedAt=now,
             ContentText=sub_in.contentText,
-            FileUrl=None,
+            FileUrl=sub_in.fileUrl,
             Status=sub_status
         )
         db.add(new_sub)

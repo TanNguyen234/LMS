@@ -1,0 +1,8 @@
+CourseCode,Title,Description,Credits,LecturerEmail,Semester,AcademicYear
+CS101,Cấu trúc dữ liệu và giải thuật,Học phần trang bị kiến thức cơ bản về mảng danh sách liên kết cây và đồ thị.,3,gv01.nguyenvana@university.edu.vn,HK1,2026-2027
+SE201,Kỹ thuật phần mềm nâng cao,Phương pháp phát triển phần mềm theo mô hình Agile/Scrum và quy trình CI/CD.,3,gv02.tranthib@university.edu.vn,HK1,2026-2027
+DB301,Hệ quản trị cơ sở dữ liệu phân tán,Thiết kế và tối ưu hóa cơ sở dữ liệu quan hệ và NoSQL quy mô lớn.,4,gv03.lehoangnam@university.edu.vn,HK1,2026-2027
+NET401,An toàn và bảo mật hệ thống mạng,Các kỹ thuật mã hóa phòng chống tấn công mạng và cấu hình tường lửa.,3,gv04.phamducbinh@university.edu.vn,HK1,2026-2027
+CLOUD501,Điện toán đám mây và Kiến trúc Microservices,Triển khai ứng dụng trên nền tảng AWS Docker và Kubernetes.,4,gv05.hoangquoctuan@university.edu.vn,HK1,2026-2027
+WEB102,Lập trình ứng dụng Web hiện đại,Phát triển ứng dụng Web Fullstack với React TypeScript và FastAPI.,3,gv01.nguyenvana@university.edu.vn,HK1,2026-2027
+AI601,Nhập môn Trí tuệ nhân tạo & Học máy,Kiến thức nền tảng về Machine Learning mạng nơ-ron và thị giác máy tính.,3,gv03.lehoangnam@university.edu.vn,HK1,2026-2027

@@ -1,0 +1,236 @@
+[
+  {
+    "file": "components/layout/AppLayout.tsx",
+    "before": "Bài kiểm tra (Quiz)",
+    "after": "Bài kiểm tra",
+    "count": 1
+  },
+  {
+    "file": "components/layout/AppLayout.tsx",
+    "before": ">Admin<",
+    "after": ">Quản trị viên<",
+    "count": 1
+  },
+  {
+    "file": "components/layout/AppLayout.tsx",
+    "before": "title=\"Toggle sidebar\"",
+    "after": "title={sidebarOpen ? \"Đóng điều hướng\" : \"Mở điều hướng\"}\n              aria-label={sidebarOpen ? \"Đóng điều hướng\" : \"Mở điều hướng\"}\n              aria-expanded={sidebarOpen}",
+    "count": 1
+  },
+  {
+    "file": "components/layout/AppLayout.tsx",
+    "before": ">University LMS<",
+    "after": ">LMS Đại học<",
+    "count": 1
+  },
+  {
+    "file": "components/layout/AppLayout.tsx",
+    "before": "Hệ thống Quản lý Học tập Đại học",
+    "after": "Hệ thống quản lý học tập trực tuyến",
+    "count": 1
+  },
+  {
+    "file": "components/layout/AppLayout.tsx",
+    "before": "Menu Chính",
+    "after": "Điều hướng",
+    "count": 1
+  },
+  {
+    "file": "components/layout/AppLayout.tsx",
+    "before": "University LMS • Đồ án Quản lý Dự án Phần mềm • Dual-Track Monolith Architecture",
+    "after": "LMS Đại học • Hệ thống quản lý học tập trực tuyến",
+    "count": 1
+  },
+  {
+    "file": "pages/LoginPage.tsx",
+    "before": "University LMS Portal",
+    "after": "Cổng học tập trực tuyến",
+    "count": 1
+  },
+  {
+    "file": "pages/LoginPage.tsx",
+    "before": "Cổng thông tin Đào tạo & Quản lý Học tập",
+    "after": "Dành cho giảng viên, sinh viên và quản trị viên",
+    "count": 1
+  },
+  {
+    "file": "pages/LoginPage.tsx",
+    "before": "Tài khoản mẫu báo cáo (Demo Accounts)",
+    "after": "Tài khoản dùng thử",
+    "count": 1
+  },
+  {
+    "file": "pages/LoginPage.tsx",
+    "before": ">Admin<",
+    "after": ">Quản trị viên<",
+    "count": 1
+  },
+  {
+    "file": "pages/LoginPage.tsx",
+    "before": ">Lecturer<",
+    "after": ">Giảng viên<",
+    "count": 1
+  },
+  {
+    "file": "pages/LoginPage.tsx",
+    "before": ">Student<",
+    "after": ">Sinh viên<",
+    "count": 1
+  },
+  {
+    "file": "pages/LoginPage.tsx",
+    "before": "Email hoặc Tên đăng nhập",
+    "after": "Thư điện tử hoặc tên đăng nhập",
+    "count": 1
+  },
+  {
+    "file": "pages/LoginPage.tsx",
+    "before": "Email hoặc mật khẩu không chính xác.",
+    "after": "Thư điện tử hoặc mật khẩu không chính xác.",
+    "count": 1
+  },
+  {
+    "file": "pages/AdminUsersPage.tsx",
+    "before": "Admin (Quản trị)",
+    "after": "Quản trị viên",
+    "count": 1
+  },
+  {
+    "file": "pages/AdminUsersPage.tsx",
+    "before": ">Admin<",
+    "after": ">Quản trị viên<",
+    "count": 1
+  },
+  {
+    "file": "pages/AdminUsersPage.tsx",
+    "before": "                          Admin\n",
+    "after": "                          Quản trị viên\n",
+    "count": 1
+  },
+  {
+    "file": "pages/AdminUsersPage.tsx",
+    "before": "Tài khoản & Email",
+    "after": "Tài khoản và thư điện tử",
+    "count": 1
+  },
+  {
+    "file": "pages/AdminUsersPage.tsx",
+    "before": "Email trường",
+    "after": "Thư điện tử trường",
+    "count": 1
+  },
+  {
+    "file": "pages/GradesPage.tsx",
+    "before": " /> Quiz",
+    "after": " /> Bài kiểm tra",
+    "count": 1
+  },
+  {
+    "file": "pages/GradesPage.tsx",
+    "before": "Sổ điểm Lớp học phần (Gradebook)",
+    "after": "Sổ điểm lớp học phần",
+    "count": 1
+  },
+  {
+    "file": "pages/GradesPage.tsx",
+    "before": "Bảng điểm & Kết quả học tập cá nhân",
+    "after": "Bảng điểm và kết quả học tập cá nhân",
+    "count": 1
+  },
+  {
+    "file": "pages/GradesPage.tsx",
+    "before": "cột điểm bài tập, quiz và đánh giá quá trình",
+    "after": "cột điểm bài tập, bài kiểm tra và đánh giá quá trình",
+    "count": 1
+  },
+  {
+    "file": "pages/GradesPage.tsx",
+    "before": "ID: #{g.student_id}",
+    "after": "Mã sinh viên: {g.student_id}",
+    "count": 1
+  },
+  {
+    "file": "pages/QuizzesPage.tsx",
+    "before": "bài quiz",
+    "after": "bài kiểm tra",
+    "count": 4
+  },
+  {
+    "file": "pages/QuizzesPage.tsx",
+    "before": "bài Quiz",
+    "after": "bài kiểm tra",
+    "count": 5
+  },
+  {
+    "file": "pages/QuizzesPage.tsx",
+    "before": "Bài kiểm tra Trắc nghiệm (Quiz)",
+    "after": "Bài kiểm tra trắc nghiệm",
+    "count": 1
+  },
+  {
+    "file": "pages/QuizzesPage.tsx",
+    "before": "Kiến trúc Monolith có ưu điểm cốt lõi nào?",
+    "after": "Nội dung câu hỏi trắc nghiệm",
+    "count": 1
+  },
+  {
+    "file": "pages/QuizzesPage.tsx",
+    "before": "{attempt.status || '—'}",
+    "after": "{statusLabel(attempt.status)}",
+    "count": 1
+  },
+  {
+    "file": "pages/DashboardPage.tsx",
+    "before": "Tài khoản sinh viên active",
+    "after": "Tài khoản sinh viên",
+    "count": 1
+  },
+  {
+    "file": "pages/DashboardPage.tsx",
+    "before": "Giảng viên cơ hữu",
+    "after": "Tài khoản giảng viên",
+    "count": 1
+  },
+  {
+    "file": "pages/DashboardPage.tsx",
+    "before": "100% Hoạt động bình thường",
+    "after": "Chưa có dữ liệu giám sát",
+    "count": 1
+  },
+  {
+    "file": "pages/DashboardPage.tsx",
+    "before": "SQL Server & FastAPI online",
+    "after": "Trạng thái máy chủ cần được kiểm tra riêng",
+    "count": 1
+  },
+  {
+    "file": "pages/DashboardPage.tsx",
+    "before": "Trạng thái hạ tầng",
+    "after": "Theo dõi hệ thống",
+    "count": 1
+  },
+  {
+    "file": "pages/DashboardPage.tsx",
+    "before": "Quiz",
+    "after": "Bài kiểm tra",
+    "count": 2
+  },
+  {
+    "file": "pages/DashboardPage.tsx",
+    "before": "quiz",
+    "after": "bài kiểm tra",
+    "count": 3
+  },
+  {
+    "file": "pages/CourseDetailPage.tsx",
+    "before": "Đường dẫn Media / Slide URL (Tùy chọn)",
+    "after": "Đường dẫn học liệu hoặc trang trình chiếu (tùy chọn)",
+    "count": 1
+  },
+  {
+    "file": "pages/CourseDetailPage.tsx",
+    "before": "Chương trình & Bài giảng",
+    "after": "Chương trình và bài giảng",
+    "count": 1
+  }
+]

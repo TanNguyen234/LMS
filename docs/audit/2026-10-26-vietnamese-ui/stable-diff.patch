@@ -1,0 +1,699 @@
+diff --git a/frontend/index.html b/frontend/index.html
+index 38ac8d8..9df8853 100644
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -4,7 +4,7 @@
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>University LMS - Cổng Đào tạo Đại học</title>
++    <title>LMS Đại học — Cổng học tập trực tuyến</title>
+   </head>
+   <body class="bg-slate-50 antialiased font-sans text-slate-800">
+     <div id="root"></div>
+diff --git a/frontend/src/api/client.ts b/frontend/src/api/client.ts
+index 13d94e0..e349b2a 100644
+--- a/frontend/src/api/client.ts
++++ b/frontend/src/api/client.ts
+@@ -16,6 +16,8 @@ import type {
+   DashboardStats,
+ } from '../types';
+ 
++import { apiErrorMessageVi } from '../utils/vi';
++
+ const API_BASE = '/api';
+ 
+ export class ApiError extends Error {
+@@ -42,10 +44,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
+     headers.set('Content-Type', 'application/json');
+   }
+ 
+-  const response = await fetch(`${API_BASE}${endpoint}`, {
+-    ...options,
+-    headers,
+-  });
++  let response: Response;
++  try {
++    response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
++  } catch {
++    throw new ApiError(0, apiErrorMessageVi(0));
++  }
+ 
+   if (!response.ok) {
+     let errorDetail = 'Request failed';
+@@ -60,7 +64,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
+     } catch {
+       errorDetail = response.statusText || `HTTP Error ${response.status}`;
+     }
+-    throw new ApiError(response.status, errorDetail, errorData);
++    throw new ApiError(response.status, apiErrorMessageVi(response.status, errorDetail), errorData);
+   }
+ 
+   if (response.status === 204) {
+diff --git a/frontend/src/components/auth/ProtectedRoute.tsx b/frontend/src/components/auth/ProtectedRoute.tsx
+index e4eadf1..f2dfab3 100644
+--- a/frontend/src/components/auth/ProtectedRoute.tsx
++++ b/frontend/src/components/auth/ProtectedRoute.tsx
+@@ -1,6 +1,7 @@
+ import React from 'react';
+ import { Navigate, useLocation } from 'react-router-dom';
+ import { useAuth } from '../../auth/AuthContext';
++import { roleLabel } from '../../utils/vi';
+ import type { UserRole } from '../../types';
+ 
+ interface ProtectedRouteProps {
+@@ -31,7 +32,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
+     return (
+       <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
+         <h2 className="text-xl font-bold text-slate-800 mb-2">Quyền truy cập bị từ chối (403)</h2>
+-        <p className="text-sm text-slate-500 mb-4">Bạn không có quyền truy cập vào phân hệ này với vai trò hiện tại ({user.role}).</p>
++        <p className="text-sm text-slate-500 mb-4">Bạn không có quyền truy cập vào phân hệ này với vai trò hiện tại ({roleLabel(user.role)}).</p>
+         <Navigate to="/dashboard" replace />
+       </div>
+     );
+diff --git a/frontend/src/components/layout/AppLayout.tsx b/frontend/src/components/layout/AppLayout.tsx
+index cdab668..7d687c2 100644
+--- a/frontend/src/components/layout/AppLayout.tsx
++++ b/frontend/src/components/layout/AppLayout.tsx
+@@ -60,7 +60,7 @@ export const AppLayout: React.FC = () => {
+     { label: 'Người dùng', path: '/users', icon: Users, roles: ['ADMIN'] },
+     { label: 'Khóa học', path: '/courses', icon: BookOpen, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
+     { label: 'Bài tập', path: '/assignments', icon: FileText, roles: ['LECTURER', 'STUDENT'] },
+-    { label: 'Bài kiểm tra (Quiz)', path: '/quizzes', icon: CheckSquare, roles: ['LECTURER', 'STUDENT'] },
++    { label: 'Bài kiểm tra', path: '/quizzes', icon: CheckSquare, roles: ['LECTURER', 'STUDENT'] },
+     { label: 'Bảng điểm', path: '/grades', icon: Award, roles: ['STUDENT', 'LECTURER'] },
+     { label: 'Thông báo', path: '/notifications', icon: Bell, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
+   ];
+@@ -70,7 +70,7 @@ export const AppLayout: React.FC = () => {
+   const getRoleBadge = (role?: string) => {
+     switch (role) {
+       case 'ADMIN':
+-        return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">Admin</span>;
++        return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">Quản trị viên</span>;
+       case 'LECTURER':
+         return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">Giảng viên</span>;
+       case 'STUDENT':
+@@ -89,7 +89,9 @@ export const AppLayout: React.FC = () => {
+             <button
+               onClick={() => setSidebarOpen(!sidebarOpen)}
+               className="md:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100"
+-              title="Toggle sidebar"
++              title={sidebarOpen ? "Đóng điều hướng" : "Mở điều hướng"}
++              aria-label={sidebarOpen ? "Đóng điều hướng" : "Mở điều hướng"}
++              aria-expanded={sidebarOpen}
+             >
+               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+             </button>
+@@ -98,8 +100,8 @@ export const AppLayout: React.FC = () => {
+                 <GraduationCap className="w-6 h-6" />
+               </div>
+               <div>
+-                <span className="font-bold text-lg text-slate-800 tracking-tight block leading-none">University LMS</span>
+-                <span className="text-xs text-slate-400 font-medium">Hệ thống Quản lý Học tập Đại học</span>
++                <span className="font-bold text-lg text-slate-800 tracking-tight block leading-none">LMS Đại học</span>
++                <span className="hidden sm:block text-xs text-slate-400 font-medium">Hệ thống quản lý học tập trực tuyến</span>
+               </div>
+             </Link>
+           </div>
+@@ -198,7 +200,7 @@ export const AppLayout: React.FC = () => {
+         {/* Sidebar Desktop */}
+         <aside className="hidden md:block w-64 shrink-0">
+           <nav className="bg-white rounded-2xl border border-slate-200/80 p-3 shadow-xs space-y-1 sticky top-24">
+-            <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Menu Chính</div>
++            <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Điều hướng</div>
+             {allowedNav.map((item) => {
+               const Icon = item.icon;
+               const isActive = location.pathname.startsWith(item.path);
+@@ -270,7 +272,7 @@ export const AppLayout: React.FC = () => {
+       </div>
+ 
+       <footer className="mt-auto border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
+-        University LMS • Đồ án Quản lý Dự án Phần mềm • Dual-Track Monolith Architecture
++        LMS Đại học • Hệ thống quản lý học tập trực tuyến
+       </footer>
+     </div>
+   );
+diff --git a/frontend/src/pages/AdminUsersPage.tsx b/frontend/src/pages/AdminUsersPage.tsx
+index 970077c..7161d64 100644
+--- a/frontend/src/pages/AdminUsersPage.tsx
++++ b/frontend/src/pages/AdminUsersPage.tsx
+@@ -130,7 +130,7 @@ export const AdminUsersPage: React.FC = () => {
+           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+           <input
+             type="text"
+-            placeholder="Tìm theo tên, email, username..."
++            placeholder="Tìm theo họ tên, thư điện tử hoặc tên đăng nhập..."
+             value={search}
+             onChange={(e) => setSearch(e.target.value)}
+             className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+@@ -146,7 +146,7 @@ export const AdminUsersPage: React.FC = () => {
+             className="px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+           >
+             <option value="ALL">Tất cả vai trò</option>
+-            <option value="ADMIN">Admin (Quản trị)</option>
++            <option value="ADMIN">Quản trị viên</option>
+             <option value="LECTURER">Giảng viên</option>
+             <option value="STUDENT">Sinh viên</option>
+           </select>
+@@ -166,9 +166,9 @@ export const AdminUsersPage: React.FC = () => {
+           <table className="w-full text-left border-collapse text-sm">
+             <thead>
+               <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+-                <th className="py-3.5 px-4">ID</th>
++                <th className="py-3.5 px-4">Mã tài khoản</th>
+                 <th className="py-3.5 px-4">Họ và tên</th>
+-                <th className="py-3.5 px-4">Tài khoản & Email</th>
++                <th className="py-3.5 px-4">Tài khoản và thư điện tử</th>
+                 <th className="py-3.5 px-4">Vai trò</th>
+                 <th className="py-3.5 px-4">Trạng thái</th>
+                 <th className="py-3.5 px-4">Ngày tạo</th>
+@@ -201,7 +201,7 @@ export const AdminUsersPage: React.FC = () => {
+                     <td className="py-3.5 px-4">
+                       {u.role === 'ADMIN' && (
+                         <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">
+-                          Admin
++                          Quản trị viên
+                         </span>
+                       )}
+                       {u.role === 'LECTURER' && (
+@@ -304,7 +304,7 @@ export const AdminUsersPage: React.FC = () => {
+               </div>}
+ 
+               <div>
+-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Email trường</label>
++                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Thư điện tử trường</label>
+                 <input
+                   type="email"
+                   required
+@@ -325,7 +325,7 @@ export const AdminUsersPage: React.FC = () => {
+                   >
+                     <option value="STUDENT">Sinh viên</option>
+                     <option value="LECTURER">Giảng viên</option>
+-                    <option value="ADMIN">Admin</option>
++                    <option value="ADMIN">Quản trị viên</option>
+                   </select>
+                 </div>
+ 
+diff --git a/frontend/src/pages/AssignmentsPage.tsx b/frontend/src/pages/AssignmentsPage.tsx
+index 62a639d..2513cc8 100644
+--- a/frontend/src/pages/AssignmentsPage.tsx
++++ b/frontend/src/pages/AssignmentsPage.tsx
+@@ -12,6 +12,7 @@ import {
+ } from 'lucide-react';
+ import { useAuth } from '../auth/AuthContext';
+ import { api } from '../api/client';
++import { statusLabel } from '../utils/vi';
+ import type { Assignment, Course, Submission } from '../types';
+ 
+ export const AssignmentsPage: React.FC = () => {
+@@ -265,7 +266,7 @@ export const AssignmentsPage: React.FC = () => {
+                   <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-xs">
+                     Điểm tối đa: {a.max_score}đ
+                   </span>
+-                  {user?.role !== 'STUDENT' && <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${a.status === 'CLOSED' ? 'bg-slate-100 text-slate-600' : a.status === 'DRAFT' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{a.status || 'PUBLISHED'}</span>}
++                  {user?.role !== 'STUDENT' && <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${a.status === 'CLOSED' ? 'bg-slate-100 text-slate-600' : a.status === 'DRAFT' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{statusLabel(a.status)}</span>}
+                   <span className="flex items-center text-xs text-slate-400 space-x-1">
+                     <Calendar className="w-3.5 h-3.5" />
+                     <span>Hạn nộp: {new Date(a.due_date).toLocaleDateString('vi-VN')}</span>
+diff --git a/frontend/src/pages/CourseDetailPage.tsx b/frontend/src/pages/CourseDetailPage.tsx
+index 081df52..5fa995e 100644
+--- a/frontend/src/pages/CourseDetailPage.tsx
++++ b/frontend/src/pages/CourseDetailPage.tsx
+@@ -16,6 +16,7 @@ import {
+ } from 'lucide-react';
+ import { useAuth } from '../auth/AuthContext';
+ import { api } from '../api/client';
++import { statusLabel } from '../utils/vi';
+ import type { Course, Module, Lesson, Enrollment, User } from '../types';
+ 
+ export const CourseDetailPage: React.FC = () => {
+@@ -241,7 +242,7 @@ export const CourseDetailPage: React.FC = () => {
+               </span>
+               <span className="text-xs text-slate-500">{course.credits} Tín chỉ</span>
+               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+-                {course.status}
++                {statusLabel(course.status)}
+               </span>
+             </div>
+             <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">{course.title}</h1>
+@@ -288,7 +289,7 @@ export const CourseDetailPage: React.FC = () => {
+                 : 'border-transparent text-slate-400 hover:text-slate-600'
+             }`}
+           >
+-            Chương trình & Bài giảng ({modules.reduce((acc, m) => acc + m.lessons.length, 0)})
++            Chương trình và bài giảng ({modules.reduce((acc, m) => acc + m.lessons.length, 0)})
+           </button>
+ 
+           {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
+@@ -439,7 +440,7 @@ export const CourseDetailPage: React.FC = () => {
+                 <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase">
+                   <th className="py-3 px-4">Mã sinh viên / ID</th>
+                   <th className="py-3 px-4">Họ và tên</th>
+-                  <th className="py-3 px-4">Email</th>
++                  <th className="py-3 px-4">Thư điện tử</th>
+                   <th className="py-3 px-4">Trạng thái</th>
+                   <th className="py-3 px-4">Ngày ghi danh</th>
+                   {user?.role === 'ADMIN' && <th className="py-3 px-4 text-right">Thao tác</th>}
+@@ -460,7 +461,7 @@ export const CourseDetailPage: React.FC = () => {
+                       <td className="py-3 px-4 text-xs text-slate-500">{e.student_email || '—'}</td>
+                       <td className="py-3 px-4">
+                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${e.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+-                          {e.status}
++                          {statusLabel(e.status)}
+                         </span>
+                       </td>
+                       <td className="py-3 px-4 text-xs text-slate-400">
+@@ -578,7 +579,7 @@ export const CourseDetailPage: React.FC = () => {
+               </div>
+ 
+               <div>
+-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Đường dẫn Media / Slide URL (Tùy chọn)</label>
++                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Đường dẫn học liệu hoặc trang trình chiếu (tùy chọn)</label>
+                 <input
+                   type="text"
+                   value={newLessonMedia}
+diff --git a/frontend/src/pages/CoursesPage.tsx b/frontend/src/pages/CoursesPage.tsx
+index 79a7e20..c275193 100644
+--- a/frontend/src/pages/CoursesPage.tsx
++++ b/frontend/src/pages/CoursesPage.tsx
+@@ -191,9 +191,9 @@ export const CoursesPage: React.FC = () => {
+               className="px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+             >
+               <option value="ALL">Tất cả trạng thái</option>
+-              <option value="ACTIVE">Đang mở (Active)</option>
+-              <option value="DRAFT">Bản nháp (Draft)</option>
+-              <option value="ARCHIVED">Đã lưu trữ (Archived)</option>
++              <option value="ACTIVE">Đang mở</option>
++              <option value="DRAFT">Bản nháp</option>
++              <option value="ARCHIVED">Đã lưu trữ</option>
+             </select>
+           </div>
+         )}
+diff --git a/frontend/src/pages/DashboardPage.tsx b/frontend/src/pages/DashboardPage.tsx
+index e5e7500..8e6bbf9 100644
+--- a/frontend/src/pages/DashboardPage.tsx
++++ b/frontend/src/pages/DashboardPage.tsx
+@@ -13,6 +13,7 @@ import {
+ } from 'lucide-react';
+ import { useAuth } from '../auth/AuthContext';
+ import { api } from '../api/client';
++import { dashboardActions, roleLabel } from '../utils/vi';
+ import type { DashboardStats, Course, Assignment } from '../types';
+ 
+ export const DashboardPage: React.FC = () => {
+@@ -61,7 +62,7 @@ export const DashboardPage: React.FC = () => {
+           <div>
+             <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-white/10 rounded-full text-xs font-semibold text-blue-100 backdrop-blur-xs mb-3">
+               <Sparkles className="w-3.5 h-3.5" />
+-              <span>Học kỳ Fall 2026 • Phân hệ {user?.role}</span>
++              <span>Không gian học tập • {roleLabel(user?.role)}</span>
+             </div>
+             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+               Xin chào, {user?.full_name}! 👋
+@@ -95,7 +96,7 @@ export const DashboardPage: React.FC = () => {
+               </div>
+               <div className="mt-3">
+                 <span className="text-2xl font-bold text-slate-800">{stats?.courses_count ?? 0}</span>
+-                <span className="text-xs text-slate-400 block mt-0.5">Khóa học đang vận hành</span>
++                <span className="text-xs text-slate-400 block mt-0.5">Khóa học được ghi nhận</span>
+               </div>
+             </div>
+ 
+@@ -108,7 +109,7 @@ export const DashboardPage: React.FC = () => {
+               </div>
+               <div className="mt-3">
+                 <span className="text-2xl font-bold text-slate-800">{stats?.students_count ?? 0}</span>
+-                <span className="text-xs text-slate-400 block mt-0.5">Tài khoản sinh viên active</span>
++                <span className="text-xs text-slate-400 block mt-0.5">Tài khoản sinh viên</span>
+               </div>
+             </div>
+ 
+@@ -121,23 +122,23 @@ export const DashboardPage: React.FC = () => {
+               </div>
+               <div className="mt-3">
+                 <span className="text-2xl font-bold text-slate-800">{stats?.lecturers_count ?? 0}</span>
+-                <span className="text-xs text-slate-400 block mt-0.5">Giảng viên cơ hữu</span>
++                <span className="text-xs text-slate-400 block mt-0.5">Tài khoản giảng viên</span>
+               </div>
+             </div>
+ 
+             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+               <div className="flex items-center justify-between">
+-                <span className="text-xs font-semibold text-slate-500 uppercase">Trạng thái hạ tầng</span>
++                <span className="text-xs font-semibold text-slate-500 uppercase">Theo dõi hệ thống</span>
+                 <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl">
+                   <TrendingUp className="w-5 h-5" />
+                 </div>
+               </div>
+               <div className="mt-3">
+-                <span className="text-sm font-bold text-emerald-600 flex items-center gap-1.5">
+-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+-                  100% Hoạt động bình thường
++                <span className="text-sm font-bold text-slate-600 flex items-center gap-1.5">
++                  <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
++                  Chưa có dữ liệu giám sát
+                 </span>
+-                <span className="text-xs text-slate-400 block mt-1.5">SQL Server & FastAPI online</span>
++                <span className="text-xs text-slate-400 block mt-1.5">Trạng thái máy chủ cần được kiểm tra riêng</span>
+               </div>
+             </div>
+           </>
+@@ -173,7 +174,7 @@ export const DashboardPage: React.FC = () => {
+ 
+             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+               <div className="flex items-center justify-between">
+-                <span className="text-xs font-semibold text-slate-500 uppercase">Bài kiểm tra Quiz</span>
++                <span className="text-xs font-semibold text-slate-500 uppercase">Bài kiểm tra</span>
+                 <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
+                   <CheckSquare className="w-5 h-5" />
+                 </div>
+@@ -229,7 +230,7 @@ export const DashboardPage: React.FC = () => {
+ 
+             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+               <div className="flex items-center justify-between">
+-                <span className="text-xs font-semibold text-slate-500 uppercase">Quiz trực tuyến</span>
++                <span className="text-xs font-semibold text-slate-500 uppercase">Bài kiểm tra trực tuyến</span>
+                 <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
+                   <CheckSquare className="w-5 h-5" />
+                 </div>
+@@ -267,7 +268,7 @@ export const DashboardPage: React.FC = () => {
+               <h2 className="text-base font-bold text-slate-800">
+                 {user?.role === 'STUDENT' ? 'Khóa học của bạn' : 'Danh sách khóa học tiêu biểu'}
+               </h2>
+-              <p className="text-xs text-slate-400">Các môn học được phân bổ trong học kỳ này</p>
++              <p className="text-xs text-slate-400">Danh sách môn học trong hệ thống</p>
+             </div>
+             <Link to="/courses" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center space-x-1">
+               <span>Xem tất cả</span>
+@@ -313,7 +314,7 @@ export const DashboardPage: React.FC = () => {
+         <div className="space-y-6">
+           <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+             <h2 className="text-base font-bold text-slate-800 mb-1">Đầu việc cần chú ý</h2>
+-            <p className="text-xs text-slate-400 mb-4">Các deadline và thông báo mới nhất</p>
++            <p className="text-xs text-slate-400 mb-4">Các hạn nộp và thông báo mới nhất</p>
+ 
+             <div className="space-y-3">
+               {assignments.length > 0 ? (
+@@ -341,27 +342,12 @@ export const DashboardPage: React.FC = () => {
+           <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 text-white shadow-xs">
+             <h3 className="text-sm font-bold mb-2">Thao tác nhanh</h3>
+             <div className="space-y-2">
+-              <Link
+-                to="/assignments"
+-                className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 transition text-xs font-medium"
+-              >
+-                <span>{user?.role === 'LECTURER' ? 'Chấm điểm bài nộp sinh viên' : 'Xem danh sách bài tập'}</span>
+-                <ArrowRight className="w-3.5 h-3.5" />
+-              </Link>
+-              <Link
+-                to="/quizzes"
+-                className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 transition text-xs font-medium"
+-              >
+-                <span>{user?.role === 'LECTURER' ? 'Tạo câu hỏi trắc nghiệm' : 'Làm bài kiểm tra'}</span>
+-                <ArrowRight className="w-3.5 h-3.5" />
+-              </Link>
+-              <Link
+-                to="/grades"
+-                className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 transition text-xs font-medium"
+-              >
+-                <span>{user?.role === 'LECTURER' ? 'Sổ điểm lớp học phần' : 'Xem bảng điểm cá nhân'}</span>
+-                <ArrowRight className="w-3.5 h-3.5" />
+-              </Link>
++              {dashboardActions(user?.role).map((action) => (
++                <Link key={action.path} to={action.path} className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 transition text-xs font-medium">
++                  <span>{action.label}</span>
++                  <ArrowRight className="w-3.5 h-3.5" />
++                </Link>
++              ))}
+             </div>
+           </div>
+         </div>
+diff --git a/frontend/src/pages/GradesPage.tsx b/frontend/src/pages/GradesPage.tsx
+index 8bad7a6..c06c827 100644
+--- a/frontend/src/pages/GradesPage.tsx
++++ b/frontend/src/pages/GradesPage.tsx
+@@ -5,6 +5,7 @@ import {
+ } from 'lucide-react';
+ import { useAuth } from '../auth/AuthContext';
+ import { api } from '../api/client';
++import { formatScore } from '../utils/vi';
+ import type { Grade, Course } from '../types';
+ 
+ export const GradesPage: React.FC = () => {
+@@ -73,7 +74,7 @@ export const GradesPage: React.FC = () => {
+       case 'QUIZ':
+         return (
+           <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-100 text-purple-700">
+-            <CheckSquare className="w-3 h-3 mr-1" /> Quiz
++            <CheckSquare className="w-3 h-3 mr-1" /> Bài kiểm tra
+           </span>
+         );
+       default:
+@@ -91,12 +92,12 @@ export const GradesPage: React.FC = () => {
+       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+         <div>
+           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+-            {user?.role === 'STUDENT' ? 'Bảng điểm & Kết quả học tập cá nhân' : 'Sổ điểm Lớp học phần (Gradebook)'}
++            {user?.role === 'STUDENT' ? 'Bảng điểm và kết quả học tập cá nhân' : 'Sổ điểm lớp học phần'}
+           </h1>
+           <p className="text-sm text-slate-500">
+             {user?.role === 'STUDENT'
+               ? 'Theo dõi kết quả đánh giá các cột điểm thành phần và nhận xét từ giảng viên'
+-              : 'Xem tổng hợp điểm số các cột điểm bài tập, quiz và đánh giá quá trình'}
++              : 'Xem tổng hợp điểm số các cột điểm bài tập, bài kiểm tra và đánh giá quá trình'}
+           </p>
+         </div>
+       </div>
+@@ -108,7 +109,7 @@ export const GradesPage: React.FC = () => {
+             <span className="text-xs font-semibold text-slate-400 uppercase">Điểm trung bình tạm tính</span>
+             <div className="flex items-baseline space-x-2 mt-2">
+               <span className="text-3xl font-extrabold text-blue-600">
+-                {calculateStudentAverage().toFixed(2)}
++                {formatScore(grades.length ? calculateStudentAverage() : null, 2)}
+               </span>
+               <span className="text-xs text-slate-400">/ 10</span>
+             </div>
+@@ -123,16 +124,20 @@ export const GradesPage: React.FC = () => {
+           </div>
+ 
+           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+-            <span className="text-xs font-semibold text-slate-400 uppercase">Xếp loại học lực</span>
++            <span className="text-xs font-semibold text-slate-400 uppercase">Tình trạng ghi nhận điểm</span>
+             <div className="flex items-baseline space-x-2 mt-2">
+               <span className="text-xl font-bold text-emerald-600">
+-                {calculateStudentAverage() >= 8.5 ? 'Giỏi (Excellent)' : calculateStudentAverage() >= 7 ? 'Khá (Good)' : 'Đạt'}
++                {grades.length ? 'Đã có điểm thành phần' : 'Chưa có điểm thành phần'}
+               </span>
+             </div>
+           </div>
+         </div>
+       )}
+ 
++      {user?.role === 'STUDENT' && (
++        <p className="text-sm text-slate-600">Điểm trung bình tạm tính từ các điểm đã ghi nhận, chưa áp dụng trọng số học phần. Kết quả này chưa xác định việc đạt học phần.</p>
++      )}
++
+       {/* Course Selector */}
+       <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center space-x-3">
+         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">
+@@ -191,7 +196,7 @@ export const GradesPage: React.FC = () => {
+                       ) : (
+                         <div>
+                           <div className="font-semibold text-slate-800">{g.student_name || 'Sinh viên'}</div>
+-                          <div className="text-xs text-slate-400 font-mono">ID: #{g.student_id}</div>
++                          <div className="text-xs text-slate-400 font-mono">Mã sinh viên: {g.student_id}</div>
+                         </div>
+                       )}
+                     </td>
+diff --git a/frontend/src/pages/LoginPage.tsx b/frontend/src/pages/LoginPage.tsx
+index 15cf2aa..27c57d7 100644
+--- a/frontend/src/pages/LoginPage.tsx
++++ b/frontend/src/pages/LoginPage.tsx
+@@ -24,7 +24,7 @@ export const LoginPage: React.FC = () => {
+       await login(email, password);
+       navigate(from, { replace: true });
+     } catch (err: any) {
+-      setError(err.message || 'Email hoặc mật khẩu không chính xác.');
++      setError(err.message || 'Thư điện tử hoặc mật khẩu không chính xác.');
+     } finally {
+       setLoading(false);
+     }
+@@ -43,8 +43,8 @@ export const LoginPage: React.FC = () => {
+           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto shadow-lg shadow-blue-500/30 mb-4">
+             <GraduationCap className="w-9 h-9" />
+           </div>
+-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">University LMS Portal</h1>
+-          <p className="text-slate-400 text-sm mt-1">Cổng thông tin Đào tạo & Quản lý Học tập</p>
++          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Cổng học tập trực tuyến</h1>
++          <p className="text-slate-400 text-sm mt-1">Dành cho giảng viên, sinh viên và quản trị viên</p>
+         </div>
+ 
+         {/* Login Card */}
+@@ -60,12 +60,13 @@ export const LoginPage: React.FC = () => {
+ 
+           <form onSubmit={handleSubmit} className="space-y-4">
+             <div>
+-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+-                Email hoặc Tên đăng nhập
++              <label htmlFor="login-email" className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
++                Thư điện tử hoặc tên đăng nhập
+               </label>
+               <div className="relative">
+                 <Mail className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                 <input
++                  id="login-email"
+                   type="text"
+                   required
+                   value={email}
+@@ -77,12 +78,13 @@ export const LoginPage: React.FC = () => {
+             </div>
+ 
+             <div>
+-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
++              <label htmlFor="login-password" className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                 Mật khẩu
+               </label>
+               <div className="relative">
+                 <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                 <input
++                  id="login-password"
+                   type="password"
+                   required
+                   value={password}
+@@ -112,7 +114,7 @@ export const LoginPage: React.FC = () => {
+           {/* Quick Demo Switcher */}
+           <div className="mt-8 pt-6 border-t border-slate-100">
+             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-3 text-center">
+-              Tài khoản mẫu báo cáo (Demo Accounts)
++              Tài khoản dùng thử
+             </span>
+             <div className="grid grid-cols-3 gap-2">
+               <button
+@@ -121,7 +123,7 @@ export const LoginPage: React.FC = () => {
+                 className="p-2 rounded-xl border border-purple-200 hover:bg-purple-50 text-left transition flex flex-col items-center text-center"
+               >
+                 <Shield className="w-4 h-4 text-purple-600 mb-1" />
+-                <span className="text-xs font-bold text-purple-900 block">Admin</span>
++                <span className="text-xs font-bold text-purple-900 block">Quản trị viên</span>
+                 <span className="text-[10px] text-purple-500 truncate w-full">Quản trị</span>
+               </button>
+ 
+@@ -131,7 +133,7 @@ export const LoginPage: React.FC = () => {
+                 className="p-2 rounded-xl border border-blue-200 hover:bg-blue-50 text-left transition flex flex-col items-center text-center"
+               >
+                 <BookOpen className="w-4 h-4 text-blue-600 mb-1" />
+-                <span className="text-xs font-bold text-blue-900 block">Lecturer</span>
++                <span className="text-xs font-bold text-blue-900 block">Giảng viên</span>
+                 <span className="text-[10px] text-blue-500 truncate w-full">TS. Nam</span>
+               </button>
+ 
+@@ -141,7 +143,7 @@ export const LoginPage: React.FC = () => {
+                 className="p-2 rounded-xl border border-emerald-200 hover:bg-emerald-50 text-left transition flex flex-col items-center text-center"
+               >
+                 <User className="w-4 h-4 text-emerald-600 mb-1" />
+-                <span className="text-xs font-bold text-emerald-900 block">Student</span>
++                <span className="text-xs font-bold text-emerald-900 block">Sinh viên</span>
+                 <span className="text-[10px] text-emerald-500 truncate w-full">Nguyễn An</span>
+               </button>
+             </div>
+diff --git a/frontend/src/pages/QuizzesPage.tsx b/frontend/src/pages/QuizzesPage.tsx
+index fb79450..848ea03 100644
+--- a/frontend/src/pages/QuizzesPage.tsx
++++ b/frontend/src/pages/QuizzesPage.tsx
+@@ -13,6 +13,7 @@ import {
+ } from 'lucide-react';
+ import { useAuth } from '../auth/AuthContext';
+ import { api } from '../api/client';
++import { statusLabel } from '../utils/vi';
+ import type { Quiz, QuizAttempt, QuizQuestion, Course } from '../types';
+ 
+ type ActiveQuiz = Quiz & {
+@@ -137,7 +138,7 @@ export const QuizzesPage: React.FC = () => {
+       setIsCreateQuizModalOpen(false);
+       resetQuizForm();
+     } catch (err: any) {
+-      alert((editingQuiz ? 'Lỗi cập nhật bài quiz: ' : 'Lỗi tạo bài quiz: ') + err.message);
++      alert((editingQuiz ? 'Lỗi cập nhật bài kiểm tra: ' : 'Lỗi tạo bài kiểm tra: ') + err.message);
+     } finally {
+       setSubmitting(false);
+     }
+@@ -274,7 +275,7 @@ export const QuizzesPage: React.FC = () => {
+       {/* Header */}
+       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+         <div>
+-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Bài kiểm tra Trắc nghiệm (Quiz)</h1>
++          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Bài kiểm tra trắc nghiệm</h1>
+           <p className="text-sm text-slate-500">
+             {user?.role === 'STUDENT'
+               ? 'Làm bài kiểm tra đánh giá kiến thức trực tuyến với cơ chế chấm điểm tự động'
+@@ -289,7 +290,7 @@ export const QuizzesPage: React.FC = () => {
+             className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+           >
+             <Plus className="w-4 h-4" />
+-            <span>Tạo bài Quiz mới</span>
++            <span>Tạo bài kiểm tra mới</span>
+           </button>
+         )}
+       </div>
+@@ -322,7 +323,7 @@ export const QuizzesPage: React.FC = () => {
+         <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center text-slate-400">
+           <CheckSquare className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+           <h3 className="font-semibold text-slate-700">Chưa có bài kiểm tra nào</h3>
+-          <p className="text-sm mt-1">Chưa có bài quiz nào trong khóa học này.</p>
++          <p className="text-sm mt-1">Chưa có bài kiểm tra nào trong khóa học này.</p>
+         </div>
+       ) : (
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+@@ -444,7 +445,7 @@ export const QuizzesPage: React.FC = () => {
+                 <div className="flex-1 overflow-y-auto space-y-6 my-4 pr-1">
+                   {!activeQuiz.questions || activeQuiz.questions.length === 0 ? (
+                     <div className="py-8 text-center text-slate-400 text-sm">
+-                      Chưa có câu hỏi nào trong bài quiz này. Giảng viên vui lòng thêm câu hỏi trước.
++                      Chưa có câu hỏi nào trong bài kiểm tra này. Giảng viên vui lòng thêm câu hỏi trước.
+                     </div>
+                   ) : (
+                     activeQuiz.questions.map((q, idx) => (
+@@ -513,14 +514,14 @@ export const QuizzesPage: React.FC = () => {
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95">
+             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+-              <h3 className="font-bold text-slate-800">{editingQuiz ? 'Cập nhật bài Quiz' : 'Tạo bài Quiz mới'}</h3>
++              <h3 className="font-bold text-slate-800">{editingQuiz ? 'Cập nhật bài kiểm tra' : 'Tạo bài kiểm tra mới'}</h3>
+               <button onClick={() => { setIsCreateQuizModalOpen(false); resetQuizForm(); }}>
+                 <X className="w-5 h-5 text-slate-400" />
+               </button>
+             </div>
+             <form onSubmit={handleSaveQuiz} className="space-y-4 mt-4">
+               <div>
+-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tiêu đề bài Quiz</label>
++                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tiêu đề bài kiểm tra</label>
+                 <input
+                   type="text"
+                   required
+@@ -579,7 +580,7 @@ export const QuizzesPage: React.FC = () => {
+                   disabled={submitting}
+                   className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
+                 >
+-                  {editingQuiz ? 'Lưu thay đổi' : 'Lưu bài Quiz'}
++                  {editingQuiz ? 'Lưu thay đổi' : 'Lưu bài kiểm tra'}
+                 </button>
+               </div>
+             </form>
+@@ -607,7 +608,7 @@ export const QuizzesPage: React.FC = () => {
+                   value={questionText}
+                   onChange={(e) => setQuestionText(e.target.value)}
+                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+-                  placeholder="Kiến trúc Monolith có ưu điểm cốt lõi nào?"
++                  placeholder="Nội dung câu hỏi trắc nghiệm"
+                 />
+               </div>
+ 
+@@ -692,7 +693,7 @@ export const QuizzesPage: React.FC = () => {
+               {quizAttempts.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">Chưa có lượt làm bài.</p> : quizAttempts.map((attempt) => (
+                 <div key={attempt.id} className="py-3 flex items-center justify-between gap-3">
+                   <div><p className="font-semibold text-sm text-slate-800">{attempt.student_name || 'Sinh viên'}{attempt.student_code ? ` (${attempt.student_code})` : ''}</p><p className="text-xs text-slate-500">Bắt đầu: {new Date(attempt.started_at).toLocaleString('vi-VN')}</p></div>
+-                  <div className="text-right"><p className="text-sm font-bold text-slate-800">{attempt.score ?? '—'} điểm</p><p className="text-xs text-slate-500">{attempt.status || '—'}{attempt.submitted_at ? ` · ${new Date(attempt.submitted_at).toLocaleString('vi-VN')}` : ''}</p></div>
++                  <div className="text-right"><p className="text-sm font-bold text-slate-800">{attempt.score ?? '—'} điểm</p><p className="text-xs text-slate-500">{statusLabel(attempt.status)}{attempt.submitted_at ? ` · ${new Date(attempt.submitted_at).toLocaleString('vi-VN')}` : ''}</p></div>
+                 </div>
+               ))}
+             </div>
