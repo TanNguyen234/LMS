@@ -12,6 +12,9 @@ export interface User {
   is_active: boolean;
   studentCode?: string | null;
   staffCode?: string | null;
+  cohort?: string | null;
+  major?: string | null;
+  className?: string | null;
   createdAt: string;
   created_at: string;
   updatedAt?: string;
@@ -33,6 +36,8 @@ export interface Course {
   code: string;
   title: string;
   description?: string;
+  attachmentUrl?: string;
+  attachment_url?: string;
   credits: number;
   status: CourseStatus;
   lecturerId: string;
@@ -43,6 +48,8 @@ export interface Course {
   lecturer_email?: string;
   semester?: string;
   academicYear?: string;
+  sectionCode?: string | null;
+  section_code?: string | null;
   createdAt: string;
   created_at: string;
   updatedAt?: string;
@@ -102,6 +109,8 @@ export interface Module {
   course_id: string | number;
   title: string;
   description?: string;
+  attachmentUrl?: string;
+  attachment_url?: string;
   sortOrder: number;
   order_index?: number;
   isPublished?: boolean;
@@ -121,6 +130,8 @@ export interface Assignment {
   course_code?: string;
   title: string;
   description?: string;
+  attachmentUrl?: string;
+  attachment_url?: string;
   dueAt: string;
   due_date: string;
   maxScore: number;
@@ -147,11 +158,14 @@ export interface Submission {
   contentText?: string;
   submission_text?: string;
   fileUrl?: string;
+  file_url?: string;
   attachment_url?: string;
   status?: string;
   submittedAt: string;
   submitted_at: string;
   updatedAt?: string;
+  score?: number | null;
+  feedback?: string | null;
   grade?: Grade;
 }
 
@@ -187,6 +201,8 @@ export interface Quiz {
   course_code?: string;
   title: string;
   description?: string;
+  attachmentUrl?: string;
+  attachment_url?: string;
   timeLimitMinutes: number;
   duration_minutes: number;
   maxScore?: number;
@@ -219,6 +235,7 @@ export interface QuizAttempt {
   submitted_at?: string;
   status?: string;
   student_name?: string;
+  studentName?: string;
   student_code?: string | null;
 }
 
@@ -289,4 +306,50 @@ export interface DashboardStats {
   quizzes_count?: number;
   gpa?: number;
   recent_notifications: Notification[];
+}
+
+export interface BulkImportResult {
+  success: boolean;
+  totalProcessed: number;
+  createdCount: number;
+  updatedCount: number;
+  errorCount: number;
+  errors: string[];
+}
+
+export interface BulkEnrollResult {
+  success: boolean;
+  className?: string;
+  totalStudentsInClass?: number;
+  totalRequested?: number;
+  newlyEnrolled: number;
+  reactivated: number;
+  message: string;
+}
+
+export interface BatchGenerateUsersPayload {
+  codePrefix: string;
+  startNumber: number;
+  endNumber: number;
+  padLength?: number;
+  emailDomain?: string;
+  namePrefix?: string;
+  className?: string;
+  cohort?: string;
+  major?: string;
+  defaultPassword?: string;
+}
+
+export interface BatchGenerateUsersResult {
+  success: boolean;
+  createdCount: number;
+  skippedCount: number;
+  message: string;
+}
+
+export interface BatchUserActionsResult {
+  success: boolean;
+  action: string;
+  affectedCount: number;
+  message: string;
 }

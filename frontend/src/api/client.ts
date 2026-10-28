@@ -14,6 +14,11 @@ import type {
   Grade,
   Notification,
   DashboardStats,
+  BulkImportResult,
+  BulkEnrollResult,
+  BatchGenerateUsersPayload,
+  BatchGenerateUsersResult,
+  BatchUserActionsResult,
 } from '../types';
 
 import { apiErrorMessageVi } from '../utils/vi';
@@ -206,12 +211,18 @@ export const api = {
     fullName?: string;
     role: string;
     password?: string;
+    cohort?: string;
+    major?: string;
+    className?: string;
   }): Promise<User> {
     const payload = {
       email: userData.email,
       fullName: userData.fullName || userData.full_name || userData.username || 'User',
       role: userData.role.toUpperCase(),
       password: userData.password || 'Demo@123',
+      cohort: userData.cohort,
+      major: userData.major,
+      className: userData.className,
     };
     const res = await request<any>('/users', {
       method: 'POST',
@@ -234,7 +245,15 @@ export const api = {
     });
   },
 
-  async updateUser(userId: string | number, data: { email: string; fullName: string }): Promise<User> {
+  async updateUser(userId: string | number, data: {
+    email?: string;
+    fullName?: string;
+    role?: string;
+    cohort?: string;
+    major?: string;
+    className?: string;
+    password?: string;
+  }): Promise<User> {
     const res = await request<any>(`/users/${userId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -373,6 +392,29 @@ export const api = {
     });
   },
 
+  async bulkEnrollByClass(courseId: string | number, className: string): Promise<BulkEnrollResult> {
+    return request<BulkEnrollResult>(`/courses/${courseId}/bulk-enroll-class`, {
+      method: 'POST',
+      body: JSON.stringify({ className }),
+    });
+  },
+
+  async bulkEnrollStudents(courseId: string | number, studentIds: (string | number)[]): Promise<BulkEnrollResult> {
+    return request<BulkEnrollResult>(`/courses/${courseId}/bulk-enroll-students`, {
+      method: 'POST',
+      body: JSON.stringify({ studentIds: studentIds.map(String) }),
+    });
+  },
+
+  async bulkImportCoursesCsv(file: File): Promise<BulkImportResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<BulkImportResult>('/courses/bulk-import-csv', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
   // Content (Modules & Lessons)
   async getCourseModules(courseId: string | number): Promise<Module[]> {
     const res = await request<any[]>(`/courses/${courseId}/modules`);
@@ -434,6 +476,12 @@ export const api = {
       order_index: res.sortOrder,
       lessons: res.lessons || [],
     };
+  },
+
+  async generateStandardSyllabus(courseId: string | number): Promise<{ success: boolean; createdCount: number; message: string }> {
+    return request<{ success: boolean; createdCount: number; message: string }>(`/courses/${courseId}/generate-standard-syllabus`, {
+      method: 'POST',
+    });
   },
 
   async createLesson(moduleId: string | number, data: {
@@ -608,10 +656,19 @@ export const api = {
     };
   },
 
-  async submitAssignment(assignmentId: string | number, textContent: string): Promise<Submission> {
-    const payload = {
-      contentText: textContent,
-    };
+  async uploadFile(file: File): Promise<{ fileUrl: string; fileName: string; fileSize: number }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<{ fileUrl: string; fileName: string; fileSize: number }>('/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  async submitAssignment(assignmentId: string | number, textContent?: string, fileUrl?: string): Promise<Submission> {
+    const payload: { contentText?: string; fileUrl?: string } = {};
+    if (textContent && textContent.trim()) payload.contentText = textContent.trim();
+    if (fileUrl && fileUrl.trim()) payload.fileUrl = fileUrl.trim();
     const res = await request<any>(`/assignments/${assignmentId}/submission`, {
       method: 'PUT',
       body: JSON.stringify(payload),
@@ -623,6 +680,7 @@ export const api = {
       student_id: res.studentId,
       submission_text: res.contentText,
       attachment_url: res.fileUrl,
+      file_url: res.fileUrl,
       submitted_at: res.submittedAt,
     };
   },
@@ -947,5 +1005,35 @@ export const api = {
         recent_notifications: notifs.slice(0, 5),
       };
     }
+  },
+
+  async bulkImportUsersCsv(file: File): Promise<{
+    success: boolean;
+    totalProcessed: number;
+    createdCount: number;
+    updatedCount: number;
+    errorCount: number;
+    errors: string[];
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<any>('/users/bulk-import-csv', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  async generateBatchUsers(payload: BatchGenerateUsersPayload): Promise<BatchGenerateUsersResult> {
+    return request<BatchGenerateUsersResult>('/users/generate-batch', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async batchUserActions(userIds: (string | number)[], action: 'ACTIVATE' | 'DEACTIVATE' | 'RESET_PASSWORD', newPassword?: string): Promise<BatchUserActionsResult> {
+    return request<BatchUserActionsResult>('/users/batch-actions', {
+      method: 'POST',
+      body: JSON.stringify({ userIds: userIds.map(String), action, newPassword }),
+    });
   },
 };

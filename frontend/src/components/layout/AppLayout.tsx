@@ -12,6 +12,8 @@ import {
   LogOut,
   Menu,
   X,
+  Home,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { api } from '../../api/client';
@@ -24,13 +26,14 @@ export const AppLayout: React.FC = () => {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [dropdownUnreadOnly, setDropdownUnreadOnly] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchNotifications = async () => {
     try {
       const data = await api.getNotifications();
-      setNotifications(data.slice(0, 5));
+      setNotifications(data.slice(0, 8));
       setUnreadCount(data.filter((n) => !n.is_read).length);
     } catch {
       // Ignored for layout polling
@@ -44,6 +47,18 @@ export const AppLayout: React.FC = () => {
       return () => clearInterval(interval);
     }
   }, [user]);
+
+  // Close modals on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSidebarOpen(false);
+        setNotificationsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleMarkAllRead = async () => {
     try {
@@ -80,6 +95,40 @@ export const AppLayout: React.FC = () => {
     }
   };
 
+  // Helper for dynamic breadcrumbs
+  const getBreadcrumbs = () => {
+    const p = location.pathname;
+    if (p.startsWith('/courses/')) {
+      return [
+        { label: 'Khóa học', path: '/courses' },
+        { label: 'Chi tiết & Nội dung bài học', path: p },
+      ];
+    }
+    if (p.startsWith('/courses')) {
+      return [{ label: 'Danh mục Khóa học', path: '/courses' }];
+    }
+    if (p.startsWith('/users')) {
+      return [{ label: 'Quản lý Người dùng & Lớp học', path: '/users' }];
+    }
+    if (p.startsWith('/assignments')) {
+      return [{ label: 'Nộp bài & Chấm điểm', path: '/assignments' }];
+    }
+    if (p.startsWith('/quizzes')) {
+      return [{ label: 'Bài thi & Trắc nghiệm', path: '/quizzes' }];
+    }
+    if (p.startsWith('/grades')) {
+      return [{ label: 'Bảng điểm & Xếp loại', path: '/grades' }];
+    }
+    if (p.startsWith('/notifications')) {
+      return [{ label: 'Hộp thư Thông báo', path: '/notifications' }];
+    }
+    return [{ label: 'Bảng điều khiển', path: '/dashboard' }];
+  };
+
+  const displayedNotifications = dropdownUnreadOnly
+    ? notifications.filter((n) => !n.is_read)
+    : notifications;
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Top Header */}
@@ -88,14 +137,14 @@ export const AppLayout: React.FC = () => {
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="md:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100"
-              title={sidebarOpen ? "Đóng điều hướng" : "Mở điều hướng"}
-              aria-label={sidebarOpen ? "Đóng điều hướng" : "Mở điều hướng"}
+              className="md:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition"
+              title={sidebarOpen ? 'Đóng điều hướng' : 'Mở điều hướng'}
+              aria-label={sidebarOpen ? 'Đóng điều hướng' : 'Mở điều hướng'}
               aria-expanded={sidebarOpen}
             >
               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <Link to="/dashboard" className="flex items-center space-x-2">
+            <Link to="/dashboard" className="flex items-center space-x-2.5">
               <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
                 <GraduationCap className="w-6 h-6" />
               </div>
@@ -124,55 +173,77 @@ export const AppLayout: React.FC = () => {
               </button>
 
               {notificationsOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2">
-                  <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
-                    <span className="font-semibold text-sm text-slate-800">Thông báo mới</span>
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={handleMarkAllRead}
-                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                      >
-                        Đánh dấu đã đọc
-                      </button>
-                    )}
-                  </div>
-                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
-                    {notifications.length === 0 ? (
-                      <div className="p-4 text-center text-sm text-slate-400">Không có thông báo nào</div>
-                    ) : (
-                      notifications.map((n) => (
-                        <div
-                          key={n.id}
-                          className={`p-3 hover:bg-slate-50 transition cursor-pointer ${
-                            !n.is_read ? 'bg-blue-50/40' : ''
-                          }`}
-                          onClick={() => {
-                            setNotificationsOpen(false);
-                            navigate('/notifications');
-                          }}
-                        >
-                          <div className="flex items-start justify-between">
-                            <span className="text-sm font-medium text-slate-800 line-clamp-1">{n.title}</span>
-                            {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-600 ml-2 mt-1.5 shrink-0" />}
-                          </div>
-                          <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">{n.message}</p>
-                          <span className="text-[10px] text-slate-400 mt-1 block">
-                            {new Date(n.created_at).toLocaleDateString('vi-VN')}
-                          </span>
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setNotificationsOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2">
+                    <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold text-sm text-slate-800">Thông báo</span>
+                        <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-[11px] font-medium">
+                          <button
+                            onClick={() => setDropdownUnreadOnly(false)}
+                            className={`px-2 py-0.5 rounded-md transition ${!dropdownUnreadOnly ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'}`}
+                          >
+                            Tất cả
+                          </button>
+                          <button
+                            onClick={() => setDropdownUnreadOnly(true)}
+                            className={`px-2 py-0.5 rounded-md transition ${dropdownUnreadOnly ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500'}`}
+                          >
+                            Chưa đọc ({unreadCount})
+                          </button>
                         </div>
-                      ))
-                    )}
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={handleMarkAllRead}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          Đọc hết
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                      {displayedNotifications.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-slate-400">Không có thông báo nào</div>
+                      ) : (
+                        displayedNotifications.map((n) => (
+                          <div
+                            key={n.id}
+                            className={`p-3 hover:bg-slate-50 transition cursor-pointer ${
+                              !n.is_read ? 'bg-blue-50/40' : ''
+                            }`}
+                            onClick={() => {
+                              setNotificationsOpen(false);
+                              navigate('/notifications');
+                            }}
+                          >
+                            <div className="flex items-start justify-between">
+                              <span className="text-sm font-medium text-slate-800 line-clamp-1">{n.title}</span>
+                              {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-600 ml-2 mt-1.5 shrink-0" />}
+                            </div>
+                            <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">{n.message}</p>
+                            <span className="text-[10px] text-slate-400 mt-1 block">
+                              {new Date(n.created_at).toLocaleDateString('vi-VN')}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="border-t border-slate-100 p-2 text-center">
+                      <Link
+                        to="/notifications"
+                        onClick={() => setNotificationsOpen(false)}
+                        className="text-xs text-blue-600 hover:underline font-medium"
+                      >
+                        Xem tất cả thông báo
+                      </Link>
+                    </div>
                   </div>
-                  <div className="border-t border-slate-100 p-2 text-center">
-                    <Link
-                      to="/notifications"
-                      onClick={() => setNotificationsOpen(false)}
-                      className="text-xs text-blue-600 hover:underline font-medium"
-                    >
-                      Xem tất cả thông báo
-                    </Link>
-                  </div>
-                </div>
+                </>
               )}
             </div>
 
@@ -267,6 +338,26 @@ export const AppLayout: React.FC = () => {
 
         {/* Content Area */}
         <main className="flex-1 min-w-0">
+          {/* Dynamic Breadcrumbs */}
+          <nav className="flex items-center space-x-2 text-xs text-slate-400 mb-4 font-medium" aria-label="Breadcrumb">
+            <Link to="/dashboard" className="hover:text-blue-600 transition flex items-center gap-1">
+              <Home className="w-3.5 h-3.5" />
+              <span>Trang chủ</span>
+            </Link>
+            {getBreadcrumbs().map((crumb, idx) => (
+              <React.Fragment key={idx}>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                {idx === getBreadcrumbs().length - 1 ? (
+                  <span className="text-slate-700 font-semibold">{crumb.label}</span>
+                ) : (
+                  <Link to={crumb.path} className="hover:text-blue-600 transition">
+                    {crumb.label}
+                  </Link>
+                )}
+              </React.Fragment>
+            ))}
+          </nav>
+
           <Outlet />
         </main>
       </div>
