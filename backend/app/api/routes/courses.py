@@ -1,6 +1,6 @@
 import uuid
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
 from sqlalchemy.orm import Session
 from backend.app.db.session import get_db
 from backend.app.models.models import Course, User, Enrollment
@@ -306,3 +306,212 @@ def remove_enrollment(
     enrollment.Status = "DROPPED"
     db.commit()
     return MessageResponse(message="Enrollment status updated to DROPPED")
+
+from pydantic import BaseModel
+
+class BulkEnrollClassRequest(BaseModel):
+    className: str
+
+@router.post("/{course_id}/bulk-enroll-class")
+def bulk_enroll_class(
+    course_id: uuid.UUID,
+    req: BulkEnrollClassRequest,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Enroll all active students belonging to a class into the course (Admin only)."""
+    course = get_course_or_404(course_id, db)
+    class_name = req.className.strip()
+    if not class_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ClassName is required")
+
+    students = db.query(User).filter(
+        User.Role == "STUDENT",
+        User.ClassName == class_name,
+        User.IsActive == True
+    ).all()
+
+    if not students:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No active students found in class '{class_name}'")
+
+    enrolled_count = 0
+    reactivated_count = 0
+
+    for s in students:
+        existing = db.query(Enrollment).filter(
+            Enrollment.CourseId == course_id,
+            Enrollment.StudentId == s.UserId
+        ).first()
+
+        if existing:
+            if existing.Status != "ACTIVE":
+                existing.Status = "ACTIVE"
+                reactivated_count += 1
+        else:
+            new_enroll = Enrollment(
+                EnrollmentId=uuid.uuid4(),
+                CourseId=course_id,
+                StudentId=s.UserId,
+                Status="ACTIVE"
+            )
+            db.add(new_enroll)
+            enrolled_count += 1
+
+    db.commit()
+    return {
+        "success": True,
+        "className": class_name,
+        "totalStudentsInClass": len(students),
+        "newlyEnrolled": enrolled_count,
+        "reactivated": reactivated_count,
+        "message": f"Đã ghi danh thành công {enrolled_count + reactivated_count} sinh viên của lớp {class_name} vào khóa học!"
+    }
+
+
+class BulkEnrollStudentIdsRequest(BaseModel):
+    studentIds: List[uuid.UUID]
+
+
+@router.post("/{course_id}/bulk-enroll-students")
+def bulk_enroll_students(
+    course_id: uuid.UUID,
+    req: BulkEnrollStudentIdsRequest,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Enroll a list of student IDs into the course (Admin only)."""
+    course = get_course_or_404(course_id, db)
+    if not req.studentIds:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="studentIds list cannot be empty")
+
+    enrolled_count = 0
+    reactivated_count = 0
+
+    for s_id in req.studentIds:
+        student = db.query(User).filter(User.UserId == s_id, User.Role == "STUDENT").first()
+        if not student:
+            continue
+
+        existing = db.query(Enrollment).filter(
+            Enrollment.CourseId == course_id,
+            Enrollment.StudentId == s_id
+        ).first()
+
+        if existing:
+            if existing.Status != "ACTIVE":
+                existing.Status = "ACTIVE"
+                reactivated_count += 1
+        else:
+            new_enroll = Enrollment(
+                EnrollmentId=uuid.uuid4(),
+                CourseId=course_id,
+                StudentId=s_id,
+                Status="ACTIVE"
+            )
+            db.add(new_enroll)
+            enrolled_count += 1
+
+    db.commit()
+    return {
+        "success": True,
+        "totalRequested": len(req.studentIds),
+        "newlyEnrolled": enrolled_count,
+        "reactivated": reactivated_count,
+        "message": f"Đã ghi danh thành công {enrolled_count + reactivated_count} sinh viên vào khóa học!"
+    }
+
+
+@router.post("/bulk-import-csv")
+async def bulk_import_courses_csv(
+    file: UploadFile = File(...),
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Bulk import courses from CSV/Excel export (Admin only).
+    Columns supported: CourseCode, Title, Description, Credits, LecturerEmail, Semester, AcademicYear
+    """
+    import csv
+    import io
+    content = await file.read()
+    try:
+        text_content = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text_content = content.decode("cp1252", errors="ignore")
+
+    reader = csv.DictReader(io.StringIO(text_content))
+    total = 0
+    created = 0
+    updated = 0
+    errors = []
+
+    for idx, row in enumerate(reader, start=2):
+        total += 1
+        norm_row = {k.strip().lower(): v.strip() for k, v in row.items() if k}
+
+        code = norm_row.get("coursecode") or norm_row.get("course_code") or norm_row.get("mã môn") or norm_row.get("ma mon")
+        if not code:
+            errors.append(f"Dòng {idx}: Thiếu Mã khóa học (CourseCode)")
+            continue
+        code = code.upper()
+
+        title = norm_row.get("title") or norm_row.get("tên môn") or norm_row.get("ten mon") or norm_row.get("tên học phần")
+        if not title:
+            errors.append(f"Dòng {idx}: Thiếu Tên khóa học (Title)")
+            continue
+
+        desc = norm_row.get("description") or norm_row.get("mô tả") or norm_row.get("mo ta") or ""
+        credits_raw = norm_row.get("credits") or norm_row.get("số tín chỉ") or norm_row.get("so tin chi") or "3"
+        try:
+            credits = int(float(credits_raw))
+        except ValueError:
+            credits = 3
+
+        semester = norm_row.get("semester") or norm_row.get("học kỳ") or norm_row.get("hoc ky") or "HK1"
+        academic_year = norm_row.get("academicyear") or norm_row.get("academic_year") or norm_row.get("năm học") or norm_row.get("nam hoc") or "2026-2027"
+
+        lecturer_email = norm_row.get("lectureremail") or norm_row.get("lecturer_email") or norm_row.get("email giảng viên") or norm_row.get("email giang vien")
+        lecturer = None
+        if lecturer_email:
+            lecturer = db.query(User).filter(User.Email == lecturer_email.lower(), User.Role == "LECTURER").first()
+
+        if not lecturer:
+            lecturer = db.query(User).filter(User.Role == "LECTURER", User.IsActive == True).first()
+
+        if not lecturer:
+            errors.append(f"Dòng {idx} ({code}): Không tìm thấy giảng viên phụ trách hợp lệ")
+            continue
+
+        existing = db.query(Course).filter(Course.CourseCode == code).first()
+        if existing:
+            existing.Title = title
+            existing.Description = desc
+            existing.Credits = credits
+            existing.LecturerId = lecturer.UserId
+            existing.Semester = semester
+            existing.AcademicYear = academic_year
+            updated += 1
+        else:
+            new_course = Course(
+                CourseId=uuid.uuid4(),
+                CourseCode=code,
+                Title=title,
+                Description=desc,
+                Credits=credits,
+                LecturerId=lecturer.UserId,
+                Semester=semester,
+                AcademicYear=academic_year,
+                Status="ACTIVE"
+            )
+            db.add(new_course)
+            created += 1
+
+    db.commit()
+    return {
+        "success": True,
+        "totalProcessed": total,
+        "createdCount": created,
+        "updatedCount": updated,
+        "errorCount": len(errors),
+        "errors": errors[:10]
+    }

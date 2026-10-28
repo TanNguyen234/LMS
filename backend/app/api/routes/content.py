@@ -298,3 +298,59 @@ def toggle_lesson_publish(
     db.commit()
     status_str = "published" if pub_in.isPublished else "unpublished"
     return MessageResponse(message=f"Lesson '{lesson.Title}' successfully {status_str}")
+
+
+@router.post("/courses/{course_id}/generate-standard-syllabus")
+def generate_standard_syllabus(
+    course_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Generate standard 15-week university syllabus structure (Lecturer or Admin)."""
+    course = get_course_or_404(course_id, db)
+    if current_user.Role == "LECTURER" and course.LecturerId != current_user.UserId:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    if current_user.Role == "STUDENT":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    standard_weeks = [
+        ("Tuần 1: Nhập môn & Giới thiệu đề cương học phần", "Tổng quan mục tiêu, phương pháp học tập và tiêu chí đánh giá."),
+        ("Tuần 2: Kiến thức nền tảng & Tổng quan kiến trúc", "Các khái niệm lý thuyết cốt lõi và thuật ngữ chuyên môn."),
+        ("Tuần 3: Phương pháp & Mô hình lý thuyết", "Phân tích nguyên lý và mô hình vận hành tiêu chuẩn."),
+        ("Tuần 4: Thực hành chuyên đề 1", "Bài tập thực hành củng cố lý thuyết các tuần trước."),
+        ("Tuần 5: Kỹ thuật phân tích & Thiết kế hệ thống", "Phương pháp tiếp cận bài toán thực tế và xây dựng sơ đồ thiết kế."),
+        ("Tuần 6: Thực hành chuyên đề 2", "Áp dụng kỹ thuật phân tích vào bài tập tình huống."),
+        ("Tuần 7: Chuyên đề nâng cao phần 1", "Các khái niệm nâng cao và tối ưu hóa giải pháp."),
+        ("Tuần 8: Ôn tập & Kiểm tra đánh giá giữa kỳ", "Đánh giá quá trình và giải đáp thắc mắc nửa đầu học phần."),
+        ("Tuần 9: Chuyên đề nâng cao phần 2", "Mở rộng nghiên cứu sâu các vấn đề thực tiễn."),
+        ("Tuần 10: Thực hành chuyên đề 3", "Bài tập lớn và bài thực hành nâng cao theo nhóm."),
+        ("Tuần 11: Ứng dụng thực tế & Nghiên cứu tình huống", "Case study thực tế từ doanh nghiệp và các dự án điển hình."),
+        ("Tuần 12: Đồ án môn học & Làm việc nhóm", "Phân công và triển khai đồ án học phần."),
+        ("Tuần 13: Báo cáo tiến độ đồ án & Giải đáp thắc mắc", "Giảng viên phản hồi và hướng dẫn sửa đổi đồ án."),
+        ("Tuần 14: Hoàn thiện sản phẩm & Kiểm thử", "Kiểm thử sản phẩm và chuẩn bị tài liệu báo cáo."),
+        ("Tuần 15: Ôn tập tổng kết & Chuẩn bị thi kết thúc học phần", "Hệ thống hóa toàn bộ kiến thức và hướng dẫn ôn tập thi.")
+    ]
+
+    existing_count = db.query(Module).filter(Module.CourseId == course_id).count()
+    start_order = existing_count + 1
+
+    created_modules = []
+    for idx, (title, desc) in enumerate(standard_weeks):
+        m = Module(
+            ModuleId=uuid.uuid4(),
+            CourseId=course_id,
+            Title=title,
+            SortOrder=start_order + idx,
+            Description=desc,
+            IsPublished=True
+        )
+        db.add(m)
+        created_modules.append(m)
+
+    db.commit()
+    return {
+        "success": True,
+        "createdCount": len(created_modules),
+        "message": f"Đã khởi tạo thành công 15 tuần học chuẩn cho khóa học '{course.CourseCode}'!"
+    }
+
