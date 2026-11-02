@@ -462,6 +462,8 @@ class QuizStudentResponse(QuizBase):
     createdAt: datetime
     maxScore: float = 0.0
     questions: List[QuizQuestionStudentResponse] = []
+    myAttemptsCount: int = 0
+    myHighestScore: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -529,6 +531,29 @@ class GradeResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class StudentGradeMatrix(BaseModel):
+    studentId: uuid.UUID
+    studentName: str
+    studentCode: Optional[str] = None
+    email: str
+    quizScore: Optional[float] = None
+    assignmentScore: Optional[float] = None
+    examScore: Optional[float] = None
+    weightedTotal: float
+    gpa4: float
+    letterGrade: str
+    status: str
+    finalScoreRecorded: Optional[float] = None
+
+
+class GradeMatrixResponse(BaseModel):
+    courseId: uuid.UUID
+    courseCode: str
+    courseTitle: str
+    weights: dict
+    students: List[StudentGradeMatrix]
 
 
 class NotificationResponse(BaseModel):

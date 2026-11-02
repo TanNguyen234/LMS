@@ -190,6 +190,18 @@ def get_course_quizzes(
         max_scores = {quiz_id: float(score or 0) for quiz_id, score in rows}
 
     if current_user.Role == "STUDENT":
+        attempts_map = {}
+        if quizzes:
+            att_rows = db.query(
+                QuizAttempt.QuizId,
+                func.count(QuizAttempt.AttemptId),
+                func.max(QuizAttempt.Score)
+            ).filter(
+                QuizAttempt.QuizId.in_([q.QuizId for q in quizzes]),
+                QuizAttempt.StudentId == current_user.UserId,
+            ).group_by(QuizAttempt.QuizId).all()
+            attempts_map = {row[0]: (int(row[1] or 0), float(row[2]) if row[2] is not None else None) for row in att_rows}
+
         return [
             QuizStudentResponse(
                 quizId=q.QuizId,
@@ -204,7 +216,9 @@ def get_course_quizzes(
                 maxScore=max_scores.get(q.QuizId, 0.0),
                 isPublished=q.IsPublished,
                 createdAt=q.CreatedAt,
-                questions=[]  # list summary
+                questions=[],  # list summary
+                myAttemptsCount=attempts_map.get(q.QuizId, (0, None))[0],
+                myHighestScore=attempts_map.get(q.QuizId, (0, None))[1],
             )
             for q in quizzes
         ]
