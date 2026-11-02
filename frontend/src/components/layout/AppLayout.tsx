@@ -14,6 +14,7 @@ import {
   X,
   Home,
   ChevronRight,
+  Calendar,
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { api } from '../../api/client';
@@ -74,9 +75,28 @@ export const AppLayout: React.FC = () => {
     { label: 'Tổng quan', path: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
     { label: 'Người dùng', path: '/users', icon: Users, roles: ['ADMIN'] },
     { label: 'Khóa học', path: '/courses', icon: BookOpen, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
-    { label: 'Bài tập', path: '/assignments', icon: FileText, roles: ['LECTURER', 'STUDENT'] },
-    { label: 'Bài kiểm tra', path: '/quizzes', icon: CheckSquare, roles: ['LECTURER', 'STUDENT'] },
-    { label: 'Bảng điểm', path: '/grades', icon: Award, roles: ['STUDENT', 'LECTURER'] },
+    {
+      label: 'Bài tập',
+      path: '/assignments',
+      icon: FileText,
+      roles: ['ADMIN', 'LECTURER', 'STUDENT'],
+      badge: user?.role === 'ADMIN' ? 'Giám sát' : undefined,
+    },
+    {
+      label: 'Bài kiểm tra',
+      path: '/quizzes',
+      icon: CheckSquare,
+      roles: ['ADMIN', 'LECTURER', 'STUDENT'],
+      badge: user?.role === 'ADMIN' ? 'Giám sát' : undefined,
+    },
+    {
+      label: 'Bảng điểm',
+      path: '/grades',
+      icon: Award,
+      roles: ['ADMIN', 'LECTURER', 'STUDENT'],
+      badge: user?.role === 'ADMIN' ? 'Toàn trường' : undefined,
+    },
+    { label: 'Lịch & Hạn chót', path: '/calendar', icon: Calendar, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
     { label: 'Thông báo', path: '/notifications', icon: Bell, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
   ];
 
@@ -118,6 +138,9 @@ export const AppLayout: React.FC = () => {
     }
     if (p.startsWith('/grades')) {
       return [{ label: 'Bảng điểm & Xếp loại', path: '/grades' }];
+    }
+    if (p.startsWith('/calendar')) {
+      return [{ label: 'Lịch học & Hạn nộp', path: '/calendar' }];
     }
     if (p.startsWith('/notifications')) {
       return [{ label: 'Hộp thư Thông báo', path: '/notifications' }];
@@ -279,14 +302,27 @@ export const AppLayout: React.FC = () => {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition ${
                     isActive
                       ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
                       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                  <span>{item.label}</span>
+                  <div className="flex items-center space-x-3">
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                    <span>{item.label}</span>
+                  </div>
+                  {item.badge && (
+                    <span
+                      className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-md tracking-wider ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : 'bg-purple-100 text-purple-700'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -313,12 +349,23 @@ export const AppLayout: React.FC = () => {
                       key={item.path}
                       to={item.path}
                       onClick={() => setSidebarOpen(false)}
-                      className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition ${
                         isActive ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'
                       }`}
                     >
-                      <Icon className="w-5 h-5" />
-                      <span>{item.label}</span>
+                      <div className="flex items-center space-x-3">
+                        <Icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                      </div>
+                      {item.badge && (
+                        <span
+                          className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-md tracking-wider ${
+                            isActive ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

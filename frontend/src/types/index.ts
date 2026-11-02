@@ -218,6 +218,8 @@ export interface Quiz {
   questions?: QuizQuestion[];
   questions_count?: number;
   my_attempt?: QuizAttempt;
+  myAttemptsCount?: number;
+  myHighestScore?: number | null;
 }
 
 export interface QuizAttempt {

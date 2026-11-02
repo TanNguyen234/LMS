@@ -19,14 +19,19 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { useToast } from '../components/common/Toast';
+import { useDebounce } from '../utils/useDebounce';
+import { CardSkeleton } from '../components/common/Skeleton';
 import type { Course, User, BulkImportResult } from '../types';
 
 export const CoursesPage: React.FC = () => {
   const { user } = useAuth();
+  const toast = useToast();
   const [courses, setCourses] = useState<Course[]>([]);
   const [lecturers, setLecturers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
@@ -104,7 +109,7 @@ export const CoursesPage: React.FC = () => {
       setIsModalOpen(false);
       resetCourseForm();
     } catch (err: any) {
-      alert((editingCourse ? 'Lỗi cập nhật khóa học: ' : 'Lỗi tạo khóa học: ') + err.message);
+      toast.error((editingCourse ? 'Lỗi cập nhật khóa học: ' : 'Lỗi tạo khóa học: ') + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -116,14 +121,14 @@ export const CoursesPage: React.FC = () => {
       await api.updateCourse(course.id, { status });
       await fetchCourses();
     } catch (err: any) {
-      alert('Lỗi cập nhật trạng thái khóa học: ' + err.message);
+      toast.error('Lỗi cập nhật trạng thái khóa học: ' + err.message);
     }
   };
 
   const handleBulkImportCourses = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bulkFile) {
-      alert('Vui lòng chọn tệp CSV danh sách khóa học.');
+      toast.warning('Vui lòng chọn tệp CSV danh sách khóa học.');
       return;
     }
     setBulkSubmitting(true);
@@ -133,7 +138,7 @@ export const CoursesPage: React.FC = () => {
       setBulkResult(result);
       await fetchCourses();
     } catch (err: any) {
-      alert('Lỗi nhập danh sách khóa học: ' + err.message);
+      toast.error('Lỗi nhập danh sách khóa học: ' + err.message);
     } finally {
       setBulkSubmitting(false);
     }
@@ -141,7 +146,7 @@ export const CoursesPage: React.FC = () => {
 
   const handleExportCoursesCsv = () => {
     if (filteredCourses.length === 0) {
-      alert('Không có khóa học nào để xuất.');
+      toast.warning('Không có khóa học nào để xuất.');
       return;
     }
     const headers = ['CourseCode', 'Title', 'Description', 'Credits', 'LecturerName', 'Status'];
@@ -167,7 +172,7 @@ export const CoursesPage: React.FC = () => {
   const filteredCourses = useMemo(() => {
     const q = search.toLowerCase();
     return courses.filter((c) => c.title.toLowerCase().includes(q) || c.code.toLowerCase().includes(q));
-  }, [courses, search]);
+  }, [courses, debouncedSearch]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -301,9 +306,13 @@ export const CoursesPage: React.FC = () => {
 
       {/* Courses Cards Grid */}
       {loading ? (
-        <div className="text-center py-12">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-xs text-slate-400">Đang tải danh sách khóa học...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </div>
       ) : filteredCourses.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center">

@@ -8,6 +8,7 @@ import { CourseDetailPage } from '../pages/CourseDetailPage';
 import { AssignmentsPage } from '../pages/AssignmentsPage';
 import { QuizzesPage } from '../pages/QuizzesPage';
 import { GradesPage } from '../pages/GradesPage';
+import { CalendarPage } from '../pages/CalendarPage';
 import { NotificationsPage } from '../pages/NotificationsPage';
 import { AppLayout } from '../components/layout/AppLayout';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
@@ -45,6 +46,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="assignments" element={<AssignmentsPage />} />
         <Route path="quizzes" element={<QuizzesPage />} />
         <Route path="grades" element={<GradesPage />} />
+        <Route path="calendar" element={<CalendarPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
       </Route>
 

@@ -11,17 +11,26 @@ import {
   LockKeyhole,
   Download,
   ChevronRight,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
 import { statusLabel } from '../utils/vi';
 import type { Assignment, Course, Submission } from '../types';
 import { PdfPreviewModal } from '../components/common/PdfPreviewModal';
+import { useToast } from '../components/common/Toast';
+import { useDebounce } from '../utils/useDebounce';
+import { CardSkeleton } from '../components/common/Skeleton';
+import { FileUploadZone } from '../components/common/FileUploadZone';
+import { RichTextEditor, RichTextViewer } from '../components/common/RichTextEditor';
 
 export const AssignmentsPage: React.FC = () => {
   const { user } = useAuth();
+  const toast = useToast();
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -157,7 +166,7 @@ export const AssignmentsPage: React.FC = () => {
     e.preventDefault();
     const courseIdToUse = editingAssignment ? editingAssignment.courseId || editingAssignment.course_id : targetCourseIdForCreate;
     if (!courseIdToUse) {
-      alert('Vui lòng chọn khóa học.');
+      toast.warning('Vui lòng chọn khóa học.');
       return;
     }
     setSubmitting(true);
@@ -172,6 +181,7 @@ export const AssignmentsPage: React.FC = () => {
           status: newStatus,
         });
         setAssignments((prev) => prev.map((assignment) => (assignment.id === updated.id ? updated : assignment)));
+        toast.success('Cập nhật bài tập thành công!');
       } else {
         const created = await api.createAssignment(courseIdToUse, {
           title: newTitle,
@@ -181,11 +191,12 @@ export const AssignmentsPage: React.FC = () => {
           status: newStatus,
         });
         setAssignments((prev) => [created, ...prev]);
+        toast.success('Giao bài tập mới thành công!');
       }
       setIsCreateModalOpen(false);
       resetAssignmentForm();
     } catch (err: any) {
-      alert((editingAssignment ? 'Lỗi cập nhật bài tập: ' : 'Lỗi tạo bài tập: ') + err.message);
+      toast.error((editingAssignment ? 'Lỗi cập nhật bài tập: ' : 'Lỗi tạo bài tập: ') + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -218,7 +229,7 @@ export const AssignmentsPage: React.FC = () => {
         setSelectedSubmission(null);
       }
     } catch (err: any) {
-      alert('Lỗi tải danh sách bài nộp: ' + err.message);
+      toast.error('Lỗi tải danh sách bài nộp: ' + err.message);
     } finally {
       setSubmissionsLoading(false);
     }
@@ -252,13 +263,13 @@ export const AssignmentsPage: React.FC = () => {
         if (nextSub) {
           handleSelectSubmission(nextSub);
         } else {
-          alert('Đã hoàn tất chấm điểm toàn bộ bài nộp!');
+          toast.info('Đã hoàn tất chấm điểm toàn bộ bài nộp!');
         }
       } else {
-        alert('Đã lưu điểm thành công!');
+        toast.success('Đã lưu điểm thành công!');
       }
     } catch (err: any) {
-      alert('Lỗi chấm điểm: ' + err.message);
+      toast.error('Lỗi chấm điểm: ' + err.message);
     } finally {
       setGradeSaving(false);
     }
@@ -271,7 +282,7 @@ export const AssignmentsPage: React.FC = () => {
     const hasText = Boolean(submissionText && submissionText.trim());
     const hasFile = Boolean(submissionFile || existingFileUrl);
     if (!hasText && !hasFile) {
-      alert('Vui lòng chọn tệp bài làm đính kèm hoặc nhập nội dung trả lời.');
+      toast.warning('Vui lòng chọn tệp bài làm đính kèm hoặc nhập nội dung trả lời.');
       return;
     }
 
@@ -290,34 +301,43 @@ export const AssignmentsPage: React.FC = () => {
           assignment.id === savedSubmission.assignment_id ? { ...assignment, my_submission: savedSubmission } : assignment
         )
       );
-      alert('Nộp bài tập thành công!');
+      toast.success('Nộp bài tập thành công!');
       setIsSubmitModalOpen(false);
       setSubmissionText('');
       setSubmissionFile(null);
       setExistingFileUrl(null);
       setSubmitAssignmentTarget(null);
     } catch (err: any) {
-      alert('Lỗi nộp bài: ' + err.message);
+      toast.error('Lỗi nộp bài: ' + err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Filtered Assignments for Student based on Action Tabs
+  // Filtered Assignments with Debounced Search & Student Action Tabs
   const filteredAssignments = useMemo(() => {
-    if (user?.role !== 'STUDENT') return assignments;
-
-    if (studentTab === 'TODO') {
-      return assignments.filter((a) => !a.my_submission || a.my_submission.status === 'DRAFT');
+    let list = assignments;
+    if (user?.role === 'STUDENT') {
+      if (studentTab === 'TODO') {
+        list = list.filter((a) => !a.my_submission || a.my_submission.status === 'DRAFT');
+      } else if (studentTab === 'SUBMITTED') {
+        list = list.filter((a) => a.my_submission && a.my_submission.status !== 'GRADED');
+      } else if (studentTab === 'GRADED') {
+        list = list.filter((a) => a.my_submission && a.my_submission.status === 'GRADED');
+      }
     }
-    if (studentTab === 'SUBMITTED') {
-      return assignments.filter((a) => a.my_submission && a.my_submission.status !== 'GRADED');
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase().trim();
+      list = list.filter(
+        (a) =>
+          a.title.toLowerCase().includes(q) ||
+          (a.description && a.description.toLowerCase().includes(q)) ||
+          (a.courseCode && a.courseCode.toLowerCase().includes(q)) ||
+          (a.courseTitle && a.courseTitle.toLowerCase().includes(q))
+      );
     }
-    if (studentTab === 'GRADED') {
-      return assignments.filter((a) => a.my_submission && a.my_submission.status === 'GRADED');
-    }
-    return assignments;
-  }, [assignments, user, studentTab]);
+    return list;
+  }, [assignments, user, studentTab, debouncedSearch]);
 
   // Submissions filtered in Review Panel
   const filteredSubmissions = useMemo(() => {
@@ -376,24 +396,45 @@ export const AssignmentsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Course Filter Dropdown & Student Action Tabs */}
+      {/* Course Filter Dropdown, Search Box & Student Filter */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center space-x-3">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">
-            Khóa học:
-          </label>
-          <select
-            value={selectedCourseId}
-            onChange={(e) => setSelectedCourseId(e.target.value)}
-            className="w-full sm:w-80 px-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          >
-            <option value="ALL">📚 Tất cả các khóa học ({courses.length})</option>
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.code} - {c.title}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+          <div className="flex items-center space-x-3 shrink-0">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">
+              Khóa học:
+            </label>
+            <select
+              value={selectedCourseId}
+              onChange={(e) => setSelectedCourseId(e.target.value)}
+              className="w-full sm:w-64 px-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="ALL">📚 Tất cả các khóa ({courses.length})</option>
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.code} - {c.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm kiếm bài tập, mã môn..."
+              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Student Action Tabs */}
@@ -426,9 +467,10 @@ export const AssignmentsPage: React.FC = () => {
 
       {/* Assignments List */}
       {loading ? (
-        <div className="text-center py-12">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-xs text-slate-400">Đang tải danh sách bài tập...</p>
+        <div className="space-y-3">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </div>
       ) : filteredAssignments.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center text-slate-400">
@@ -480,7 +522,9 @@ export const AssignmentsPage: React.FC = () => {
                   </div>
 
                   <h3 className="text-base font-bold text-slate-800 truncate">{a.title}</h3>
-                  <p className="text-xs text-slate-500 line-clamp-2">{a.description || 'Không có mô tả chi tiết.'}</p>
+                  <div className="line-clamp-3">
+                    <RichTextViewer content={a.description || 'Không có mô tả chi tiết.'} />
+                  </div>
 
                   {/* Submission & Grade status badge for student */}
                   {user?.role === 'STUDENT' && isGraded && (
@@ -559,8 +603,9 @@ export const AssignmentsPage: React.FC = () => {
                           try {
                             const updated = await api.updateAssignment(a.id, { status });
                             setAssignments((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+                            toast.success(status === 'CLOSED' ? 'Đã mở lại bài tập' : 'Đã đóng bài tập');
                           } catch (err: any) {
-                            alert('Lỗi cập nhật trạng thái: ' + err.message);
+                            toast.error('Lỗi cập nhật trạng thái: ' + err.message);
                           }
                         }}
                         className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
@@ -893,13 +938,12 @@ export const AssignmentsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Yêu cầu chi tiết</label>
-                <textarea
-                  rows={4}
+                <RichTextEditor
+                  label="Yêu cầu chi tiết"
                   value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs"
-                  placeholder="Nêu rõ yêu cầu sinh viên cần nộp, tiêu chí đánh giá..."
+                  onChange={setNewDesc}
+                  placeholder="Nêu rõ yêu cầu sinh viên cần nộp, cú pháp Markdown..."
+                  rows={5}
                 />
               </div>
 
@@ -984,19 +1028,12 @@ export const AssignmentsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Tệp bài làm đính kèm (PDF, DOCX, ZIP)</label>
-                <input
-                  type="file"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setSubmissionFile(e.target.files[0]);
-                    }
-                  }}
-                  className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                <FileUploadZone
+                  selectedFile={submissionFile}
+                  onFileSelect={setSubmissionFile}
+                  existingFileUrl={existingFileUrl}
+                  disabled={submitting}
                 />
-                {existingFileUrl && !submissionFile && (
-                  <p className="text-[11px] text-slate-400 mt-1">Đã có tệp nộp trước đó: <code>{existingFileUrl.split('/').pop()}</code></p>
-                )}
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">

@@ -22,12 +22,17 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { api } from '../api/client';
+import { useToast } from '../components/common/Toast';
+import { useDebounce } from '../utils/useDebounce';
+import { TableRowSkeleton } from '../components/common/Skeleton';
 import type { User, UserRole } from '../types';
 
 export const AdminUsersPage: React.FC = () => {
+  const toast = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [cohortFilter, setCohortFilter] = useState<string>('ALL');
   const [majorFilter, setMajorFilter] = useState<string>('ALL');
@@ -113,7 +118,7 @@ export const AdminUsersPage: React.FC = () => {
       const nextActive = !currentActive;
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, isActive: nextActive, is_active: nextActive } : u)));
     } catch (err: any) {
-      alert('Lỗi cập nhật trạng thái: ' + err.message);
+      toast.error('Lỗi cập nhật trạng thái: ' + err.message);
     }
   };
 
@@ -136,7 +141,7 @@ export const AdminUsersPage: React.FC = () => {
       await fetchUsers();
       setTimeout(() => setActionSuccessMsg(null), 4000);
     } catch (err: any) {
-      alert('Lỗi thao tác hàng loạt: ' + err.message);
+      toast.error('Lỗi thao tác hàng loạt: ' + err.message);
     } finally {
       setBatchActionLoading(false);
     }
@@ -155,11 +160,11 @@ export const AdminUsersPage: React.FC = () => {
         cohort: genCohort,
         defaultPassword: 'Demo@123',
       });
-      alert(res.message);
+      toast.success(res.message);
       setIsBatchGenModalOpen(false);
       await fetchUsers();
     } catch (err: any) {
-      alert('Lỗi sinh tài khoản tự động: ' + err.message);
+      toast.error('Lỗi sinh tài khoản tự động: ' + err.message);
     } finally {
       setGenSubmitting(false);
     }
@@ -167,7 +172,7 @@ export const AdminUsersPage: React.FC = () => {
 
   const handleExportCsv = () => {
     if (filteredUsers.length === 0) {
-      alert('Không có dữ liệu để xuất.');
+      toast.warning('Không có dữ liệu để xuất.');
       return;
     }
     const headers = ['Email', 'FullName', 'Role', 'StudentCode', 'Cohort', 'Major', 'ClassName', 'Status'];
@@ -234,7 +239,7 @@ export const AdminUsersPage: React.FC = () => {
       setIsModalOpen(false);
       resetUserForm();
     } catch (err: any) {
-      alert((editingUser ? 'Lỗi cập nhật người dùng: ' : 'Lỗi tạo người dùng: ') + err.message);
+      toast.error((editingUser ? 'Lỗi cập nhật người dùng: ' : 'Lỗi tạo người dùng: ') + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -243,7 +248,7 @@ export const AdminUsersPage: React.FC = () => {
   const handleBulkImportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bulkFile) {
-      alert('Vui lòng chọn tệp CSV để nhập dữ liệu.');
+      toast.warning('Vui lòng chọn tệp CSV để nhập dữ liệu.');
       return;
     }
     setBulkSubmitting(true);
@@ -253,7 +258,7 @@ export const AdminUsersPage: React.FC = () => {
       setBulkResult(result);
       await fetchUsers();
     } catch (err: any) {
-      alert('Lỗi nhập dữ liệu CSV: ' + err.message);
+      toast.error('Lỗi nhập dữ liệu CSV: ' + err.message);
     } finally {
       setBulkSubmitting(false);
     }
@@ -286,7 +291,7 @@ export const AdminUsersPage: React.FC = () => {
 
       return matchesSearch && matchesCohort && matchesMajor && matchesClass && matchesStatus;
     });
-  }, [users, search, cohortFilter, majorFilter, classFilter, statusFilter]);
+  }, [users, debouncedSearch, cohortFilter, majorFilter, classFilter, statusFilter]);
 
   // Paginated Users
   const totalPages = Math.ceil(filteredUsers.length / pageSize) || 1;
@@ -597,12 +602,13 @@ export const AdminUsersPage: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
-                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                    Đang tải danh sách người dùng...
-                  </td>
-                </tr>
+                <>
+                  <TableRowSkeleton columns={8} />
+                  <TableRowSkeleton columns={8} />
+                  <TableRowSkeleton columns={8} />
+                  <TableRowSkeleton columns={8} />
+                  <TableRowSkeleton columns={8} />
+                </>
               ) : paginatedUsers.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400">

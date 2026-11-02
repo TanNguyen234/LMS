@@ -26,18 +26,50 @@ import { api } from '../api/client';
 import { statusLabel } from '../utils/vi';
 import type { Course, Module, Lesson, Enrollment, User } from '../types';
 import { PdfPreviewModal } from '../components/common/PdfPreviewModal';
+import { useToast } from '../components/common/Toast';
+import { RichTextEditor, RichTextViewer } from '../components/common/RichTextEditor';
+import { MessageSquare, ThumbsUp, Send, CheckCircle2 } from 'lucide-react';
 
 export const CourseDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const courseId = id || '';
   const { user } = useAuth();
+  const toast = useToast();
 
   const [course, setCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<Module[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [students, setStudents] = useState<User[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [activeTab, setActiveTab] = useState<'content' | 'students'>('content');
+  const [activeTab, setActiveTab] = useState<'content' | 'students' | 'discussions'>('content');
+
+  // Course Discussions State
+  interface DiscussionReply {
+    id: string;
+    authorName: string;
+    authorRole: 'ADMIN' | 'LECTURER' | 'STUDENT';
+    content: string;
+    createdAt: string;
+    isLecturerVerified?: boolean;
+  }
+  interface DiscussionThread {
+    id: string;
+    title: string;
+    content: string;
+    authorName: string;
+    authorRole: 'ADMIN' | 'LECTURER' | 'STUDENT';
+    createdAt: string;
+    upvotes: number;
+    upvoted?: boolean;
+    replies: DiscussionReply[];
+  }
+
+  const [threads, setThreads] = useState<DiscussionThread[]>([]);
+  const [selectedThread, setSelectedThread] = useState<DiscussionThread | null>(null);
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
+  const [newQuestionTitle, setNewQuestionTitle] = useState('');
+  const [newQuestionContent, setNewQuestionContent] = useState('');
+  const [replyContent, setReplyContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<{ url: string; title: string } | null>(null);
@@ -129,8 +161,134 @@ export const CourseDetailPage: React.FC = () => {
   useEffect(() => {
     if (courseId) {
       fetchCourseData();
+      // Load discussions from localStorage
+      const storageKey = `lms_discussions_${courseId}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setThreads(parsed);
+          if (parsed.length > 0) setSelectedThread(parsed[0]);
+        } catch {
+          // ignore
+        }
+      } else {
+        // Seed initial threads
+        const initialThreads: DiscussionThread[] = [
+          {
+            id: 't-1',
+            title: 'Hỏi về tài liệu tham khảo và môi trường thực hành tuần 2',
+            content: 'Thầy cho em hỏi phần thực hành tuần này có yêu cầu cài đặt Docker không hay chạy trực tiếp trên máy ạ?',
+            authorName: 'Nguyễn Văn An',
+            authorRole: 'STUDENT',
+            createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+            upvotes: 4,
+            replies: [
+              {
+                id: 'r-1',
+                authorName: 'TS. Nguyễn Văn Giảng',
+                authorRole: 'LECTURER',
+                content: 'Chào em, bài thực hành tuần 2 khuyến khích dùng Docker Compose để đảm bảo tính nhất quán môi trường. Nếu máy cấu hình yếu em có thể dùng SQLite chạy local nhé.',
+                createdAt: new Date(Date.now() - 86400000).toISOString(),
+                isLecturerVerified: true,
+              },
+            ],
+          },
+          {
+            id: 't-2',
+            title: 'Thời gian mở đề và nộp bài kiểm tra chương 1',
+            content: 'Bài kiểm tra trắc nghiệm chương 1 có tính vào điểm tổng kết học phần không ạ?',
+            authorName: 'Trần Thị Bình',
+            authorRole: 'STUDENT',
+            createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+            upvotes: 2,
+            replies: [
+              {
+                id: 'r-2',
+                authorName: 'TS. Nguyễn Văn Giảng',
+                authorRole: 'LECTURER',
+                content: 'Có em nhé, bài kiểm tra chiếm 20% trong cơ cấu điểm trọng số học phần. Mỗi bạn có tối đa 2 lượt làm bài.',
+                createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+                isLecturerVerified: true,
+              },
+            ],
+          },
+        ];
+        setThreads(initialThreads);
+        setSelectedThread(initialThreads[0]);
+        localStorage.setItem(storageKey, JSON.stringify(initialThreads));
+      }
     }
   }, [courseId]);
+
+  const saveThreadsToStorage = (updated: DiscussionThread[]) => {
+    setThreads(updated);
+    localStorage.setItem(`lms_discussions_${courseId}`, JSON.stringify(updated));
+  };
+
+  const handleCreateQuestion = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQuestionTitle.trim() || !newQuestionContent.trim()) {
+      toast.warning('Vui lòng nhập đầy đủ tiêu đề và nội dung câu hỏi.');
+      return;
+    }
+    const newThread: DiscussionThread = {
+      id: `t-${Date.now()}`,
+      title: newQuestionTitle.trim(),
+      content: newQuestionContent.trim(),
+      authorName: user?.full_name || 'Người dùng',
+      authorRole: (user?.role as any) || 'STUDENT',
+      createdAt: new Date().toISOString(),
+      upvotes: 0,
+      replies: [],
+    };
+    const updated = [newThread, ...threads];
+    saveThreadsToStorage(updated);
+    setSelectedThread(newThread);
+    setNewQuestionTitle('');
+    setNewQuestionContent('');
+    setIsQuestionModalOpen(false);
+    toast.success('Đã đăng câu hỏi thảo luận thành công!');
+  };
+
+  const handleAddReply = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedThread || !replyContent.trim()) return;
+    const newReply: DiscussionReply = {
+      id: `r-${Date.now()}`,
+      authorName: user?.full_name || 'Người dùng',
+      authorRole: (user?.role as any) || 'STUDENT',
+      content: replyContent.trim(),
+      createdAt: new Date().toISOString(),
+      isLecturerVerified: user?.role === 'LECTURER' || user?.role === 'ADMIN',
+    };
+    const updated = threads.map((t) =>
+      t.id === selectedThread.id ? { ...t, replies: [...t.replies, newReply] } : t
+    );
+    saveThreadsToStorage(updated);
+    setSelectedThread({ ...selectedThread, replies: [...selectedThread.replies, newReply] });
+    setReplyContent('');
+    toast.success('Đã gửi phản hồi thảo luận!');
+  };
+
+  const handleUpvoteThread = (threadId: string) => {
+    const updated = threads.map((t) => {
+      if (t.id === threadId) {
+        const nextUpvoted = !t.upvoted;
+        return {
+          ...t,
+          upvoted: nextUpvoted,
+          upvotes: nextUpvoted ? t.upvotes + 1 : Math.max(0, t.upvotes - 1),
+        };
+      }
+      return t;
+    });
+    saveThreadsToStorage(updated);
+    if (selectedThread && selectedThread.id === threadId) {
+      const match = updated.find((t) => t.id === threadId);
+      if (match) setSelectedThread(match);
+    }
+  };
 
   // Unique classes from student list
   const uniqueClasses = useMemo(() => {
@@ -161,14 +319,14 @@ export const CourseDetailPage: React.FC = () => {
     setGeneratingSyllabus(true);
     try {
       const res = await api.generateStandardSyllabus(courseId);
-      alert(res.message);
+      toast.success(res.message);
       const modulesData = await api.getCourseModules(courseId);
       setModules(modulesData);
       if (modulesData.length > 0 && modulesData[0].lessons.length > 0) {
         setSelectedLesson(modulesData[0].lessons[0]);
       }
     } catch (err: any) {
-      alert('Lỗi tạo khung đề cương: ' + err.message);
+      toast.error('Lỗi tạo khung đề cương: ' + err.message);
     } finally {
       setGeneratingSyllabus(false);
     }
@@ -177,18 +335,18 @@ export const CourseDetailPage: React.FC = () => {
   const handleBulkEnrollClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClassName) {
-      alert('Vui lòng chọn lớp sinh hoạt.');
+      toast.warning('Vui lòng chọn lớp sinh hoạt.');
       return;
     }
     setEnrollingClass(true);
     try {
       const res = await api.bulkEnrollByClass(courseId, selectedClassName);
-      alert(res.message);
+      toast.success(res.message);
       setIsEnrollClassModalOpen(false);
       const enrollData = await api.getCourseEnrollments(courseId);
       setEnrollments(enrollData);
     } catch (err: any) {
-      alert('Lỗi ghi danh theo lớp: ' + err.message);
+      toast.error('Lỗi ghi danh theo lớp: ' + err.message);
     } finally {
       setEnrollingClass(false);
     }
@@ -196,7 +354,7 @@ export const CourseDetailPage: React.FC = () => {
 
   const handleExportRosterCsv = () => {
     if (enrollments.length === 0) {
-      alert('Chưa có sinh viên ghi danh để xuất.');
+      toast.warning('Chưa có sinh viên ghi danh để xuất.');
       return;
     }
     const headers = ['StudentID', 'FullName', 'Email', 'Status', 'EnrolledDate'];
@@ -238,7 +396,7 @@ export const CourseDetailPage: React.FC = () => {
       setIsModuleModalOpen(false);
       resetModuleForm();
     } catch (err: any) {
-      alert('Lỗi tạo chương học: ' + err.message);
+      toast.error('Lỗi tạo chương học: ' + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -276,7 +434,7 @@ export const CourseDetailPage: React.FC = () => {
       setIsLessonModalOpen(false);
       resetLessonForm();
     } catch (err: any) {
-      alert('Lỗi tạo bài giảng: ' + err.message);
+      toast.error('Lỗi tạo bài giảng: ' + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -291,7 +449,7 @@ export const CourseDetailPage: React.FC = () => {
       setEnrollments((prev) => [newEnroll, ...prev]);
       setIsEnrollModalOpen(false);
     } catch (err: any) {
-      alert('Lỗi ghi danh sinh viên: ' + err.message);
+      toast.error('Lỗi ghi danh sinh viên: ' + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -302,7 +460,7 @@ export const CourseDetailPage: React.FC = () => {
       const updated = await api.updateModule(module.id, { isPublished: !module.isPublished });
       setModules((prev) => prev.map((m) => (m.id === module.id ? { ...m, ...updated, lessons: m.lessons } : m)));
     } catch (err: any) {
-      alert('Lỗi cập nhật trạng thái chương: ' + err.message);
+      toast.error('Lỗi cập nhật trạng thái chương: ' + err.message);
     }
   };
 
@@ -317,7 +475,7 @@ export const CourseDetailPage: React.FC = () => {
       );
       setSelectedLesson(updated);
     } catch (err: any) {
-      alert('Lỗi cập nhật bài giảng: ' + err.message);
+      toast.error('Lỗi cập nhật bài giảng: ' + err.message);
     }
   };
 
@@ -396,7 +554,7 @@ export const CourseDetailPage: React.FC = () => {
                 <button
                   onClick={() => {
                     if (modules.length === 0) {
-                      alert('Vui lòng tạo ít nhất 1 chương học trước khi thêm bài giảng.');
+                      toast.warning('Vui lòng tạo ít nhất 1 chương học trước khi thêm bài giảng.');
                       return;
                     }
                     setSelectedModuleId(modules[0].id as any);
@@ -438,6 +596,18 @@ export const CourseDetailPage: React.FC = () => {
               Danh sách sinh viên ({enrollments.length})
             </button>
           )}
+
+          <button
+            onClick={() => setActiveTab('discussions')}
+            className={`pb-3 border-b-2 transition flex items-center space-x-1.5 ${
+              activeTab === 'discussions'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Thảo luận & Q&A ({threads.length})</span>
+          </button>
         </div>
       </div>
 
@@ -655,12 +825,10 @@ export const CourseDetailPage: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-700 whitespace-pre-line py-2">
-                    {(selectedLesson.content_body || 'Nội dung bài giảng đang được giảng viên cập nhật...')
-                      .replace(/<\/p>/gi, '\n\n')
-                      .replace(/<br\s*\/?>/gi, '\n')
-                      .replace(/<[^>]*>/g, '')
-                      .trim()}
+                  <div className="py-2">
+                    <RichTextViewer
+                      content={selectedLesson.content_body || selectedLesson.contentHtml || 'Nội dung bài giảng đang được giảng viên cập nhật...'}
+                    />
                   </div>
 
                   {/* Seamless Previous / Next Lesson Navigator */}
@@ -789,7 +957,7 @@ export const CourseDetailPage: React.FC = () => {
                                     prev.map((item) => (item.id === e.id ? { ...item, status: 'DROPPED' } : item))
                                   );
                                 } catch (err: any) {
-                                  alert('Lỗi rút ghi danh: ' + err.message);
+                                  toast.error('Lỗi rút ghi danh: ' + err.message);
                                 }
                               }}
                               className="text-xs font-semibold text-red-600 hover:text-red-700"
@@ -1051,6 +1219,225 @@ export const CourseDetailPage: React.FC = () => {
                   className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
                 >
                   {submitting ? 'Đang lưu...' : editingLesson ? 'Lưu thay đổi' : 'Tạo bài giảng'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+            {/* Tab: Discussions & Q&A */}
+      {activeTab === 'discussions' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm">Diễn đàn trao đổi học thuật & Hỏi đáp</h3>
+              <p className="text-xs text-slate-500">Đặt câu hỏi thảo luận về bài giảng, bài tập và nhận giải đáp từ giảng viên</p>
+            </div>
+            <button
+              onClick={() => setIsQuestionModalOpen(true)}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center space-x-1.5 shrink-0 transition"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>+ Đặt câu hỏi mới</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Thread List (Left 5 Cols) */}
+            <div className="lg:col-span-5 space-y-2.5">
+              {threads.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-8 text-center text-slate-400 text-xs">
+                  Chưa có chủ đề thảo luận nào. Hãy là người đầu tiên đặt câu hỏi!
+                </div>
+              ) : (
+                threads.map((t) => {
+                  const isSelected = selectedThread?.id === t.id;
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => setSelectedThread(t)}
+                      className={`p-4 rounded-2xl border transition cursor-pointer flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50/20 shadow-xs'
+                          : 'border-slate-200/80 hover:border-blue-300 bg-white'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
+                          <span className="font-semibold text-slate-700">{t.authorName}</span>
+                          <span>{new Date(t.createdAt).toLocaleDateString('vi-VN')}</span>
+                        </div>
+                        <h4 className="font-bold text-slate-800 text-sm line-clamp-2">{t.title}</h4>
+                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">{t.content}</p>
+                      </div>
+
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                        <span className="flex items-center gap-1 font-semibold text-slate-600">
+                          <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                          <span>{t.replies.length} phản hồi</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUpvoteThread(t.id);
+                          }}
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold transition ${
+                            t.upvoted ? 'bg-blue-100 text-blue-700' : 'hover:bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          <ThumbsUp className="w-3 h-3" />
+                          <span>{t.upvotes}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Selected Thread Detail (Right 7 Cols) */}
+            <div className="lg:col-span-7">
+              {selectedThread ? (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
+                  {/* Thread Question */}
+                  <div className="pb-4 border-b border-slate-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <span className="w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center">
+                          {selectedThread.authorName.charAt(0)}
+                        </span>
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 block">{selectedThread.authorName}</span>
+                          <span className="text-[10px] text-slate-400">{new Date(selectedThread.createdAt).toLocaleString('vi-VN')}</span>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">
+                        {selectedThread.authorRole}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base font-bold text-slate-800 mt-2">{selectedThread.title}</h3>
+                    <div className="mt-2 text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">
+                      <RichTextViewer content={selectedThread.content} />
+                    </div>
+                  </div>
+
+                  {/* Replies List */}
+                  <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Phản hồi ({selectedThread.replies.length})
+                    </h4>
+                    {selectedThread.replies.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic py-4">Chưa có phản hồi nào. Hãy chia sẻ ý kiến của bạn!</p>
+                    ) : (
+                      selectedThread.replies.map((rep) => (
+                        <div
+                          key={rep.id}
+                          className={`p-3.5 rounded-xl border text-xs space-y-1.5 ${
+                            rep.isLecturerVerified
+                              ? 'bg-blue-50/50 border-blue-200'
+                              : 'bg-slate-50/70 border-slate-200/60'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-bold text-slate-800">{rep.authorName}</span>
+                              {rep.isLecturerVerified && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-blue-600 text-white text-[10px] font-semibold">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Giảng viên</span>
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-400">{new Date(rep.createdAt).toLocaleString('vi-VN')}</span>
+                          </div>
+                          <div className="text-slate-600 leading-relaxed">
+                            <RichTextViewer content={rep.content} />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Add Reply Box */}
+                  <form onSubmit={handleAddReply} className="pt-3 border-t border-slate-100 space-y-2">
+                    <textarea
+                      rows={3}
+                      value={replyContent}
+                      onChange={(e) => setReplyContent(e.target.value)}
+                      placeholder="Nhập câu trả lời hoặc trao đổi thêm..."
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={!replyContent.trim()}
+                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center space-x-1.5 transition disabled:opacity-50"
+                      >
+                        <Send className="w-3 h-3" />
+                        <span>Gửi phản hồi</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center text-slate-400 text-xs">
+                  Chọn một chủ đề bên trái để xem nội dung thảo luận.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Post New Question */}
+      {isQuestionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-800 text-base">Đặt câu hỏi thảo luận mới</h3>
+              <button onClick={() => setIsQuestionModalOpen(false)}>
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateQuestion} className="space-y-4 mt-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Tiêu đề câu hỏi</label>
+                <input
+                  type="text"
+                  required
+                  value={newQuestionTitle}
+                  onChange={(e) => setNewQuestionTitle(e.target.value)}
+                  placeholder="Ví dụ: Cách cài đặt thư viện cho bài thực hành số 3..."
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs"
+                />
+              </div>
+
+              <div>
+                <RichTextEditor
+                  label="Nội dung chi tiết câu hỏi (Markdown)"
+                  value={newQuestionContent}
+                  onChange={setNewQuestionContent}
+                  placeholder="Mô tả rõ vấn đề bạn đang gặp phải, đính kèm code hoặc thông báo lỗi nếu có..."
+                  rows={4}
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsQuestionModalOpen(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-xl font-semibold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 shadow-xs"
+                >
+                  Đăng câu hỏi
                 </button>
               </div>
             </form>

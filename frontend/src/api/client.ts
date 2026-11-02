@@ -938,6 +938,51 @@ export const api = {
     }));
   },
 
+  async getCourseGradeMatrix(
+    courseId: string | number,
+    weights?: { quizzes?: number; assignments?: number; exam?: number }
+  ): Promise<{
+    courseId: string;
+    courseCode: string;
+    courseTitle: string;
+    weights: { quizzes: number; assignments: number; exam: number };
+    students: Array<{
+      studentId: string;
+      studentName: string;
+      studentCode?: string;
+      email: string;
+      quizScore?: number;
+      assignmentScore?: number;
+      examScore?: number;
+      weightedTotal: number;
+      gpa4: number;
+      letterGrade: string;
+      status: string;
+      finalScoreRecorded?: number;
+    }>;
+  }> {
+    const params = new URLSearchParams();
+    if (weights?.quizzes !== undefined) params.append('quizzes_weight', String(weights.quizzes));
+    if (weights?.assignments !== undefined) params.append('assignments_weight', String(weights.assignments));
+    if (weights?.exam !== undefined) params.append('exam_weight', String(weights.exam));
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request<any>(`/courses/${courseId}/gradebook/matrix${qs}`);
+  },
+
+  async finalizeCourseGradebook(
+    courseId: string | number,
+    weights?: { quizzes?: number; assignments?: number; exam?: number }
+  ): Promise<{ message: string }> {
+    const params = new URLSearchParams();
+    if (weights?.quizzes !== undefined) params.append('quizzes_weight', String(weights.quizzes));
+    if (weights?.assignments !== undefined) params.append('assignments_weight', String(weights.assignments));
+    if (weights?.exam !== undefined) params.append('exam_weight', String(weights.exam));
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request<{ message: string }>(`/courses/${courseId}/gradebook/finalize${qs}`, {
+      method: 'POST',
+    });
+  },
+
   // Notifications
   async getNotifications(): Promise<Notification[]> {
     const res = await request<any[]>('/notifications');
