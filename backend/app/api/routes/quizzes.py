@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
@@ -14,13 +15,15 @@ from backend.app.models.models import (
 from backend.app.schemas.schemas import (
     QuizCreate, QuizUpdate, QuizPublish, QuizResponse, QuizStudentResponse,
     QuizQuestionCreate, QuizQuestionUpdate, QuizQuestionResponse, QuizQuestionStudentResponse,
-    QuizAttemptStartResponse, QuizAttemptSubmit, QuizAttemptResponse
+    QuizAttemptStartResponse, QuizAttemptSubmit, QuizAttemptResponse,
+    BulkImportQuestionsRequest, BulkImportQuestionsResponse
 )
 from backend.app.schemas.common import MessageResponse
 from backend.app.core.dependencies import (
     get_current_user, verify_course_access, verify_lecturer_course_owner,
-    require_student, get_course_or_404
+    require_student, require_admin, get_course_or_404
 )
+from backend.app.services.notification_service import notify_user, notify_course_students
 
 router = APIRouter(tags=["Quizzes & Attempts"])
 
@@ -140,6 +143,144 @@ def ensure_quiz_unattempted(quiz_id: uuid.UUID, db: Session) -> None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Quiz questions and scoring cannot change after an attempt has started")
 
 
+def rebalance_quiz_scores(quiz: Quiz, db: Session) -> float:
+    """
+    Equally distributes the quiz TotalScore across all its questions.
+    Ensures that sum(questions.Score) strictly matches quiz.TotalScore.
+    """
+    questions = db.query(QuizQuestion).filter(
+        QuizQuestion.QuizId == quiz.QuizId
+    ).order_by(QuizQuestion.SortOrder.asc()).all()
+    count = len(questions)
+    if count == 0:
+        return 0.0
+
+    total = float(quiz.TotalScore if quiz.TotalScore is not None else 10.0)
+    per_question = round(total / count, 2)
+    allocated = Decimal("0")
+    total_dec = Decimal(str(total))
+    per_dec = Decimal(str(per_question))
+
+    for i, qn in enumerate(questions):
+        if i == count - 1:
+            # Last question gets exact remainder
+            remainder = float(total_dec - allocated)
+            qn.Score = remainder if remainder > 0 else float(per_dec)
+        else:
+            qn.Score = float(per_dec)
+            allocated += per_dec
+
+    db.commit()
+    return per_question
+
+
+def parse_bulk_questions(raw_text: str) -> List[dict]:
+    """
+    Parses questions from Aiken and Vietnamese text formats.
+    """
+    cleaned = raw_text.strip()
+    if not cleaned:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nội dung nhập câu hỏi không được để trống."
+        )
+
+    raw_blocks = re.split(r'\n\s*\n+', cleaned)
+    parsed_questions = []
+
+    opt_regex = re.compile(r'^([A-Za-z])[\.\)\:]\s*(.+)$')
+    ans_regex = re.compile(
+        r'^(?:(?:ĐÁP\s*ÁN|DAP\s*AN|ĐÁP\s*ÁN\s*ĐÚNG|ANSWER|CORRECT\s*ANSWER|ĐÁP\s*SỐ|KEY)\s*[:\.]?)\s*([A-Za-z])(?:\.|$|\s)',
+        re.IGNORECASE
+    )
+
+    for block_idx, block in enumerate(raw_blocks, start=1):
+        lines = [line.strip() for line in block.splitlines() if line.strip()]
+        if not lines:
+            continue
+
+        question_text_lines = []
+        options = []
+        correct_answer = None
+
+        for line in lines:
+            ans_match = ans_regex.match(line)
+            if ans_match:
+                correct_answer = ans_match.group(1).upper()
+                continue
+
+            opt_match = opt_regex.match(line)
+            if opt_match:
+                opt_key = opt_match.group(1).upper()
+                opt_val = opt_match.group(2).strip()
+                options.append({"id": opt_key, "key": opt_key, "text": opt_val})
+                continue
+
+            if not options and not correct_answer:
+                question_text_lines.append(line)
+
+        full_q_text = " ".join(question_text_lines).strip()
+        cleaned_q_text = re.sub(
+            r'^(?:Câu(?:\s*hỏi)?\s*\d+|Question\s*\d+|\d+)\s*[:\.]?\s*',
+            '',
+            full_q_text,
+            flags=re.IGNORECASE
+        ).strip()
+        if not cleaned_q_text:
+            cleaned_q_text = full_q_text
+
+        if not cleaned_q_text:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Lỗi tại khối câu hỏi số {block_idx}: Thiếu nội dung câu hỏi."
+            )
+
+        if len(options) < 2:
+            title_excerpt = cleaned_q_text[:40] + ('...' if len(cleaned_q_text) > 40 else '')
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Lỗi tại câu {block_idx} ('{title_excerpt}'): Phải có ít nhất 2 đáp án lựa chọn (A, B, ...). Hiện có: {len(options)}."
+            )
+
+        seen_keys = set()
+        for opt in options:
+            if opt["id"] in seen_keys:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Lỗi tại câu {block_idx}: Trùng lặp đáp án '{opt['id']}'."
+                )
+            seen_keys.add(opt["id"])
+
+        if not correct_answer:
+            title_excerpt = cleaned_q_text[:40] + ('...' if len(cleaned_q_text) > 40 else '')
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Lỗi tại câu {block_idx} ('{title_excerpt}'): Thiếu dòng chỉ định đáp án đúng (Ví dụ: 'Đáp án: A' hoặc 'ANSWER: A')."
+            )
+
+        if correct_answer not in seen_keys:
+            valid_keys = ", ".join(sorted(seen_keys))
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Lỗi tại câu {block_idx}: Đáp án đúng '{correct_answer}' không khớp với danh sách phương án ({valid_keys})."
+            )
+
+        parsed_questions.append({
+            "questionText": cleaned_q_text,
+            "options": options,
+            "correctAnswer": correct_answer,
+            "sortOrder": block_idx
+        })
+
+    if not parsed_questions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Không tìm thấy câu hỏi hợp lệ nào trong nội dung nhập vào."
+        )
+
+    return parsed_questions
+
+
 def quiz_question_payload(questions):
     return [
         QuizQuestionStudentResponse(
@@ -178,7 +319,7 @@ def get_course_quizzes(
     - Students only see published quizzes.
     - Lecturers & Admins see all quizzes (including drafts).
     """
-    query = db.query(Quiz).filter(Quiz.CourseId == course_id)
+    query = db.query(Quiz).filter(Quiz.CourseId == course_id, Quiz.IsDeleted == False)
     if current_user.Role == "STUDENT":
         query = query.filter(Quiz.IsPublished == True)
     quizzes = query.order_by(Quiz.StartAt.asc()).all()
@@ -213,6 +354,8 @@ def get_course_quizzes(
                 timeLimitMinutes=q.TimeLimitMinutes,
                 maxAttempts=q.MaxAttempts,
                 passingScore=float(q.PassingScore),
+                totalScore=float(q.TotalScore) if q.TotalScore is not None else 10.0,
+                scoreVisibility=q.ScoreVisibility or "IMMEDIATE",
                 maxScore=max_scores.get(q.QuizId, 0.0),
                 isPublished=q.IsPublished,
                 createdAt=q.CreatedAt,
@@ -235,8 +378,12 @@ def get_course_quizzes(
             timeLimitMinutes=q.TimeLimitMinutes,
             maxAttempts=q.MaxAttempts,
             passingScore=float(q.PassingScore),
+            totalScore=float(q.TotalScore) if q.TotalScore is not None else 10.0,
+            scoreVisibility=q.ScoreVisibility or "IMMEDIATE",
             maxScore=max_scores.get(q.QuizId, 0.0),
             isPublished=q.IsPublished,
+            isDeleted=q.IsDeleted,
+            deletedAt=q.DeletedAt,
             createdAt=q.CreatedAt,
             questions=[]
         )
@@ -265,11 +412,23 @@ def create_quiz(
         TimeLimitMinutes=quiz_in.timeLimitMinutes,
         MaxAttempts=quiz_in.maxAttempts,
         PassingScore=quiz_in.passingScore,
+        TotalScore=quiz_in.totalScore if quiz_in.totalScore is not None else 10.0,
+        ScoreVisibility=quiz_in.scoreVisibility or "IMMEDIATE",
         IsPublished=quiz_in.isPublished
     )
     db.add(new_q)
     db.commit()
     db.refresh(new_q)
+
+    if new_q.IsPublished:
+        notify_course_students(
+            db,
+            course_id,
+            f"Bài kiểm tra mới: {new_q.Title}",
+            f"Khóa học có bài kiểm tra trắc nghiệm mới '{new_q.Title}'. Thời gian: {new_q.TimeLimitMinutes} phút.",
+            type="QUIZ",
+            related_url=f"/courses/{course_id}"
+        )
 
     return QuizResponse(
         quizId=new_q.QuizId,
@@ -281,6 +440,8 @@ def create_quiz(
         timeLimitMinutes=new_q.TimeLimitMinutes,
         maxAttempts=new_q.MaxAttempts,
         passingScore=float(new_q.PassingScore),
+        totalScore=float(new_q.TotalScore) if new_q.TotalScore is not None else 10.0,
+        scoreVisibility=new_q.ScoreVisibility or "IMMEDIATE",
         maxScore=0.0,
         isPublished=new_q.IsPublished,
         createdAt=new_q.CreatedAt,
@@ -306,7 +467,24 @@ def get_quiz_detail(
     if current_user.Role == "STUDENT":
         if not q.IsPublished:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz is unpublished")
-        # Strip CorrectAnswer completely
+        
+        attempts = db.query(QuizAttempt).filter(
+            QuizAttempt.QuizId == quiz_id,
+            QuizAttempt.StudentId == current_user.UserId
+        ).all()
+        my_attempts_count = len(attempts)
+        submitted_attempts = [a for a in attempts if a.Status == "SUBMITTED" and a.Score is not None]
+
+        now = datetime.now(timezone.utc)
+        end_at = parse_datetime(q.EndAt)
+        can_view_score = (
+            q.ScoreVisibility == "IMMEDIATE" or
+            (q.ScoreVisibility == "AFTER_CLOSED" and now >= end_at)
+        )
+        my_highest_score = None
+        if can_view_score and submitted_attempts:
+            my_highest_score = max(float(a.Score) for a in submitted_attempts)
+
         return QuizStudentResponse(
             quizId=q.QuizId,
             courseId=q.CourseId,
@@ -317,10 +495,14 @@ def get_quiz_detail(
             timeLimitMinutes=q.TimeLimitMinutes,
             maxAttempts=q.MaxAttempts,
             passingScore=float(q.PassingScore),
+            totalScore=float(q.TotalScore) if q.TotalScore is not None else 10.0,
+            scoreVisibility=q.ScoreVisibility or "IMMEDIATE",
             maxScore=sum_question_scores(questions),
             isPublished=q.IsPublished,
             createdAt=q.CreatedAt,
-            questions=quiz_question_payload(questions)
+            questions=quiz_question_payload(questions),
+            myAttemptsCount=my_attempts_count,
+            myHighestScore=my_highest_score
         )
 
     # Lecturer / Admin
@@ -334,8 +516,12 @@ def get_quiz_detail(
         timeLimitMinutes=q.TimeLimitMinutes,
         maxAttempts=q.MaxAttempts,
         passingScore=float(q.PassingScore),
+        totalScore=float(q.TotalScore) if q.TotalScore is not None else 10.0,
+        scoreVisibility=q.ScoreVisibility or "IMMEDIATE",
         maxScore=sum_question_scores(questions),
         isPublished=q.IsPublished,
+        isDeleted=q.IsDeleted or False,
+        deletedAt=q.DeletedAt,
         createdAt=q.CreatedAt,
         questions=[
             QuizQuestionResponse(
@@ -388,6 +574,10 @@ def update_quiz(
         q.MaxAttempts = quiz_in.maxAttempts
     if quiz_in.passingScore is not None:
         q.PassingScore = quiz_in.passingScore
+    if quiz_in.totalScore is not None:
+        q.TotalScore = quiz_in.totalScore
+    if quiz_in.scoreVisibility is not None:
+        q.ScoreVisibility = quiz_in.scoreVisibility
     if quiz_in.isPublished is not None:
         q.IsPublished = quiz_in.isPublished
 
@@ -408,8 +598,73 @@ def toggle_quiz_publish(
     verify_lecturer_course_owner(q.CourseId, current_user, db)
     q.IsPublished = pub_in.isPublished
     db.commit()
+    if pub_in.isPublished:
+        notify_course_students(
+            db,
+            q.CourseId,
+            f"Bài kiểm tra mới: {q.Title}",
+            f"Bài kiểm tra '{q.Title}' đã được mở. Thời gian làm bài: {q.TimeLimitMinutes} phút.",
+            type="QUIZ",
+            related_url=f"/courses/{q.CourseId}"
+        )
     st = "published" if pub_in.isPublished else "unpublished"
     return MessageResponse(message=f"Quiz '{q.Title}' successfully {st}")
+
+
+@router.delete("/quizzes/{quiz_id}", response_model=MessageResponse)
+@router.delete("/courses/{course_id}/quizzes/{quiz_id}", response_model=MessageResponse)
+def delete_quiz(
+    quiz_id: uuid.UUID,
+    course_id: Optional[uuid.UUID] = None,
+    hard_delete: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a quiz. Lecturer triggers soft delete; Admin can soft or hard delete."""
+    q = db.query(Quiz).filter(Quiz.QuizId == quiz_id).first()
+    if not q:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+
+    course = db.query(Course).filter(Course.CourseId == q.CourseId).first()
+    if current_user.Role == "LECTURER":
+        if not course or course.LecturerId != current_user.UserId:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete quiz you do not own")
+        q.IsDeleted = True
+        q.DeletedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+        q.DeletedBy = current_user.UserId
+        db.commit()
+        return MessageResponse(message="Bài kiểm tra đã được xóa")
+    elif current_user.Role == "ADMIN":
+        if hard_delete:
+            db.delete(q)
+            db.commit()
+            return MessageResponse(message="Đã xóa vĩnh viễn bài kiểm tra")
+        else:
+            q.IsDeleted = True
+            q.DeletedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+            q.DeletedBy = current_user.UserId
+            db.commit()
+            return MessageResponse(message="Đã xóa mềm bài kiểm tra")
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+
+
+@router.patch("/quizzes/{quiz_id}/restore", response_model=MessageResponse)
+def restore_quiz(
+    quiz_id: uuid.UUID,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Restore soft-deleted quiz (Admin only)."""
+    q = db.query(Quiz).filter(Quiz.QuizId == quiz_id).first()
+    if not q:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+    q.IsDeleted = False
+    q.DeletedAt = None
+    q.DeletedBy = None
+    db.commit()
+    return MessageResponse(message="Bài kiểm tra đã được khôi phục thành công")
+
 
 
 # ==========================================
@@ -503,6 +758,100 @@ def update_quiz_question(
         score=float(qn.Score),
         sortOrder=qn.SortOrder
     )
+
+
+@router.delete("/questions/{question_id}", response_model=MessageResponse)
+def delete_quiz_question(
+    question_id: uuid.UUID,
+    auto_rebalance: bool = True,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a question from quiz and optionally rebalance remaining questions."""
+    qn = db.query(QuizQuestion).filter(QuizQuestion.QuestionId == question_id).first()
+    if not qn:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+    q = get_quiz_or_404(qn.QuizId, db)
+    verify_lecturer_course_owner(q.CourseId, current_user, db)
+    ensure_quiz_unattempted(q.QuizId, db)
+
+    db.delete(qn)
+    db.commit()
+
+    if auto_rebalance:
+        rebalance_quiz_scores(q, db)
+
+    return MessageResponse(message="Đã xóa câu hỏi thành công")
+
+
+@router.post("/quizzes/{quiz_id}/questions/bulk-import", response_model=BulkImportQuestionsResponse)
+def bulk_import_quiz_questions(
+    quiz_id: uuid.UUID,
+    req: BulkImportQuestionsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Bulk import multiple-choice questions from Aiken or Vietnamese structured text.
+    Validates syntax line-by-line and automatically divides points evenly across all questions.
+    """
+    q = get_quiz_or_404(quiz_id, db)
+    verify_lecturer_course_owner(q.CourseId, current_user, db)
+    ensure_quiz_unattempted(quiz_id, db)
+
+    parsed = parse_bulk_questions(req.rawText)
+
+    max_order = db.query(func.max(QuizQuestion.SortOrder)).filter(QuizQuestion.QuizId == quiz_id).scalar() or 0
+
+    for idx, item in enumerate(parsed):
+        new_qn = QuizQuestion(
+            QuestionId=uuid.uuid4(),
+            QuizId=quiz_id,
+            QuestionText=item["questionText"],
+            QuestionType="SINGLE_CHOICE",
+            OptionsJson=json.dumps(item["options"], ensure_ascii=False),
+            CorrectAnswer=item["correctAnswer"],
+            Score=1.0,
+            SortOrder=max_order + idx + 1
+        )
+        db.add(new_qn)
+
+    db.commit()
+
+    total_count = db.query(QuizQuestion).filter(QuizQuestion.QuizId == quiz_id).count()
+    score_per_question = 1.0
+    if req.autoRebalanceScores:
+        score_per_question = rebalance_quiz_scores(q, db)
+
+    return BulkImportQuestionsResponse(
+        success=True,
+        importedCount=len(parsed),
+        totalQuestions=total_count,
+        scorePerQuestion=score_per_question,
+        message=f"Đã nhập thành công {len(parsed)} câu hỏi! Tổng số câu hiện tại: {total_count}, điểm mỗi câu: {score_per_question}đ."
+    )
+
+
+@router.post("/quizzes/{quiz_id}/rebalance-scores")
+def trigger_rebalance_scores(
+    quiz_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Rebalance points evenly across all questions based on quiz TotalScore."""
+    q = get_quiz_or_404(quiz_id, db)
+    verify_lecturer_course_owner(q.CourseId, current_user, db)
+    ensure_quiz_unattempted(quiz_id, db)
+
+    per_q = rebalance_quiz_scores(q, db)
+    total_count = db.query(QuizQuestion).filter(QuizQuestion.QuizId == quiz_id).count()
+    return {
+        "success": True,
+        "totalScore": float(q.TotalScore or 10.0),
+        "totalQuestions": total_count,
+        "scorePerQuestion": per_q,
+        "message": f"Đã chia đều {float(q.TotalScore or 10.0)} điểm cho {total_count} câu hỏi ({per_q} điểm/câu)."
+    }
 
 
 # ==========================================
@@ -788,17 +1137,43 @@ def submit_quiz_attempt(
         )
         db.add(new_grade)
 
+    # Check visibility for student response & notification
+    can_view_score = (
+        q.ScoreVisibility == "IMMEDIATE" or
+        (q.ScoreVisibility == "AFTER_CLOSED" and now >= end_at)
+    )
+
+    if can_view_score:
+        notif_msg = f"Điểm số bài làm của bạn: {total_score}/{max_possible_score} (Lần làm: {attempt.AttemptNo})."
+        visible_score = total_score
+    else:
+        if q.ScoreVisibility == "AFTER_CLOSED":
+            notif_msg = f"Đã ghi nhận bài nộp bài kiểm tra '{q.Title}' (Lần làm: {attempt.AttemptNo}). Điểm số sẽ được hiển thị sau khi hết hạn làm bài."
+        else:
+            notif_msg = f"Đã ghi nhận bài nộp bài kiểm tra '{q.Title}' (Lần làm: {attempt.AttemptNo}). Điểm số đang ở chế độ ẩn bởi giảng viên."
+        visible_score = None
+
     # Synchronous notification
     notif = Notification(
         NotificationId=uuid.uuid4(),
         UserId=current_user.UserId,
         Title=f"Đã hoàn thành bài kiểm tra '{q.Title}'",
-        Message=f"Điểm số bài làm của bạn: {total_score}/{max_possible_score} (Lần làm: {attempt.AttemptNo}).",
+        Message=notif_msg,
         Type="QUIZ",
         IsRead=False,
         RelatedUrl=f"/courses/{q.CourseId}/quizzes/{q.QuizId}"
     )
     db.add(notif)
+
+    if lecturer:
+        notify_user(
+            db,
+            lecturer.UserId,
+            f"Bài nộp kiểm tra mới: {current_user.FullName}",
+            f"Sinh viên {current_user.FullName} ({current_user.StudentCode or ''}) đã nộp bài kiểm tra '{q.Title}' (Lần làm: {attempt.AttemptNo}).",
+            type="QUIZ",
+            related_url=f"/courses/{q.CourseId}"
+        )
 
     db.commit()
     db.refresh(attempt)
@@ -810,7 +1185,7 @@ def submit_quiz_attempt(
         attemptNo=attempt.AttemptNo,
         startedAt=parse_datetime(attempt.StartedAt),
         submittedAt=parse_datetime(attempt.SubmittedAt) if attempt.SubmittedAt else None,
-        score=float(attempt.Score) if attempt.Score is not None else None,
+        score=visible_score,
         status=attempt.Status,
         answersJson=attempt.AnswersJson,
         studentName=current_user.FullName,

@@ -21,6 +21,18 @@ export default defineConfig({
       '/uploads': {
         target: apiTarget,
         changeOrigin: true,
+      },
+      '/submissions': {
+        target: apiTarget,
+        changeOrigin: true,
+      },
+      '/materials': {
+        target: apiTarget,
+        changeOrigin: true,
+      },
+      '/assignments': {
+        target: apiTarget,
+        changeOrigin: true,
       }
     }
   }

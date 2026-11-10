@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
 from sqlalchemy.orm import Session
@@ -13,6 +14,7 @@ from backend.app.core.dependencies import (
     get_current_user, require_admin, verify_course_access,
     get_course_or_404
 )
+from backend.app.services.notification_service import notify_user
 
 router = APIRouter(prefix="/courses", tags=["Courses & Enrollments"])
 
@@ -20,6 +22,7 @@ router = APIRouter(prefix="/courses", tags=["Courses & Enrollments"])
 def format_course_response(course: Course, db: Session) -> CourseResponse:
     lecturer = db.query(User).filter(User.UserId == course.LecturerId).first()
     lecturer_name = lecturer.FullName if lecturer else "Unknown"
+    lecturer_dept = lecturer.Department if lecturer else None
     return CourseResponse(
         courseId=course.CourseId,
         courseCode=course.CourseCode,
@@ -29,9 +32,14 @@ def format_course_response(course: Course, db: Session) -> CourseResponse:
         semester=course.Semester,
         academicYear=course.AcademicYear,
         credits=course.Credits,
+        subjectCode=course.SubjectCode,
+        sectionCode=course.SectionCode,
         status=course.Status,
+        isDeleted=course.IsDeleted,
+        deletedAt=course.DeletedAt,
         createdAt=course.CreatedAt,
-        lecturerName=lecturer_name
+        lecturerName=lecturer_name,
+        lecturerDepartment=lecturer_dept
     )
 
 
@@ -39,6 +47,7 @@ def format_course_response(course: Course, db: Session) -> CourseResponse:
 def get_courses(
     status_filter: Optional[str] = Query(None, alias="status"),
     lecturer_id: Optional[uuid.UUID] = Query(None, alias="lecturerId"),
+    include_deleted: bool = Query(False, alias="includeDeleted"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -49,6 +58,9 @@ def get_courses(
     - Student: courses actively enrolled by student
     """
     query = db.query(Course)
+    if current_user.Role in ["LECTURER", "STUDENT"] or not include_deleted:
+        query = query.filter(Course.IsDeleted == False)
+
     if current_user.Role == "ADMIN":
         if lecturer_id is not None:
             query = query.filter(Course.LecturerId == lecturer_id)
@@ -121,6 +133,9 @@ def create_course(
             detail="Assigned lecturer is currently inactive"
         )
 
+    subj_code = course_in.subjectCode.strip().upper() if course_in.subjectCode else code_clean.split('-')[0].split('.')[0]
+    sect_code = course_in.sectionCode.strip().upper() if course_in.sectionCode else None
+
     new_course = Course(
         CourseId=uuid.uuid4(),
         CourseCode=code_clean,
@@ -130,6 +145,8 @@ def create_course(
         Semester=course_in.semester.strip(),
         AcademicYear=course_in.academicYear.strip(),
         Credits=course_in.credits,
+        SubjectCode=subj_code,
+        SectionCode=sect_code,
         Status=course_in.status.upper()
     )
     db.add(new_course)
@@ -158,6 +175,10 @@ def update_course(
         c.AcademicYear = course_in.academicYear.strip()
     if course_in.credits is not None:
         c.Credits = course_in.credits
+    if course_in.subjectCode is not None:
+        c.SubjectCode = course_in.subjectCode.strip().upper() if course_in.subjectCode.strip() else None
+    if course_in.sectionCode is not None:
+        c.SectionCode = course_in.sectionCode.strip().upper() if course_in.sectionCode.strip() else None
     if course_in.status is not None:
         if course_in.status not in ["DRAFT", "ACTIVE", "ARCHIVED"]:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
@@ -275,6 +296,15 @@ def enroll_student(
     db.add(new_enroll)
     db.commit()
     db.refresh(new_enroll)
+
+    notify_user(
+        db,
+        student.UserId,
+        f"Ghi danh vào khóa học: {course.Title}",
+        f"Bạn đã được thêm vào lớp học phần môn {course.Title} ({course.CourseCode}).",
+        type="COURSE",
+        related_url=f"/courses/{course.CourseId}"
+    )
 
     return EnrollmentResponse(
         enrollmentId=new_enroll.EnrollmentId,
@@ -439,6 +469,10 @@ async def bulk_import_courses_csv(
     except UnicodeDecodeError:
         text_content = content.decode("cp1252", errors="ignore")
 
+    lines = text_content.splitlines(keepends=True)
+    if lines and lines[0].strip().lower().startswith("sep="):
+        text_content = "".join(lines[1:])
+
     reader = csv.DictReader(io.StringIO(text_content))
     total = 0
     created = 0
@@ -515,3 +549,56 @@ async def bulk_import_courses_csv(
         "errorCount": len(errors),
         "errors": errors[:10]
     }
+
+
+@router.delete("/{course_id}", response_model=MessageResponse)
+def delete_course(
+    course_id: uuid.UUID,
+    hard_delete: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a course. Lecturer triggers soft delete; Admin can soft delete or hard delete."""
+    c = db.query(Course).filter(Course.CourseId == course_id).first()
+    if not c:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+
+    if current_user.Role == "LECTURER":
+        if c.LecturerId != current_user.UserId:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete a course you do not own")
+        c.IsDeleted = True
+        c.DeletedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+        c.DeletedBy = current_user.UserId
+        db.commit()
+        return MessageResponse(message="Khóa học đã được xóa khỏi danh sách giảng dạy")
+    elif current_user.Role == "ADMIN":
+        if hard_delete:
+            db.delete(c)
+            db.commit()
+            return MessageResponse(message="Đã xóa vĩnh viễn khóa học")
+        else:
+            c.IsDeleted = True
+            c.DeletedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+            c.DeletedBy = current_user.UserId
+            db.commit()
+            return MessageResponse(message="Đã lưu trữ/xóa mềm khóa học")
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+
+
+@router.patch("/{course_id}/restore", response_model=MessageResponse)
+def restore_course(
+    course_id: uuid.UUID,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Restore a soft-deleted course (Admin only)."""
+    c = db.query(Course).filter(Course.CourseId == course_id).first()
+    if not c:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+    c.IsDeleted = False
+    c.DeletedAt = None
+    c.DeletedBy = None
+    db.commit()
+    return MessageResponse(message="Khóa học đã được khôi phục thành công")
+

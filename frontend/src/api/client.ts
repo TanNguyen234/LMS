@@ -19,6 +19,8 @@ import type {
   BatchGenerateUsersPayload,
   BatchGenerateUsersResult,
   BatchUserActionsResult,
+  ChatMessage,
+  ChatContact,
 } from '../types';
 
 import { apiErrorMessageVi } from '../utils/vi';
@@ -214,6 +216,7 @@ export const api = {
     cohort?: string;
     major?: string;
     className?: string;
+    department?: string;
   }): Promise<User> {
     const payload = {
       email: userData.email,
@@ -223,6 +226,7 @@ export const api = {
       cohort: userData.cohort,
       major: userData.major,
       className: userData.className,
+      department: userData.department,
     };
     const res = await request<any>('/users', {
       method: 'POST',
@@ -252,6 +256,7 @@ export const api = {
     cohort?: string;
     major?: string;
     className?: string;
+    department?: string;
     password?: string;
   }): Promise<User> {
     const res = await request<any>(`/users/${userId}`, {
@@ -279,8 +284,15 @@ export const api = {
       ...c,
       id: c.courseId,
       code: c.courseCode,
+      subject_code: c.subjectCode,
+      subjectCode: c.subjectCode,
+      section_code: c.sectionCode,
+      sectionCode: c.sectionCode,
       lecturer_id: c.lecturerId,
       lecturer_name: c.lecturerName,
+      lecturer_department: c.lecturerDepartment,
+      lecturerDepartment: c.lecturerDepartment,
+      isDeleted: c.isDeleted,
       created_at: c.createdAt,
     }));
   },
@@ -291,8 +303,15 @@ export const api = {
       ...c,
       id: c.courseId,
       code: c.courseCode,
+      subject_code: c.subjectCode,
+      subjectCode: c.subjectCode,
+      section_code: c.sectionCode,
+      sectionCode: c.sectionCode,
       lecturer_id: c.lecturerId,
       lecturer_name: c.lecturerName,
+      lecturer_department: c.lecturerDepartment,
+      lecturerDepartment: c.lecturerDepartment,
+      isDeleted: c.isDeleted,
       created_at: c.createdAt,
     };
   },
@@ -307,6 +326,8 @@ export const api = {
     lecturerId?: string | number;
     semester?: string;
     academicYear?: string;
+    subjectCode?: string;
+    sectionCode?: string;
     status?: string;
   }): Promise<Course> {
     const payload = {
@@ -317,6 +338,8 @@ export const api = {
       lecturerId: courseData.lecturerId || courseData.lecturer_id,
       semester: courseData.semester || 'HK1',
       academicYear: courseData.academicYear || '2026-2027',
+      subjectCode: courseData.subjectCode,
+      sectionCode: courseData.sectionCode,
       status: courseData.status || 'ACTIVE',
     };
     const c = await request<any>('/courses', {
@@ -327,8 +350,15 @@ export const api = {
       ...c,
       id: c.courseId,
       code: c.courseCode,
+      subject_code: c.subjectCode,
+      subjectCode: c.subjectCode,
+      section_code: c.sectionCode,
+      sectionCode: c.sectionCode,
       lecturer_id: c.lecturerId,
       lecturer_name: c.lecturerName,
+      lecturer_department: c.lecturerDepartment,
+      lecturerDepartment: c.lecturerDepartment,
+      isDeleted: c.isDeleted,
       created_at: c.createdAt,
     };
   },
@@ -341,6 +371,8 @@ export const api = {
       semester: courseData.semester,
       academicYear: courseData.academicYear,
       status: courseData.status,
+      subjectCode: courseData.subjectCode || courseData.subject_code,
+      sectionCode: courseData.sectionCode || courseData.section_code,
       lecturerId: courseData.lecturerId || courseData.lecturer_id,
     };
     const c = await request<any>(`/courses/${courseId}`, {
@@ -351,9 +383,28 @@ export const api = {
       ...c,
       id: c.courseId,
       code: c.courseCode,
+      subject_code: c.subjectCode,
+      subjectCode: c.subjectCode,
+      section_code: c.sectionCode,
+      sectionCode: c.sectionCode,
       lecturer_id: c.lecturerId,
       lecturer_name: c.lecturerName,
+      lecturer_department: c.lecturerDepartment,
+      lecturerDepartment: c.lecturerDepartment,
+      isDeleted: c.isDeleted,
     };
+  },
+
+  async deleteCourse(courseId: string | number, hardDelete = false): Promise<{ message: string }> {
+    return request<{ message: string }>(`/courses/${courseId}?hard_delete=${hardDelete}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async restoreCourse(courseId: string | number): Promise<{ message: string }> {
+    return request<{ message: string }>(`/courses/${courseId}/restore`, {
+      method: 'PATCH',
+    });
   },
 
   // Enrollments
@@ -560,6 +611,30 @@ export const api = {
     };
   },
 
+  async deleteModule(moduleId: string | number, hardDelete = false): Promise<{ message: string }> {
+    return request<{ message: string }>(`/modules/${moduleId}?hard_delete=${hardDelete}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async restoreModule(moduleId: string | number): Promise<{ message: string }> {
+    return request<{ message: string }>(`/modules/${moduleId}/restore`, {
+      method: 'PATCH',
+    });
+  },
+
+  async deleteLesson(lessonId: string | number, hardDelete = false): Promise<{ message: string }> {
+    return request<{ message: string }>(`/lessons/${lessonId}?hard_delete=${hardDelete}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async restoreLesson(lessonId: string | number): Promise<{ message: string }> {
+    return request<{ message: string }>(`/lessons/${lessonId}/restore`, {
+      method: 'PATCH',
+    });
+  },
+
   // Assignments & Submissions
   async getCourseAssignments(courseId: string | number): Promise<Assignment[]> {
     const res = await request<any[]>(`/courses/${courseId}/assignments`);
@@ -625,6 +700,18 @@ export const api = {
       max_score: res.maxScore,
       created_at: res.createdAt,
     };
+  },
+
+  async deleteAssignment(assignmentId: string | number, hardDelete = false): Promise<{ message: string }> {
+    return request<{ message: string }>(`/assignments/${assignmentId}?hard_delete=${hardDelete}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async restoreAssignment(assignmentId: string | number): Promise<{ message: string }> {
+    return request<{ message: string }>(`/assignments/${assignmentId}/restore`, {
+      method: 'PATCH',
+    });
   },
 
   async getAssignmentSubmissions(assignmentId: string | number): Promise<Submission[]> {
@@ -744,6 +831,10 @@ export const api = {
     duration_minutes?: number;
     timeLimitMinutes?: number;
     passingScore?: number;
+    totalScore?: number;
+    total_score?: number;
+    scoreVisibility?: string;
+    score_visibility?: string;
     is_published?: boolean;
     isPublished?: boolean;
   }): Promise<Quiz> {
@@ -757,6 +848,8 @@ export const api = {
       timeLimitMinutes: data.timeLimitMinutes || data.duration_minutes || 15,
       maxAttempts: 3,
       passingScore: data.passingScore ?? 5.0,
+      totalScore: data.totalScore ?? data.total_score ?? 10.0,
+      scoreVisibility: data.scoreVisibility ?? data.score_visibility ?? 'IMMEDIATE',
       isPublished: data.isPublished !== undefined ? data.isPublished : (data.is_published !== undefined ? data.is_published : true),
     };
     const res = await request<any>(`/courses/${courseId}/quizzes`, {
@@ -768,6 +861,10 @@ export const api = {
       id: res.quizId,
       course_id: res.courseId,
       duration_minutes: res.timeLimitMinutes,
+      totalScore: res.totalScore,
+      total_score: res.totalScore,
+      scoreVisibility: res.scoreVisibility,
+      score_visibility: res.scoreVisibility,
       is_published: res.isPublished,
       created_at: res.createdAt,
     };
@@ -782,6 +879,8 @@ export const api = {
         timeLimitMinutes: data.timeLimitMinutes ?? data.duration_minutes,
         maxAttempts: data.maxAttempts,
         passingScore: data.passingScore,
+        totalScore: data.totalScore ?? data.total_score,
+        scoreVisibility: data.scoreVisibility ?? data.score_visibility,
         isPublished: data.isPublished ?? data.is_published,
       }),
     });
@@ -790,12 +889,28 @@ export const api = {
       id: res.quizId,
       course_id: res.courseId,
       duration_minutes: res.timeLimitMinutes,
+      totalScore: res.totalScore,
+      total_score: res.totalScore,
+      scoreVisibility: res.scoreVisibility,
+      score_visibility: res.scoreVisibility,
       is_published: res.isPublished,
       maxScore: Number(res.maxScore ?? 0),
       max_score: Number(res.maxScore ?? 0),
       created_at: res.createdAt,
       questions: normalizeQuizQuestions(res.questions || []),
     };
+  },
+
+  async deleteQuiz(quizId: string | number, hardDelete = false): Promise<{ message: string }> {
+    return request<{ message: string }>(`/quizzes/${quizId}?hard_delete=${hardDelete}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async restoreQuiz(quizId: string | number): Promise<{ message: string }> {
+    return request<{ message: string }>(`/quizzes/${quizId}/restore`, {
+      method: 'PATCH',
+    });
   },
 
   async publishQuiz(quizId: string | number, isPublished: boolean): Promise<{ message: string }> {
@@ -861,6 +976,29 @@ export const api = {
       points: Number(res.score),
       options: normalizeQuizQuestions([res])[0].options,
     };
+  },
+
+  async deleteQuizQuestion(questionId: string | number, autoRebalance: boolean = true): Promise<any> {
+    return request<any>(`/questions/${questionId}?auto_rebalance=${autoRebalance}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async bulkImportQuizQuestions(
+    quizId: string | number,
+    rawText: string,
+    autoRebalanceScores: boolean = true
+  ): Promise<{ success: boolean; importedCount: number; totalQuestions: number; scorePerQuestion: number; message: string }> {
+    return request<any>(`/quizzes/${quizId}/questions/bulk-import`, {
+      method: 'POST',
+      body: JSON.stringify({ rawText, autoRebalanceScores }),
+    });
+  },
+
+  async rebalanceQuizScores(quizId: string | number): Promise<any> {
+    return request<any>(`/quizzes/${quizId}/rebalance-scores`, {
+      method: 'POST',
+    });
   },
 
   async getQuizAttempts(quizId: string | number): Promise<QuizAttempt[]> {
@@ -1008,6 +1146,20 @@ export const api = {
     });
   },
 
+  async broadcastNotification(data: {
+    target: 'ALL' | 'STUDENTS' | 'LECTURERS' | 'COURSE_STUDENTS';
+    courseId?: string;
+    title: string;
+    message: string;
+    type?: string;
+    relatedUrl?: string;
+  }): Promise<{ success: boolean; recipientCount: number; message: string }> {
+    return request<any>('/notifications/broadcast', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   // Dashboard
   async getDashboardStats(role?: string): Promise<DashboardStats> {
     const userRole = (role || 'STUDENT').toLowerCase();
@@ -1080,5 +1232,56 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ userIds: userIds.map(String), action, newPassword }),
     });
+  },
+
+  // Real-time Chat
+  async getChatContacts(): Promise<ChatContact[]> {
+    return request<ChatContact[]>('/chat/contacts');
+  },
+
+  async getChatHistory(partnerId: string): Promise<ChatMessage[]> {
+    return request<ChatMessage[]>(`/chat/messages/${partnerId}`);
+  },
+
+  async sendChatMessage(data: {
+    receiverId: string;
+    content?: string;
+    attachmentUrl?: string;
+    attachmentName?: string;
+    attachmentType?: string;
+    attachmentSize?: number;
+  }): Promise<ChatMessage> {
+    return request<ChatMessage>('/chat/messages', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async recallChatMessage(messageId: string): Promise<{ message: string; messageId: string }> {
+    return request<{ message: string; messageId: string }>(`/chat/messages/${messageId}/recall`, {
+      method: 'POST',
+    });
+  },
+
+  async toggleLecturerChat(): Promise<{ success: boolean; isChatEnabled: boolean; message: string }> {
+    return request<{ success: boolean; isChatEnabled: boolean; message: string }>('/chat/toggle-enabled', {
+      method: 'PATCH',
+    });
+  },
+
+  async blockStudent(studentId: string, reason?: string): Promise<{ message: string }> {
+    return request<{ message: string }>(`/chat/block/${studentId}${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`, {
+      method: 'POST',
+    });
+  },
+
+  async unblockStudent(studentId: string): Promise<{ message: string }> {
+    return request<{ message: string }>(`/chat/block/${studentId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async getUnreadChatCount(): Promise<{ unreadCount: number }> {
+    return request<{ unreadCount: number }>('/chat/unread-count');
   },
 };

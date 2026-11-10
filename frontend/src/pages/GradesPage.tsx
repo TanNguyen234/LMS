@@ -16,6 +16,7 @@ import { formatScore } from '../utils/vi';
 import { useToast } from '../components/common/Toast';
 import { useDebounce } from '../utils/useDebounce';
 import { TableRowSkeleton } from '../components/common/Skeleton';
+import { exportToExcel, exportToCsv } from '../utils/exportExcel';
 import type { Grade, Course } from '../types';
 
 interface MatrixStudent {
@@ -216,37 +217,54 @@ export const GradesPage: React.FC = () => {
     return <span className="font-bold text-red-600 font-mono text-sm">{formatScore(score)}</span>;
   };
 
-  const handleExportGradesCsv = () => {
+  const handleExportGradesCsv = (format: 'xlsx' | 'csv' = 'xlsx') => {
+    const dateStr = new Date().toISOString().slice(0, 10);
     if (viewMode === 'matrix') {
       if (filteredMatrix.length === 0) {
         toast.warning('Không có dữ liệu ma trận điểm để xuất.');
         return;
       }
-      const headers = ['StudentID', 'FullName', 'StudentCode', 'Email', 'Quizzes(20%)', 'Assignments(30%)', 'Exam(50%)', 'WeightedTotal(10)', 'GPA(4)', 'Letter', 'Status', 'RecordedFinal'];
+      const headers = [
+        'Mã SV',
+        'Họ và tên',
+        'Mã số sinh viên',
+        'Email',
+        'Kiểm tra (20%)',
+        'Bài tập (30%)',
+        'Thi cuối kỳ (50%)',
+        'Tổng kết (Hệ 10)',
+        'Điểm GPA (Hệ 4)',
+        'Điểm chữ',
+        'Kết quả',
+        'Điểm chốt'
+      ];
       const rows = filteredMatrix.map((s) => [
-        `"${s.studentId}"`,
-        `"${s.studentName}"`,
-        `"${s.studentCode || ''}"`,
-        `"${s.email}"`,
+        s.studentId,
+        s.studentName,
+        s.studentCode || '',
+        s.email,
         s.quizScore ?? '',
         s.assignmentScore ?? '',
         s.examScore ?? '',
         s.weightedTotal,
         s.gpa4,
-        `"${s.letterGrade}"`,
-        `"${s.status}"`,
+        s.letterGrade,
+        s.status === 'PASSED' ? 'Đạt' : s.status === 'FAILED' ? 'Không đạt' : s.status,
         s.finalScoreRecorded ?? '',
       ]);
-      const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `ma_tran_diem_${selectedCourseId}_${new Date().toISOString().slice(0, 10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success('Đã xuất ma trận điểm thành công!');
+      const filename = `ma_tran_diem_${selectedCourseId}_${dateStr}`;
+      if (format === 'csv') {
+        exportToCsv({ filename, headers, rows });
+        toast.success('Đã xuất ma trận điểm (CSV) thành công!');
+      } else {
+        exportToExcel({
+          filename,
+          sheetName: 'Bảng điểm tổng hợp',
+          headers,
+          rows,
+        });
+        toast.success('Đã xuất ma trận điểm ra tệp Excel (.xlsx) chuẩn thành công!');
+      }
       return;
     }
 
@@ -254,28 +272,31 @@ export const GradesPage: React.FC = () => {
       toast.warning('Không có dữ liệu điểm để xuất.');
       return;
     }
-    const headers = ['Course', 'StudentName', 'StudentCode', 'SourceType', 'ItemTitle', 'Score', 'MaxScore', 'Feedback', 'GradedDate'];
+    const headers = ['Khóa học', 'Sinh viên', 'Mã SV', 'Loại cột điểm', 'Tiêu đề bài làm', 'Điểm số', 'Điểm tối đa', 'Nhận xét', 'Ngày chấm'];
     const rows = filteredGrades.map((g) => [
-      `"${g.courseCode || g.courseTitle || ''}"`,
-      `"${g.student_name || g.studentName || 'Sinh viên'}"`,
-      `"${g.studentCode || ''}"`,
-      `"${g.sourceType || g.source_type}"`,
-      `"${g.itemTitle || ''}"`,
+      g.courseCode || g.courseTitle || '',
+      g.student_name || g.studentName || 'Sinh viên',
+      g.studentCode || '',
+      g.sourceType === 'ASSIGNMENT' ? 'Bài tập' : 'Trắc nghiệm',
+      g.itemTitle || '',
       g.score,
       g.maxScore || g.max_score,
-      `"${(g.feedback || '').replace(/"/g, '""')}"`,
-      `"${new Date(g.gradedAt || g.graded_at).toLocaleDateString('vi-VN')}"`,
+      g.feedback || '',
+      new Date(g.gradedAt || g.graded_at).toLocaleDateString('vi-VN'),
     ]);
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `nhat_ky_diem_${selectedCourseId}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success('Đã xuất nhật ký điểm thành công!');
+    const filename = `nhat_ky_diem_${selectedCourseId}_${dateStr}`;
+    if (format === 'csv') {
+      exportToCsv({ filename, headers, rows });
+      toast.success('Đã xuất nhật ký điểm (CSV) thành công!');
+    } else {
+      exportToExcel({
+        filename,
+        sheetName: 'Nhật ký điểm',
+        headers,
+        rows,
+      });
+      toast.success('Đã xuất nhật ký điểm ra tệp Excel (.xlsx) chuẩn thành công!');
+    }
   };
 
   const getSourceBadge = (type: string) => {
@@ -329,11 +350,12 @@ export const GradesPage: React.FC = () => {
           )}
 
           <button
-            onClick={handleExportGradesCsv}
+            onClick={() => handleExportGradesCsv('xlsx')}
             className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition shrink-0"
+            title="Xuất bảng điểm ra tệp Excel (.xlsx) chuẩn"
           >
-            <FileSpreadsheet className="w-4 h-4 text-slate-600" />
-            <span>Xuất CSV</span>
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Xuất Excel</span>
           </button>
         </div>
       </div>
@@ -400,7 +422,7 @@ export const GradesPage: React.FC = () => {
               onChange={(e) => setSelectedCourseId(e.target.value)}
               className="w-full sm:w-72 px-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
-              <option value="ALL">📚 Tất cả các khóa học ({courses.length})</option>
+              <option value="ALL">Tất cả các khóa học ({courses.length})</option>
               {courses.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.code} - {c.title}

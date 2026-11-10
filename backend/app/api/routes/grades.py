@@ -11,6 +11,7 @@ from backend.app.core.dependencies import (
     get_current_user, require_student, verify_course_access,
     verify_lecturer_course_owner, get_course_or_404
 )
+from backend.app.api.routes.assignments import to_utc_datetime
 
 router = APIRouter(tags=["Grades & Gradebook"])
 
@@ -79,7 +80,18 @@ def get_my_course_grades(
         Grade.StudentId == current_user.UserId
     ).order_by(Grade.GradedAt.desc()).all()
 
-    return [format_grade_response(g, db) for g in grades]
+    now = datetime.now(timezone.utc)
+    visible_grades = []
+    for g in grades:
+        if g.SourceType == "QUIZ" and g.SourceId:
+            quiz = db.query(Quiz).filter(Quiz.QuizId == g.SourceId).first()
+            if quiz and quiz.EndAt:
+                end_at = to_utc_datetime(quiz.EndAt)
+                if quiz.ScoreVisibility == "HIDDEN" or (quiz.ScoreVisibility == "AFTER_CLOSED" and now < end_at):
+                    continue
+        visible_grades.append(format_grade_response(g, db))
+
+    return visible_grades
 
 
 @router.post("/courses/{course_id}/grades/manual", response_model=GradeResponse, status_code=status.HTTP_201_CREATED)

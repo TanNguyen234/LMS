@@ -19,6 +19,7 @@ from backend.app.api.routes.grades import router as grades_router
 from backend.app.api.routes.notifications import router as notifications_router
 from backend.app.api.routes.dashboard import router as dashboard_router
 from backend.app.api.routes.upload import router as upload_router
+from backend.app.api.routes.chat import router as chat_router
 
 
 @asynccontextmanager
@@ -90,6 +91,7 @@ app.include_router(grades_router, prefix=api_prefix)
 app.include_router(notifications_router, prefix=api_prefix)
 app.include_router(dashboard_router, prefix=api_prefix)
 app.include_router(upload_router, prefix=api_prefix)
+app.include_router(chat_router, prefix=api_prefix)
 
 
 

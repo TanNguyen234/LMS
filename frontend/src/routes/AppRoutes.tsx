@@ -10,6 +10,7 @@ import { QuizzesPage } from '../pages/QuizzesPage';
 import { GradesPage } from '../pages/GradesPage';
 import { CalendarPage } from '../pages/CalendarPage';
 import { NotificationsPage } from '../pages/NotificationsPage';
+import { MessagesPage } from '../pages/MessagesPage';
 import { AppLayout } from '../components/layout/AppLayout';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 
@@ -46,8 +47,16 @@ export const AppRoutes: React.FC = () => {
         <Route path="assignments" element={<AssignmentsPage />} />
         <Route path="quizzes" element={<QuizzesPage />} />
         <Route path="grades" element={<GradesPage />} />
-        <Route path="calendar" element={<CalendarPage />} />
+        <Route
+          path="calendar"
+          element={
+            <ProtectedRoute allowedRoles={['LECTURER', 'STUDENT']}>
+              <CalendarPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="messages" element={<MessagesPage />} />
       </Route>
 
       {/* Fallback */}

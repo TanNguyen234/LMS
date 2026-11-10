@@ -25,6 +25,7 @@ import { api } from '../api/client';
 import { useToast } from '../components/common/Toast';
 import { useDebounce } from '../utils/useDebounce';
 import { TableRowSkeleton } from '../components/common/Skeleton';
+import { exportToExcel, exportToCsv, normalizeImportFileToCsv } from '../utils/exportExcel';
 import type { User, UserRole } from '../types';
 
 export const AdminUsersPage: React.FC = () => {
@@ -62,6 +63,7 @@ export const AdminUsersPage: React.FC = () => {
   const [newCohort, setNewCohort] = useState('');
   const [newMajor, setNewMajor] = useState('');
   const [newClassName, setNewClassName] = useState('');
+  const [newDepartment, setNewDepartment] = useState('Khoa Công nghệ Thông tin');
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -170,31 +172,39 @@ export const AdminUsersPage: React.FC = () => {
     }
   };
 
-  const handleExportCsv = () => {
+  const handleExportCsv = (format: 'xlsx' | 'csv' = 'xlsx') => {
     if (filteredUsers.length === 0) {
       toast.warning('Không có dữ liệu để xuất.');
       return;
     }
-    const headers = ['Email', 'FullName', 'Role', 'StudentCode', 'Cohort', 'Major', 'ClassName', 'Status'];
+    const headers = ['Email', 'Họ và tên', 'Phân quyền', 'Mã số', 'Khối', 'Chuyên ngành', 'Lớp', 'Trạng thái'];
     const rows = filteredUsers.map((u) => [
-      `"${u.email}"`,
-      `"${u.full_name || ''}"`,
-      `"${u.role}"`,
-      `"${u.studentCode || ''}"`,
-      `"${u.cohort || ''}"`,
-      `"${u.major || ''}"`,
-      `"${u.className || ''}"`,
-      `"${(u.isActive ?? u.is_active) ? 'ACTIVE' : 'INACTIVE'}"`,
+      u.email,
+      u.full_name || '',
+      u.role === 'ADMIN' ? 'Quản trị viên' : u.role === 'LECTURER' ? 'Giảng viên' : 'Sinh viên',
+      u.studentCode || '',
+      u.cohort || '',
+      u.major || '',
+      u.className || '',
+      (u.isActive ?? u.is_active) ? 'Đang hoạt động' : 'Tạm khóa',
     ]);
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `danh_sach_nguoi_dung_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    if (format === 'csv') {
+      exportToCsv({
+        filename: `danh_sach_nguoi_dung_${dateStr}`,
+        headers,
+        rows,
+      });
+      toast.success('Đã xuất danh sách người dùng (CSV) thành công!');
+    } else {
+      exportToExcel({
+        filename: `danh_sach_nguoi_dung_${dateStr}`,
+        sheetName: 'Người dùng',
+        headers,
+        rows,
+      });
+      toast.success('Đã xuất danh sách người dùng ra tệp Excel (.xlsx) chuẩn thành công!');
+    }
   };
 
   const resetUserForm = () => {
@@ -206,6 +216,7 @@ export const AdminUsersPage: React.FC = () => {
     setNewCohort('');
     setNewMajor('');
     setNewClassName('');
+    setNewDepartment('Khoa Công nghệ Thông tin');
     setEditingUser(null);
     setShowPassword(false);
   };
@@ -221,6 +232,7 @@ export const AdminUsersPage: React.FC = () => {
           cohort: newCohort || undefined,
           major: newMajor || undefined,
           className: newClassName || undefined,
+          department: newRole === 'LECTURER' ? (newDepartment || undefined) : undefined,
         });
         setUsers((prev) => prev.map((u) => (u.id === updated.id ? { ...u, ...updated } : u)));
       } else {
@@ -233,6 +245,7 @@ export const AdminUsersPage: React.FC = () => {
           cohort: newCohort || undefined,
           major: newMajor || undefined,
           className: newClassName || undefined,
+          department: newRole === 'LECTURER' ? (newDepartment || undefined) : undefined,
         });
         setUsers((prev) => [created, ...prev]);
       }
@@ -248,17 +261,18 @@ export const AdminUsersPage: React.FC = () => {
   const handleBulkImportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bulkFile) {
-      toast.warning('Vui lòng chọn tệp CSV để nhập dữ liệu.');
+      toast.warning('Vui lòng chọn tệp Excel hoặc CSV để nhập dữ liệu.');
       return;
     }
     setBulkSubmitting(true);
     setBulkResult(null);
     try {
-      const result = await api.bulkImportUsersCsv(bulkFile);
+      const normalizedFile = await normalizeImportFileToCsv(bulkFile);
+      const result = await api.bulkImportUsersCsv(normalizedFile);
       setBulkResult(result);
       await fetchUsers();
     } catch (err: any) {
-      toast.error('Lỗi nhập dữ liệu CSV: ' + err.message);
+      toast.error('Lỗi nạp dữ liệu: ' + err.message);
     } finally {
       setBulkSubmitting(false);
     }
@@ -361,14 +375,14 @@ export const AdminUsersPage: React.FC = () => {
             <span>Nhập CSV / Excel</span>
           </button>
 
-          {/* Export CSV */}
+          {/* Export Excel */}
           <button
-            onClick={handleExportCsv}
+            onClick={() => handleExportCsv('xlsx')}
             className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition"
-            title="Xuất danh sách sinh viên theo bộ lọc hiện tại"
+            title="Xuất danh sách người dùng ra tệp Excel (.xlsx) chuẩn"
           >
-            <FileSpreadsheet className="w-4 h-4 text-slate-600" />
-            <span>Xuất CSV</span>
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Xuất Excel</span>
           </button>
 
           {/* Manual Single Create */}
@@ -655,11 +669,21 @@ export const AdminUsersPage: React.FC = () => {
                         )}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-medium text-slate-800">{u.major || '—'}</div>
-                        <div className="text-[10px] text-slate-400">{u.cohort || ''}</div>
+                        {u.role === 'LECTURER' ? (
+                          <div className="font-medium text-blue-700 bg-blue-50/70 border border-blue-100 px-2 py-0.5 rounded inline-block text-[11px]">
+                            {u.department || 'Khoa Công nghệ Thông tin'}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="font-medium text-slate-800">{u.major || '—'}</div>
+                            <div className="text-[10px] text-slate-400">{u.cohort || ''}</div>
+                          </>
+                        )}
                       </td>
                       <td className="py-3 px-4">
-                        {u.className ? (
+                        {u.role === 'LECTURER' ? (
+                          <span className="text-slate-400 text-[11px]">—</span>
+                        ) : u.className ? (
                           <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 text-slate-700">
                             {u.className}
                           </span>
@@ -696,6 +720,7 @@ export const AdminUsersPage: React.FC = () => {
                               setNewCohort(u.cohort || '');
                               setNewMajor(u.major || '');
                               setNewClassName(u.className || '');
+                              setNewDepartment(u.department || 'Khoa Công nghệ Thông tin');
                               setIsModalOpen(true);
                             }}
                             className="p-1 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-100 transition"
@@ -968,38 +993,51 @@ export const AdminUsersPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-3">
+              {newRole === 'LECTURER' ? (
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Lớp sinh hoạt</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Khoa công tác (1 Giảng viên thuộc 1 Khoa)</label>
                   <input
                     type="text"
-                    value={newClassName}
-                    onChange={(e) => setNewClassName(e.target.value)}
-                    placeholder="23CNTT01"
+                    value={newDepartment}
+                    onChange={(e) => setNewDepartment(e.target.value)}
+                    placeholder="Khoa Công nghệ Thông tin"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200"
                   />
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Chuyên ngành</label>
-                  <input
-                    type="text"
-                    value={newMajor}
-                    onChange={(e) => setNewMajor(e.target.value)}
-                    placeholder="CNTT"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 uppercase mb-1">Lớp sinh hoạt</label>
+                    <input
+                      type="text"
+                      value={newClassName}
+                      onChange={(e) => setNewClassName(e.target.value)}
+                      placeholder="23CNTT01"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 uppercase mb-1">Chuyên ngành</label>
+                    <input
+                      type="text"
+                      value={newMajor}
+                      onChange={(e) => setNewMajor(e.target.value)}
+                      placeholder="CNTT"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 uppercase mb-1">Khối</label>
+                    <input
+                      type="text"
+                      value={newCohort}
+                      onChange={(e) => setNewCohort(e.target.value)}
+                      placeholder="Khối A (K2023)"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Khối</label>
-                  <input
-                    type="text"
-                    value={newCohort}
-                    onChange={(e) => setNewCohort(e.target.value)}
-                    placeholder="Khối A (K2023)"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-              </div>
+              )}
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
                 <button
@@ -1039,7 +1077,7 @@ export const AdminUsersPage: React.FC = () => {
                   type="file"
                   id="bulkFileInput"
                   className="hidden"
-                  accept=".csv,.txt"
+                  accept=".csv,.xlsx,.xls,.txt"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
                       setBulkFile(e.target.files[0]);
@@ -1064,23 +1102,35 @@ export const AdminUsersPage: React.FC = () => {
                 ) : (
                   <label htmlFor="bulkFileInput" className="cursor-pointer block">
                     <UploadCloud className="w-10 h-10 text-blue-500 mx-auto mb-2" />
-                    <p className="font-bold text-slate-700">Nhấn để chọn tệp CSV từ máy tính</p>
+                    <p className="font-bold text-slate-700">Nhấn để chọn tệp Excel (.xlsx) hoặc CSV từ máy tính</p>
                     <p className="text-slate-400 mt-1">Định dạng chuẩn: Email, FullName, Role, StudentCode, Cohort, Major, ClassName</p>
                   </label>
                 )}
               </div>
 
-              <div className="bg-slate-50 p-3 rounded-xl text-slate-600 space-y-1">
+              <div className="bg-slate-50 p-3 rounded-xl text-slate-600 space-y-1.5">
                 <div className="font-semibold text-slate-700 flex items-center justify-between">
-                  <span>Quy cách tệp CSV chuẩn:</span>
-                  <a
-                    href="/sample_users_bulk_import.csv"
-                    download
-                    className="text-blue-600 hover:underline inline-flex items-center space-x-1"
-                  >
-                    <Download className="w-3 h-3" />
-                    <span>Tải mẫu</span>
-                  </a>
+                  <span>Quy cách tệp mẫu chuẩn:</span>
+                  <div className="flex items-center space-x-2">
+                    <a
+                      href="/api/download?path=sample_users_bulk_import.xlsx&name=sample_users_bulk_import.xlsx"
+                      download="sample_users_bulk_import.xlsx"
+                      className="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center space-x-1 font-semibold"
+                      title="Tải tệp mẫu Excel .xlsx (Khuyên dùng)"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Mẫu Excel (.xlsx)</span>
+                    </a>
+                    <a
+                      href="/api/download?path=sample_users_bulk_import.csv&name=sample_users_bulk_import.csv"
+                      download="sample_users_bulk_import.csv"
+                      className="text-blue-600 hover:underline inline-flex items-center space-x-1"
+                      title="Tải tệp mẫu CSV"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>Mẫu CSV</span>
+                    </a>
+                  </div>
                 </div>
                 <p>• Nếu tài khoản đã tồn tại (trùng email), hệ thống sẽ cập nhật Khối, Ngành, Lớp.</p>
                 <p>• Mật khẩu nếu để trống sẽ tự động đặt mặc định là <code>Demo@123</code>.</p>

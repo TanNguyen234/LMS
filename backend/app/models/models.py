@@ -27,6 +27,8 @@ class User(Base):
     Cohort = Column(String(50), nullable=True)
     Major = Column(String(100), nullable=True)
     ClassName = Column(String(50), nullable=True)
+    Department = Column(String(100), nullable=True)
+    IsChatEnabled = Column(Boolean, nullable=False, default=True)
     CreatedAt = Column(DateTime, nullable=False, default=utcnow)
 
     # Relationships
@@ -49,8 +51,12 @@ class Course(Base):
     Semester = Column(String(20), nullable=False)
     AcademicYear = Column(String(20), nullable=False)
     Credits = Column(SmallInteger, nullable=False)
+    SubjectCode = Column(String(30), nullable=True)
     SectionCode = Column(String(30), nullable=True)
     Status = Column(String(20), nullable=False, default="ACTIVE")  # 'DRAFT', 'ACTIVE', 'ARCHIVED'
+    IsDeleted = Column(Boolean, nullable=False, default=False)
+    DeletedAt = Column(DateTime, nullable=True)
+    DeletedBy = Column(UNIQUEIDENTIFIER, nullable=True)
     CreatedAt = Column(DateTime, nullable=False, default=utcnow)
 
     # Relationships
@@ -86,6 +92,9 @@ class Module(Base):
     SortOrder = Column(Integer, nullable=False)
     Description = Column(String(1000), nullable=True)
     IsPublished = Column(Boolean, nullable=False, default=False)
+    IsDeleted = Column(Boolean, nullable=False, default=False)
+    DeletedAt = Column(DateTime, nullable=True)
+    DeletedBy = Column(UNIQUEIDENTIFIER, nullable=True)
     CreatedAt = Column(DateTime, nullable=False, default=utcnow)
 
     # Relationships
@@ -122,6 +131,9 @@ class Assignment(Base):
     AllowLate = Column(Boolean, nullable=False, default=False)
     AttachmentUrl = Column(String(500), nullable=True)
     Status = Column(String(20), nullable=False, default="DRAFT")  # 'DRAFT', 'PUBLISHED', 'CLOSED'
+    IsDeleted = Column(Boolean, nullable=False, default=False)
+    DeletedAt = Column(DateTime, nullable=True)
+    DeletedBy = Column(UNIQUEIDENTIFIER, nullable=True)
     CreatedAt = Column(DateTime, nullable=False, default=utcnow)
 
     # Relationships
@@ -160,7 +172,12 @@ class Quiz(Base):
     TimeLimitMinutes = Column(Integer, nullable=False)
     MaxAttempts = Column(Integer, nullable=False, default=1)
     PassingScore = Column(Float, nullable=False, default=5.0)
+    TotalScore = Column(Float, nullable=False, default=10.0)
+    ScoreVisibility = Column(String(20), nullable=False, default="IMMEDIATE")  # 'IMMEDIATE', 'AFTER_CLOSED', 'HIDDEN'
     IsPublished = Column(Boolean, nullable=False, default=False)
+    IsDeleted = Column(Boolean, nullable=False, default=False)
+    DeletedAt = Column(DateTime, nullable=True)
+    DeletedBy = Column(UNIQUEIDENTIFIER, nullable=True)
     CreatedAt = Column(DateTime, nullable=False, default=utcnow)
 
     # Relationships
@@ -252,3 +269,40 @@ class Notification(Base):
 
     # Relationships
     user = relationship("User", back_populates="notifications")
+
+
+class Message(Base):
+    __tablename__ = "Messages"
+
+    MessageId = Column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
+    SenderId = Column(UNIQUEIDENTIFIER, ForeignKey("Users.UserId"), nullable=False, index=True)
+    ReceiverId = Column(UNIQUEIDENTIFIER, ForeignKey("Users.UserId"), nullable=False, index=True)
+    Content = Column(String(2000), nullable=True)
+    CreatedAt = Column(DateTime, nullable=False, default=utcnow)
+    IsRead = Column(Boolean, nullable=False, default=False)
+    IsRecalled = Column(Boolean, nullable=False, default=False)
+    RecalledAt = Column(DateTime, nullable=True)
+    AttachmentUrl = Column(String(500), nullable=True)
+    AttachmentName = Column(String(255), nullable=True)
+    AttachmentType = Column(String(100), nullable=True)
+    AttachmentSize = Column(Integer, nullable=True)
+
+    sender = relationship("User", foreign_keys=[SenderId])
+    receiver = relationship("User", foreign_keys=[ReceiverId])
+
+
+class BlockedUser(Base):
+    __tablename__ = "BlockedUsers"
+    __table_args__ = (
+        UniqueConstraint("LecturerId", "StudentId", name="UQ_BlockedUsers_Lecturer_Student"),
+    )
+
+    BlockId = Column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
+    LecturerId = Column(UNIQUEIDENTIFIER, ForeignKey("Users.UserId"), nullable=False, index=True)
+    StudentId = Column(UNIQUEIDENTIFIER, ForeignKey("Users.UserId"), nullable=False, index=True)
+    CreatedAt = Column(DateTime, nullable=False, default=utcnow)
+    Reason = Column(String(500), nullable=True)
+
+    lecturer = relationship("User", foreign_keys=[LecturerId])
+    student = relationship("User", foreign_keys=[StudentId])
+

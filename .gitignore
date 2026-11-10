@@ -34,3 +34,10 @@ Thumbs.db
 .agents/
 .chrome-session/
 
+# Uploaded runtime storage
+backend/storage/uploads/*
+!backend/storage/uploads/.gitkeep
+frontend/public/submissions/*_*.*
+frontend/public/submissions/test_*
+
+

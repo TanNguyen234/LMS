@@ -16,12 +16,15 @@ import {
   Download,
   FileSpreadsheet,
   Check,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
 import { useToast } from '../components/common/Toast';
 import { useDebounce } from '../utils/useDebounce';
 import { CardSkeleton } from '../components/common/Skeleton';
+import { exportToExcel, exportToCsv, normalizeImportFileToCsv } from '../utils/exportExcel';
 import type { Course, User, BulkImportResult } from '../types';
 
 export const CoursesPage: React.FC = () => {
@@ -39,6 +42,8 @@ export const CoursesPage: React.FC = () => {
 
   // New course form state
   const [newCode, setNewCode] = useState('');
+  const [newSubjectCode, setNewSubjectCode] = useState('');
+  const [newSectionCode, setNewSectionCode] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newCredits, setNewCredits] = useState(3);
@@ -54,8 +59,14 @@ export const CoursesPage: React.FC = () => {
   const fetchCourses = async () => {
     try {
       setLoading(true);
-      const data = await api.getCourses(statusFilter === 'ALL' ? undefined : statusFilter);
-      setCourses(data);
+      const isDeletedTab = statusFilter === 'DELETED';
+      const actualStatus = isDeletedTab ? undefined : (statusFilter === 'ALL' ? undefined : statusFilter);
+      const data = await api.getCourses(actualStatus, undefined);
+      if (isDeletedTab) {
+        setCourses(data.filter((c) => c.isDeleted));
+      } else {
+        setCourses(data.filter((c) => !c.isDeleted));
+      }
     } catch (err: any) {
       setError(err.message || 'Không thể tải danh sách khóa học.');
     } finally {
@@ -78,6 +89,8 @@ export const CoursesPage: React.FC = () => {
 
   const resetCourseForm = () => {
     setNewCode('');
+    setNewSubjectCode('');
+    setNewSectionCode('');
     setNewTitle('');
     setNewDesc('');
     setNewCredits(3);
@@ -94,6 +107,8 @@ export const CoursesPage: React.FC = () => {
           title: newTitle.trim(),
           description: newDesc.trim(),
           credits: Number(newCredits),
+          subjectCode: newSubjectCode.trim() || undefined,
+          sectionCode: newSectionCode.trim() || undefined,
           lecturer_id: lecturerId,
         });
       } else {
@@ -102,6 +117,8 @@ export const CoursesPage: React.FC = () => {
           title: newTitle.trim(),
           description: newDesc.trim(),
           credits: Number(newCredits),
+          subjectCode: newSubjectCode.trim() || undefined,
+          sectionCode: newSectionCode.trim() || undefined,
           lecturer_id: lecturerId,
         });
       }
@@ -128,13 +145,14 @@ export const CoursesPage: React.FC = () => {
   const handleBulkImportCourses = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bulkFile) {
-      toast.warning('Vui lòng chọn tệp CSV danh sách khóa học.');
+      toast.warning('Vui lòng chọn tệp Excel hoặc CSV danh sách khóa học.');
       return;
     }
     setBulkSubmitting(true);
     setBulkResult(null);
     try {
-      const result = await api.bulkImportCoursesCsv(bulkFile);
+      const normalizedFile = await normalizeImportFileToCsv(bulkFile);
+      const result = await api.bulkImportCoursesCsv(normalizedFile);
       setBulkResult(result);
       await fetchCourses();
     } catch (err: any) {
@@ -144,29 +162,37 @@ export const CoursesPage: React.FC = () => {
     }
   };
 
-  const handleExportCoursesCsv = () => {
+  const handleExportCoursesCsv = (format: 'xlsx' | 'csv' = 'xlsx') => {
     if (filteredCourses.length === 0) {
       toast.warning('Không có khóa học nào để xuất.');
       return;
     }
-    const headers = ['CourseCode', 'Title', 'Description', 'Credits', 'LecturerName', 'Status'];
+    const headers = ['Mã học phần', 'Tên học phần', 'Mô tả', 'Số tín chỉ', 'Giảng viên phụ trách', 'Trạng thái'];
     const rows = filteredCourses.map((c) => [
-      `"${c.code}"`,
-      `"${c.title}"`,
-      `"${(c.description || '').replace(/"/g, '""')}"`,
+      c.code,
+      c.title,
+      c.description || '',
       c.credits,
-      `"${c.lecturer_name || ''}"`,
-      `"${c.status}"`,
+      c.lecturer_name || '',
+      c.status === 'ACTIVE' || c.status === 'PUBLISHED' ? 'Đang mở' : c.status === 'ARCHIVED' ? 'Đã lưu trữ' : 'Bản nháp',
     ]);
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `danh_sach_khoa_hoc_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    if (format === 'csv') {
+      exportToCsv({
+        filename: `danh_sach_khoa_hoc_${dateStr}`,
+        headers,
+        rows,
+      });
+      toast.success('Đã xuất danh sách khóa học (CSV) thành công!');
+    } else {
+      exportToExcel({
+        filename: `danh_sach_khoa_hoc_${dateStr}`,
+        sheetName: 'Danh sách môn học',
+        headers,
+        rows,
+      });
+      toast.success('Đã xuất danh sách khóa học ra tệp Excel (.xlsx) chuẩn thành công!');
+    }
   };
 
   const filteredCourses = useMemo(() => {
@@ -218,13 +244,13 @@ export const CoursesPage: React.FC = () => {
         {user?.role === 'ADMIN' && (
           <div className="flex flex-wrap items-center gap-2">
             <a
-              href="/sample_courses_bulk_import.csv"
-              download
-              className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition"
-              title="Tải tệp CSV môn học mẫu kèm giảng viên phân công sẵn"
+              href="/api/download?path=sample_courses_bulk_import.xlsx&name=sample_courses_bulk_import.xlsx"
+              download="sample_courses_bulk_import.xlsx"
+              className="inline-flex items-center space-x-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold text-xs rounded-xl transition"
+              title="Tải tệp Excel môn học mẫu chuẩn (.xlsx) kèm giảng viên phân công sẵn"
             >
-              <Download className="w-4 h-4 text-slate-600" />
-              <span>Tải mẫu CSV</span>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>Tải mẫu Excel</span>
             </a>
 
             <button
@@ -234,19 +260,19 @@ export const CoursesPage: React.FC = () => {
                 setIsBulkModalOpen(true);
               }}
               className="inline-flex items-center space-x-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-semibold text-xs rounded-xl transition"
-              title="Nhập hàng loạt 50+ môn học của học kỳ trong 2 giây"
+              title="Nhập hàng loạt môn học từ tệp Excel (.xlsx) hoặc CSV"
             >
               <UploadCloud className="w-4 h-4 text-indigo-600" />
-              <span>Nhập môn học từ CSV</span>
+              <span>Nhập Excel / CSV</span>
             </button>
 
             <button
-              onClick={handleExportCoursesCsv}
+              onClick={() => handleExportCoursesCsv('xlsx')}
               className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition"
-              title="Xuất danh sách khóa học"
+              title="Xuất danh sách khóa học ra tệp Excel (.xlsx) chuẩn"
             >
-              <FileSpreadsheet className="w-4 h-4 text-slate-600" />
-              <span>Xuất CSV</span>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>Xuất Excel</span>
             </button>
 
             <button
@@ -280,6 +306,7 @@ export const CoursesPage: React.FC = () => {
               { id: 'ACTIVE', label: 'Đang mở' },
               { id: 'DRAFT', label: 'Bản nháp' },
               { id: 'ARCHIVED', label: 'Đã lưu trữ' },
+              ...(user?.role === 'ADMIN' ? [{ id: 'DELETED', label: 'Đã xóa (Thùng rác)' }] : []),
             ].map((chip) => (
               <button
                 key={chip.id}
@@ -329,15 +356,39 @@ export const CoursesPage: React.FC = () => {
             >
               <div className="p-5">
                 <div className="flex items-start justify-between gap-2 mb-3">
-                  <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-100 font-mono">
-                    {c.code}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-100 font-mono">
+                      {c.code}
+                    </span>
+                    {c.sectionCode && (
+                      <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-100">
+                        Lớp {c.sectionCode}
+                      </span>
+                    )}
+                  </div>
                   {getStatusBadge(c.status)}
                 </div>
 
                 <h2 className="font-bold text-slate-800 text-base group-hover:text-blue-600 transition line-clamp-2">
                   <Link to={`/courses/${c.id}`}>{c.title}</Link>
                 </h2>
+
+                <div className="mt-2 flex flex-col gap-0.5 text-[11px] text-slate-500">
+                  {c.lecturerName && (
+                    <div className="flex items-center space-x-1">
+                      <span className="text-slate-400">GV:</span>
+                      <span className="font-medium text-slate-700">{c.lecturerName}</span>
+                      {c.lecturerDepartment && (
+                        <span className="text-blue-600 font-normal">({c.lecturerDepartment})</span>
+                      )}
+                    </div>
+                  )}
+                  {c.subjectCode && c.subjectCode !== c.code && (
+                    <div className="text-slate-400">
+                      Môn gốc: <span className="font-mono text-slate-600 font-semibold">{c.subjectCode}</span>
+                    </div>
+                  )}
+                </div>
 
                 <p className="text-xs text-slate-500 mt-2 line-clamp-3 leading-relaxed">
                   {c.description || 'Chưa có đề cương chi tiết.'}
@@ -357,6 +408,8 @@ export const CoursesPage: React.FC = () => {
                         onClick={() => {
                           setEditingCourse(c);
                           setNewCode(c.code);
+                          setNewSubjectCode(c.subjectCode || '');
+                          setNewSectionCode(c.sectionCode || '');
                           setNewTitle(c.title);
                           setNewDesc(c.description || '');
                           setNewCredits(Number(c.credits));
@@ -368,13 +421,49 @@ export const CoursesPage: React.FC = () => {
                       >
                         <Pencil className="w-3.5 h-3.5" /> Sửa
                       </button>
-                      <button
-                        onClick={() => handleToggleArchive(c)}
-                        className="font-semibold text-slate-600 hover:text-amber-700"
-                      >
-                        {c.status === 'ARCHIVED' ? 'Mở lại' : 'Lưu trữ'}
-                      </button>
+                      {c.isDeleted ? (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await api.restoreCourse(c.id);
+                              toast.success('Đã khôi phục khóa học thành công.');
+                              fetchCourses();
+                            } catch (err: any) {
+                              toast.error('Lỗi khôi phục: ' + err.message);
+                            }
+                          }}
+                          className="font-semibold text-emerald-600 hover:text-emerald-700 inline-flex items-center gap-1"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Khôi phục
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleToggleArchive(c)}
+                          className="font-semibold text-slate-600 hover:text-amber-700"
+                        >
+                          {c.status === 'ARCHIVED' ? 'Mở lại' : 'Lưu trữ'}
+                        </button>
+                      )}
                     </>
+                  )}
+                  {user?.role === 'LECTURER' && String(c.lecturerId || c.lecturer_id) === String(user.id) && (
+                    <button
+                      onClick={async () => {
+                        if (window.confirm(`Bạn có chắc muốn xóa lớp học phần "${c.title}" khỏi danh sách của bạn?`)) {
+                          try {
+                            await api.deleteCourse(c.id);
+                            toast.success('Đã xóa lớp học phần thành công.');
+                            fetchCourses();
+                          } catch (err: any) {
+                            toast.error('Lỗi khi xóa: ' + err.message);
+                          }
+                        }
+                      }}
+                      className="font-semibold text-red-600 hover:text-red-700 inline-flex items-center gap-1"
+                      title="Xóa khóa học (Soft delete)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Xóa
+                    </button>
                   )}
                   <Link
                     to={`/courses/${c.id}`}
@@ -406,29 +495,50 @@ export const CoursesPage: React.FC = () => {
             <form onSubmit={handleSaveCourse} className="space-y-4 mt-4 text-xs">
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-1">
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Mã môn học</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Mã lớp HP</label>
                   <input
                     type="text"
                     required
                     disabled={!!editingCourse}
                     value={newCode}
                     onChange={(e) => setNewCode(e.target.value)}
-                    placeholder="CS101"
+                    placeholder="CS101-01"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono font-bold uppercase disabled:bg-slate-50"
                   />
                 </div>
-                <div className="col-span-2">
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Số tín chỉ</label>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Mã môn gốc</label>
                   <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    required
-                    value={newCredits}
-                    onChange={(e) => setNewCredits(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                    type="text"
+                    value={newSubjectCode}
+                    onChange={(e) => setNewSubjectCode(e.target.value.toUpperCase())}
+                    placeholder="CS101"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono uppercase"
                   />
                 </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Lớp/Nhóm</label>
+                  <input
+                    type="text"
+                    value={newSectionCode}
+                    onChange={(e) => setNewSectionCode(e.target.value.toUpperCase())}
+                    placeholder="L01"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Số tín chỉ</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  required
+                  value={newCredits}
+                  onChange={(e) => setNewCredits(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                />
               </div>
 
               <div>
@@ -509,7 +619,7 @@ export const CoursesPage: React.FC = () => {
                   type="file"
                   id="bulkCourseFileInput"
                   className="hidden"
-                  accept=".csv,.txt"
+                  accept=".csv,.xlsx,.xls,.txt"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
                       setBulkFile(e.target.files[0]);
@@ -534,23 +644,35 @@ export const CoursesPage: React.FC = () => {
                 ) : (
                   <label htmlFor="bulkCourseFileInput" className="cursor-pointer block">
                     <UploadCloud className="w-10 h-10 text-indigo-500 mx-auto mb-2" />
-                    <p className="font-bold text-slate-700">Nhấn để chọn tệp CSV khóa học từ máy tính</p>
+                    <p className="font-bold text-slate-700">Nhấn để chọn tệp Excel (.xlsx) hoặc CSV từ máy tính</p>
                     <p className="text-slate-400 mt-1">Cột hỗ trợ: CourseCode, Title, Description, Credits, LecturerEmail, Semester, AcademicYear</p>
                   </label>
                 )}
               </div>
 
-              <div className="bg-slate-50 p-3 rounded-xl text-slate-600 space-y-1">
+              <div className="bg-slate-50 p-3 rounded-xl text-slate-600 space-y-1.5">
                 <div className="font-semibold text-slate-700 flex items-center justify-between">
-                  <span>Quy cách tệp CSV chuẩn:</span>
-                  <a
-                    href="/sample_courses_bulk_import.csv"
-                    download
-                    className="text-indigo-600 hover:underline inline-flex items-center space-x-1"
-                  >
-                    <Download className="w-3 h-3" />
-                    <span>Tải mẫu</span>
-                  </a>
+                  <span>Quy cách tệp môn học chuẩn:</span>
+                  <div className="flex items-center space-x-2">
+                    <a
+                      href="/api/download?path=sample_courses_bulk_import.xlsx&name=sample_courses_bulk_import.xlsx"
+                      download="sample_courses_bulk_import.xlsx"
+                      className="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center space-x-1 font-semibold"
+                      title="Tải tệp mẫu Excel .xlsx (Khuyên dùng)"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Mẫu Excel (.xlsx)</span>
+                    </a>
+                    <a
+                      href="/api/download?path=sample_courses_bulk_import.csv&name=sample_courses_bulk_import.csv"
+                      download="sample_courses_bulk_import.csv"
+                      className="text-indigo-600 hover:underline inline-flex items-center space-x-1"
+                      title="Tải tệp mẫu CSV"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>Mẫu CSV</span>
+                    </a>
+                  </div>
                 </div>
                 <p>• Nếu mã môn học đã tồn tại, hệ thống sẽ tự động cập nhật tên, mô tả và giảng viên.</p>
                 <p>• Email giảng viên cần khớp với tài khoản Giảng viên đã có trong hệ thống.</p>

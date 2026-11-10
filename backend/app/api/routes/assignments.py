@@ -14,8 +14,9 @@ from backend.app.schemas.schemas import (
 from backend.app.schemas.common import MessageResponse
 from backend.app.core.dependencies import (
     get_current_user, verify_course_access, verify_lecturer_course_owner,
-    require_student, get_course_or_404
+    require_student, require_admin, get_course_or_404
 )
+from backend.app.services.notification_service import notify_user, notify_course_students
 
 router = APIRouter(tags=["Assignments & Submissions"])
 
@@ -64,7 +65,7 @@ def get_course_assignments(
     db: Session = Depends(get_db)
 ):
     """List assignments for course."""
-    query = db.query(Assignment).filter(Assignment.CourseId == course_id)
+    query = db.query(Assignment).filter(Assignment.CourseId == course_id, Assignment.IsDeleted == False)
     if current_user.Role == "STUDENT":
         # Students only see published or closed assignments, not drafts
         query = query.filter(Assignment.Status.in_(["PUBLISHED", "CLOSED"]))
@@ -81,6 +82,8 @@ def get_course_assignments(
             allowLate=a.AllowLate,
             attachmentUrl=a.AttachmentUrl,
             status=a.Status,
+            isDeleted=a.IsDeleted,
+            deletedAt=a.DeletedAt,
             createdAt=a.CreatedAt
         )
         for a in assignments
@@ -116,6 +119,16 @@ def create_assignment(
     db.commit()
     db.refresh(new_a)
 
+    if new_a.Status == "PUBLISHED":
+        notify_course_students(
+            db,
+            course_id,
+            f"Bài tập mới: {new_a.Title}",
+            f"Khóa học có bài tập mới '{new_a.Title}'. Hạn chót: {new_a.DueAt.strftime('%d/%m/%Y %H:%M') if new_a.DueAt else 'Không giới hạn'}.",
+            type="ASSIGNMENT",
+            related_url=f"/courses/{course_id}"
+        )
+
     return AssignmentResponse(
         assignmentId=new_a.AssignmentId,
         courseId=new_a.CourseId,
@@ -139,6 +152,8 @@ def get_assignment_detail(
     """Get single assignment detail."""
     a = get_assignment_or_404(assignment_id, db)
     verify_course_access(a.CourseId, current_user, db)
+    if a.IsDeleted and current_user.Role != "ADMIN":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
     if current_user.Role == "STUDENT" and a.Status == "DRAFT":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found or not published")
     return AssignmentResponse(
@@ -151,6 +166,8 @@ def get_assignment_detail(
         allowLate=a.AllowLate,
         attachmentUrl=a.AttachmentUrl,
         status=a.Status,
+        isDeleted=a.IsDeleted,
+        deletedAt=a.DeletedAt,
         createdAt=a.CreatedAt
     )
 
@@ -166,6 +183,7 @@ def update_assignment(
     a = get_assignment_or_404(assignment_id, db)
     course = verify_lecturer_course_owner(a.CourseId, current_user, db)
 
+    was_published = (a.Status == "PUBLISHED")
     if a_in.title is not None:
         a.Title = a_in.title.strip()
     if a_in.description is not None:
@@ -193,6 +211,16 @@ def update_assignment(
 
     db.commit()
     db.refresh(a)
+
+    if not was_published and a.Status == "PUBLISHED":
+        notify_course_students(
+            db,
+            a.CourseId,
+            f"Bài tập mới: {a.Title}",
+            f"Bài tập '{a.Title}' đã được xuất bản. Hạn chót: {a.DueAt.strftime('%d/%m/%Y %H:%M') if a.DueAt else 'Không giới hạn'}.",
+            type="ASSIGNMENT",
+            related_url=f"/courses/{a.CourseId}"
+        )
     return AssignmentResponse(
         assignmentId=a.AssignmentId,
         courseId=a.CourseId,
@@ -308,6 +336,17 @@ def submit_assignment(
         db.commit()
         db.refresh(new_sub)
         sub = new_sub
+
+    course = db.query(Course).filter(Course.CourseId == a.CourseId).first()
+    if course and course.LecturerId:
+        notify_user(
+            db,
+            course.LecturerId,
+            f"Bài nộp mới từ {current_user.FullName}",
+            f"Sinh viên {current_user.FullName} ({current_user.StudentCode or ''}) vừa nộp bài cho bài tập '{a.Title}'.",
+            type="ASSIGNMENT",
+            related_url=f"/courses/{a.CourseId}"
+        )
 
     return SubmissionResponse(
         submissionId=sub.SubmissionId,
@@ -495,3 +534,59 @@ def grade_submission(
         studentName=student.FullName if student else "Unknown",
         studentCode=student.StudentCode if student else None
     )
+
+
+@router.delete("/assignments/{assignment_id}", response_model=MessageResponse)
+@router.delete("/courses/{course_id}/assignments/{assignment_id}", response_model=MessageResponse)
+def delete_assignment(
+    assignment_id: uuid.UUID,
+    course_id: Optional[uuid.UUID] = None,
+    hard_delete: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete assignment. Lecturer triggers soft delete; Admin can soft or hard delete."""
+    a = db.query(Assignment).filter(Assignment.AssignmentId == assignment_id).first()
+    if not a:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+
+    course = db.query(Course).filter(Course.CourseId == a.CourseId).first()
+    if current_user.Role == "LECTURER":
+        if not course or course.LecturerId != current_user.UserId:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete assignment you do not own")
+        a.IsDeleted = True
+        a.DeletedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+        a.DeletedBy = current_user.UserId
+        db.commit()
+        return MessageResponse(message="Bài tập đã được xóa khỏi danh sách")
+    elif current_user.Role == "ADMIN":
+        if hard_delete:
+            db.delete(a)
+            db.commit()
+            return MessageResponse(message="Đã xóa vĩnh viễn bài tập")
+        else:
+            a.IsDeleted = True
+            a.DeletedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+            a.DeletedBy = current_user.UserId
+            db.commit()
+            return MessageResponse(message="Đã xóa mềm bài tập")
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+
+
+@router.patch("/assignments/{assignment_id}/restore", response_model=MessageResponse)
+def restore_assignment(
+    assignment_id: uuid.UUID,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Restore soft-deleted assignment (Admin only)."""
+    a = db.query(Assignment).filter(Assignment.AssignmentId == assignment_id).first()
+    if not a:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+    a.IsDeleted = False
+    a.DeletedAt = None
+    a.DeletedBy = None
+    db.commit()
+    return MessageResponse(message="Bài tập đã được khôi phục thành công")
+

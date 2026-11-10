@@ -15,6 +15,7 @@ import {
   Home,
   ChevronRight,
   Calendar,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { api } from '../../api/client';
@@ -30,8 +31,9 @@ export const AppLayout: React.FC = () => {
   const [dropdownUnreadOnly, setDropdownUnreadOnly] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
-  const fetchNotifications = async () => {
+  const fetchCounts = async () => {
     try {
       const data = await api.getNotifications();
       setNotifications(data.slice(0, 8));
@@ -39,12 +41,18 @@ export const AppLayout: React.FC = () => {
     } catch {
       // Ignored for layout polling
     }
+    try {
+      const chatRes = await api.getUnreadChatCount();
+      setUnreadChatCount(chatRes.unreadCount);
+    } catch {
+      // Ignored for layout polling
+    }
   };
 
   useEffect(() => {
     if (user) {
-      fetchNotifications();
-      const interval = setInterval(fetchNotifications, 30000);
+      fetchCounts();
+      const interval = setInterval(fetchCounts, 15000);
       return () => clearInterval(interval);
     }
   }, [user]);
@@ -96,7 +104,8 @@ export const AppLayout: React.FC = () => {
       roles: ['ADMIN', 'LECTURER', 'STUDENT'],
       badge: user?.role === 'ADMIN' ? 'Toàn trường' : undefined,
     },
-    { label: 'Lịch & Hạn chót', path: '/calendar', icon: Calendar, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
+    { label: 'Lịch & Hạn chót', path: '/calendar', icon: Calendar, roles: ['LECTURER', 'STUDENT'] },
+    { label: 'Tin nhắn', path: '/messages', icon: MessageSquare, roles: ['ADMIN', 'LECTURER', 'STUDENT'], count: unreadChatCount },
     { label: 'Thông báo', path: '/notifications', icon: Bell, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
   ];
 
@@ -142,6 +151,9 @@ export const AppLayout: React.FC = () => {
     if (p.startsWith('/calendar')) {
       return [{ label: 'Lịch học & Hạn nộp', path: '/calendar' }];
     }
+    if (p.startsWith('/messages')) {
+      return [{ label: 'Tin nhắn trực tuyến', path: '/messages' }];
+    }
     if (p.startsWith('/notifications')) {
       return [{ label: 'Hộp thư Thông báo', path: '/notifications' }];
     }
@@ -179,7 +191,21 @@ export const AppLayout: React.FC = () => {
           </div>
 
           {/* User actions */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Direct Chat Link */}
+            <Link
+              to="/messages"
+              className="relative p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition"
+              title="Tin nhắn trực tuyến"
+            >
+              <MessageSquare className="w-5 h-5" />
+              {unreadChatCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                  {unreadChatCount > 9 ? '9+' : unreadChatCount}
+                </span>
+              )}
+            </Link>
+
             {/* Notifications Menu */}
             <div className="relative">
               <button
@@ -323,6 +349,11 @@ export const AppLayout: React.FC = () => {
                       {item.badge}
                     </span>
                   )}
+                  {item.count !== undefined && item.count > 0 && (
+                    <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-red-500 text-white shadow-xs">
+                      {item.count > 99 ? '99+' : item.count}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -364,6 +395,11 @@ export const AppLayout: React.FC = () => {
                           }`}
                         >
                           {item.badge}
+                        </span>
+                      )}
+                      {item.count !== undefined && item.count > 0 && (
+                        <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-red-500 text-white shadow-xs">
+                          {item.count > 99 ? '99+' : item.count}
                         </span>
                       )}
                     </Link>

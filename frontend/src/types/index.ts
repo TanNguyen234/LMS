@@ -15,6 +15,8 @@ export interface User {
   cohort?: string | null;
   major?: string | null;
   className?: string | null;
+  department?: string | null;
+  isChatEnabled?: boolean;
   createdAt: string;
   created_at: string;
   updatedAt?: string;
@@ -48,8 +50,14 @@ export interface Course {
   lecturer_email?: string;
   semester?: string;
   academicYear?: string;
+  subjectCode?: string | null;
+  subject_code?: string | null;
   sectionCode?: string | null;
   section_code?: string | null;
+  lecturerDepartment?: string | null;
+  lecturer_department?: string | null;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
   createdAt: string;
   created_at: string;
   updatedAt?: string;
@@ -98,6 +106,8 @@ export interface Lesson {
   sortOrder: number;
   order_index?: number;
   estimatedMinutes?: number;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
   createdAt: string;
   created_at: string;
 }
@@ -114,6 +124,8 @@ export interface Module {
   sortOrder: number;
   order_index?: number;
   isPublished?: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
   createdAt: string;
   created_at: string;
   lessons: Lesson[];
@@ -138,6 +150,8 @@ export interface Assignment {
   max_score: number;
   allowLate?: boolean;
   status?: string;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
   createdAt: string;
   created_at: string;
   submissions_count?: number;
@@ -205,6 +219,12 @@ export interface Quiz {
   attachment_url?: string;
   timeLimitMinutes: number;
   duration_minutes: number;
+  totalScore?: number;
+  total_score?: number;
+  scoreVisibility?: 'IMMEDIATE' | 'AFTER_CLOSED' | 'HIDDEN';
+  score_visibility?: 'IMMEDIATE' | 'AFTER_CLOSED' | 'HIDDEN';
+  isDeleted?: boolean;
+  deletedAt?: string | null;
   maxScore?: number;
   max_score?: number;
   startAt?: string;
@@ -355,3 +375,41 @@ export interface BatchUserActionsResult {
   affectedCount: number;
   message: string;
 }
+
+export interface ChatMessage {
+  messageId: string;
+  senderId: string;
+  receiverId: string;
+  content?: string | null;
+  createdAt: string;
+  isRead: boolean;
+  isRecalled?: boolean;
+  recalledAt?: string | null;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentType?: string | null;
+  attachmentSize?: number | null;
+  senderName?: string;
+}
+
+export interface ChatContact {
+  userId: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  department?: string | null;
+  courseNames: string[];
+  isBlocked: boolean;
+  isChatEnabled: boolean;
+  unreadCount: number;
+}
+
+export interface BlockedUser {
+  blockId: string;
+  studentId: string;
+  studentName?: string;
+  studentEmail?: string;
+  createdAt: string;
+  reason?: string | null;
+}
+

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -10,7 +11,7 @@ from backend.app.schemas.schemas import (
 )
 from backend.app.schemas.common import MessageResponse
 from backend.app.core.dependencies import (
-    get_current_user, verify_course_access, verify_lecturer_course_owner,
+    get_current_user, require_admin, verify_course_access, verify_lecturer_course_owner,
     get_course_or_404
 )
 
@@ -58,7 +59,7 @@ def get_course_modules(
     - Students only see published modules and published lessons.
     - Lecturers & Admins see all modules and lessons (including drafts).
     """
-    module_query = db.query(Module).filter(Module.CourseId == course_id)
+    module_query = db.query(Module).filter(Module.CourseId == course_id, Module.IsDeleted == False)
     if current_user.Role == "STUDENT":
         module_query = module_query.filter(Module.IsPublished == True)
 
@@ -66,7 +67,7 @@ def get_course_modules(
     results = []
 
     for m in modules:
-        lesson_query = db.query(Lesson).filter(Lesson.ModuleId == m.ModuleId)
+        lesson_query = db.query(Lesson).filter(Lesson.ModuleId == m.ModuleId, Lesson.IsDeleted == False)
         if current_user.Role == "STUDENT":
             lesson_query = lesson_query.filter(Lesson.IsPublished == True)
         lessons = lesson_query.order_by(Lesson.SortOrder.asc()).all()
@@ -78,6 +79,8 @@ def get_course_modules(
             sortOrder=m.SortOrder,
             description=m.Description,
             isPublished=m.IsPublished,
+            isDeleted=m.IsDeleted,
+            deletedAt=m.DeletedAt,
             createdAt=m.CreatedAt,
             lessons=[
                 LessonResponse(
@@ -88,6 +91,8 @@ def get_course_modules(
                     materialUrl=l.MaterialUrl,
                     sortOrder=l.SortOrder,
                     isPublished=l.IsPublished,
+                    isDeleted=l.IsDeleted,
+                    deletedAt=l.DeletedAt,
                     estimatedMinutes=l.EstimatedMinutes,
                     createdAt=l.CreatedAt
                 )
@@ -172,6 +177,60 @@ def toggle_module_publish(
     db.commit()
     status_str = "published" if pub_in.isPublished else "unpublished"
     return MessageResponse(message=f"Module '{m.Title}' successfully {status_str}")
+
+
+@router.delete("/modules/{module_id}", response_model=MessageResponse)
+def delete_module(
+    module_id: uuid.UUID,
+    hard_delete: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a module. Lecturer triggers soft delete; Admin can soft or hard delete."""
+    m = db.query(Module).filter(Module.ModuleId == module_id).first()
+    if not m:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module not found")
+
+    course = db.query(Course).filter(Course.CourseId == m.CourseId).first()
+    if current_user.Role == "LECTURER":
+        if not course or course.LecturerId != current_user.UserId:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete module you do not own")
+        m.IsDeleted = True
+        m.DeletedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+        m.DeletedBy = current_user.UserId
+        db.commit()
+        return MessageResponse(message="Chương học đã được xóa")
+    elif current_user.Role == "ADMIN":
+        if hard_delete:
+            db.delete(m)
+            db.commit()
+            return MessageResponse(message="Đã xóa vĩnh viễn chương học")
+        else:
+            m.IsDeleted = True
+            m.DeletedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+            m.DeletedBy = current_user.UserId
+            db.commit()
+            return MessageResponse(message="Đã xóa mềm chương học")
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+
+
+@router.patch("/modules/{module_id}/restore", response_model=MessageResponse)
+def restore_module(
+    module_id: uuid.UUID,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Restore soft-deleted module (Admin only)."""
+    m = db.query(Module).filter(Module.ModuleId == module_id).first()
+    if not m:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module not found")
+    m.IsDeleted = False
+    m.DeletedAt = None
+    m.DeletedBy = None
+    db.commit()
+    return MessageResponse(message="Chương học đã được khôi phục thành công")
+
 
 
 # ==========================================
@@ -298,6 +357,61 @@ def toggle_lesson_publish(
     db.commit()
     status_str = "published" if pub_in.isPublished else "unpublished"
     return MessageResponse(message=f"Lesson '{lesson.Title}' successfully {status_str}")
+
+
+@router.delete("/lessons/{lesson_id}", response_model=MessageResponse)
+def delete_lesson(
+    lesson_id: uuid.UUID,
+    hard_delete: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a lesson. Lecturer triggers soft delete; Admin can soft or hard delete."""
+    lesson = db.query(Lesson).filter(Lesson.LessonId == lesson_id).first()
+    if not lesson:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
+
+    module = db.query(Module).filter(Module.ModuleId == lesson.ModuleId).first()
+    course = db.query(Course).filter(Course.CourseId == module.CourseId).first() if module else None
+    if current_user.Role == "LECTURER":
+        if not course or course.LecturerId != current_user.UserId:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete lesson you do not own")
+        lesson.IsDeleted = True
+        lesson.DeletedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+        lesson.DeletedBy = current_user.UserId
+        db.commit()
+        return MessageResponse(message="Bài học đã được xóa")
+    elif current_user.Role == "ADMIN":
+        if hard_delete:
+            db.delete(lesson)
+            db.commit()
+            return MessageResponse(message="Đã xóa vĩnh viễn bài học")
+        else:
+            lesson.IsDeleted = True
+            lesson.DeletedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+            lesson.DeletedBy = current_user.UserId
+            db.commit()
+            return MessageResponse(message="Đã xóa mềm bài học")
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+
+
+@router.patch("/lessons/{lesson_id}/restore", response_model=MessageResponse)
+def restore_lesson(
+    lesson_id: uuid.UUID,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Restore soft-deleted lesson (Admin only)."""
+    lesson = db.query(Lesson).filter(Lesson.LessonId == lesson_id).first()
+    if not lesson:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
+    lesson.IsDeleted = False
+    lesson.DeletedAt = None
+    lesson.DeletedBy = None
+    db.commit()
+    return MessageResponse(message="Bài học đã được khôi phục thành công")
+
 
 
 @router.post("/courses/{course_id}/generate-standard-syllabus")

@@ -35,6 +35,8 @@ class UserBase(BaseModel):
     cohort: Optional[str] = None
     major: Optional[str] = None
     className: Optional[str] = None
+    department: Optional[str] = None
+    isChatEnabled: bool = True
 
 
 class UserCreate(UserBase):
@@ -51,6 +53,8 @@ class UserUpdate(BaseModel):
     cohort: Optional[str] = None
     major: Optional[str] = None
     className: Optional[str] = None
+    department: Optional[str] = None
+    isChatEnabled: Optional[bool] = None
     password: Optional[str] = None
 
 
@@ -78,6 +82,7 @@ class CourseBase(BaseModel):
     semester: str
     academicYear: str
     credits: int
+    subjectCode: Optional[str] = None
     sectionCode: Optional[str] = None
     status: str = "ACTIVE"  # 'DRAFT', 'ACTIVE', 'ARCHIVED'
 
@@ -93,6 +98,7 @@ class CourseUpdate(BaseModel):
     semester: Optional[str] = None
     academicYear: Optional[str] = None
     credits: Optional[int] = None
+    subjectCode: Optional[str] = None
     sectionCode: Optional[str] = None
     status: Optional[str] = None
 
@@ -105,6 +111,9 @@ class CourseResponse(CourseBase):
     courseId: uuid.UUID
     createdAt: datetime
     lecturerName: Optional[str] = None
+    lecturerDepartment: Optional[str] = None
+    isDeleted: bool = False
+    deletedAt: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -163,6 +172,8 @@ class LessonResponse(LessonBase):
     lessonId: uuid.UUID
     moduleId: uuid.UUID
     createdAt: datetime
+    isDeleted: bool = False
+    deletedAt: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -194,6 +205,8 @@ class ModuleResponse(ModuleBase):
     moduleId: uuid.UUID
     courseId: uuid.UUID
     createdAt: datetime
+    isDeleted: bool = False
+    deletedAt: Optional[datetime] = None
     lessons: List[LessonResponse] = []
 
     class Config:
@@ -260,6 +273,8 @@ class AssignmentResponse(AssignmentBase):
     assignmentId: uuid.UUID
     courseId: uuid.UUID
     createdAt: datetime
+    isDeleted: bool = False
+    deletedAt: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -389,6 +404,8 @@ class QuizBase(BaseModel):
     timeLimitMinutes: int = Field(default=30, ge=1, le=300)
     maxAttempts: int = Field(default=1, ge=1, le=10)
     passingScore: float = Field(default=5.0, ge=0)
+    totalScore: float = Field(default=10.0, ge=0)
+    scoreVisibility: str = "IMMEDIATE"  # 'IMMEDIATE', 'AFTER_CLOSED', 'HIDDEN'
     isPublished: bool = False
 
     @field_validator("title")
@@ -418,6 +435,8 @@ class QuizUpdate(BaseModel):
     timeLimitMinutes: Optional[int] = Field(default=None, ge=1, le=300)
     maxAttempts: Optional[int] = Field(default=None, ge=1, le=10)
     passingScore: Optional[float] = Field(default=None, ge=0)
+    totalScore: Optional[float] = Field(default=None, ge=0)
+    scoreVisibility: Optional[str] = None
     isPublished: Optional[bool] = None
 
     @field_validator("title")
@@ -450,6 +469,8 @@ class QuizResponse(QuizBase):
     courseId: uuid.UUID
     createdAt: datetime
     maxScore: float = 0.0
+    isDeleted: bool = False
+    deletedAt: Optional[datetime] = None
     questions: List[QuizQuestionResponse] = []
 
     class Config:
@@ -498,6 +519,19 @@ class QuizAttemptResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class BulkImportQuestionsRequest(BaseModel):
+    rawText: str
+    autoRebalanceScores: bool = True
+
+
+class BulkImportQuestionsResponse(BaseModel):
+    success: bool
+    importedCount: int
+    totalQuestions: int
+    scorePerQuestion: float
+    message: str
 
 
 # ==========================================
@@ -570,6 +604,21 @@ class NotificationResponse(BaseModel):
         from_attributes = True
 
 
+class NotificationBroadcastRequest(BaseModel):
+    target: str = "ALL"  # 'ALL', 'STUDENTS', 'LECTURERS', 'COURSE_STUDENTS'
+    courseId: Optional[uuid.UUID] = None
+    title: str = Field(..., min_length=1, max_length=200)
+    message: str = Field(..., min_length=1, max_length=1000)
+    type: str = "ANNOUNCEMENT"
+    relatedUrl: Optional[str] = None
+
+
+class NotificationBroadcastResponse(BaseModel):
+    success: bool
+    recipientCount: int
+    message: str
+
+
 class AdminDashboardResponse(BaseModel):
     totalUsers: int
     totalCourses: int
@@ -591,3 +640,86 @@ class StudentDashboardResponse(BaseModel):
     availableQuizzes: int
     unreadNotifications: int
     enrolledCourses: List[CourseResponse] = []
+
+
+# ==========================================
+# NOTIFICATION BROADCAST & BULK IMPORT SCHEMAS
+# ==========================================
+
+class BroadcastNotificationRequest(BaseModel):
+    courseId: Optional[uuid.UUID] = None  # None = toàn trường (Admin only), courseId = sinh viên trong lớp
+    title: str = Field(..., min_length=1, max_length=200)
+    message: str = Field(..., min_length=1, max_length=1000)
+    type: str = "GENERAL"
+    relatedUrl: Optional[str] = None
+
+
+class BulkQuestionImportRequest(BaseModel):
+    rawText: str = Field(..., min_length=5)
+    autoEqualScore: bool = True
+
+
+class BulkQuestionImportResponse(BaseModel):
+    importedCount: int
+    scorePerQuestion: float
+    questions: List[QuizQuestionResponse] = []
+
+
+# ==========================================
+# REALTIME CHAT SCHEMAS
+# ==========================================
+
+class MessageCreate(BaseModel):
+    receiverId: uuid.UUID
+    content: Optional[str] = Field(None, max_length=2000)
+    attachmentUrl: Optional[str] = Field(None, max_length=500)
+    attachmentName: Optional[str] = Field(None, max_length=255)
+    attachmentType: Optional[str] = Field(None, max_length=100)
+    attachmentSize: Optional[int] = None
+
+
+class ChatMessageResponse(BaseModel):
+    messageId: uuid.UUID
+    senderId: uuid.UUID
+    receiverId: uuid.UUID
+    content: Optional[str] = None
+    createdAt: datetime
+    isRead: bool
+    isRecalled: bool = False
+    recalledAt: Optional[datetime] = None
+    attachmentUrl: Optional[str] = None
+    attachmentName: Optional[str] = None
+    attachmentType: Optional[str] = None
+    attachmentSize: Optional[int] = None
+    senderName: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+MessageResponse = ChatMessageResponse
+
+
+class ContactResponse(BaseModel):
+    userId: uuid.UUID
+    fullName: str
+    email: str
+    role: str
+    department: Optional[str] = None
+    courseNames: List[str] = []
+    isBlocked: bool = False
+    isChatEnabled: bool = True
+    unreadCount: int = 0
+
+
+class BlockedUserResponse(BaseModel):
+    blockId: uuid.UUID
+    studentId: uuid.UUID
+    studentName: Optional[str] = None
+    studentEmail: Optional[str] = None
+    createdAt: datetime
+    reason: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+

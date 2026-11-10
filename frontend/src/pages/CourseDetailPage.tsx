@@ -20,6 +20,7 @@ import {
   FileSpreadsheet,
   PanelLeftClose,
   PanelLeftOpen,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
@@ -29,6 +30,7 @@ import { PdfPreviewModal } from '../components/common/PdfPreviewModal';
 import { useToast } from '../components/common/Toast';
 import { RichTextEditor, RichTextViewer } from '../components/common/RichTextEditor';
 import { MessageSquare, ThumbsUp, Send, CheckCircle2 } from 'lucide-react';
+import { exportToExcel, exportToCsv } from '../utils/exportExcel';
 
 export const CourseDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -352,28 +354,32 @@ export const CourseDetailPage: React.FC = () => {
     }
   };
 
-  const handleExportRosterCsv = () => {
+  const handleExportRosterCsv = (format: 'xlsx' | 'csv' = 'xlsx') => {
     if (enrollments.length === 0) {
       toast.warning('Chưa có sinh viên ghi danh để xuất.');
       return;
     }
-    const headers = ['StudentID', 'FullName', 'Email', 'Status', 'EnrolledDate'];
+    const headers = ['Mã SV', 'Họ và tên', 'Email', 'Trạng thái', 'Ngày ghi danh'];
     const rows = enrollments.map((e) => [
-      `"${e.student_id}"`,
-      `"${e.student_name || 'Sinh viên'}"`,
-      `"${e.student_email || ''}"`,
-      `"${e.status}"`,
-      `"${new Date(e.enrolled_at).toLocaleDateString('vi-VN')}"`,
+      e.student_id,
+      e.student_name || 'Sinh viên',
+      e.student_email || '',
+      e.status === 'ACTIVE' ? 'Đang học' : e.status,
+      new Date(e.enrolled_at).toLocaleDateString('vi-VN'),
     ]);
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `danh_sach_lop_${course?.code || 'course'}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const filename = `danh_sach_lop_${course?.code || 'course'}_${new Date().toISOString().slice(0, 10)}`;
+    if (format === 'csv') {
+      exportToCsv({ filename, headers, rows });
+      toast.success('Đã xuất danh sách lớp (CSV) thành công!');
+    } else {
+      exportToExcel({
+        filename,
+        sheetName: 'Danh sách sinh viên',
+        headers,
+        rows,
+      });
+      toast.success('Đã xuất danh sách lớp ra tệp Excel (.xlsx) chuẩn thành công!');
+    }
   };
 
   const handleCreateModule = async (e: React.FormEvent) => {
@@ -706,6 +712,23 @@ export const CourseDetailPage: React.FC = () => {
                               <Archive className="w-3.5 h-3.5" />
                             </button>
                             <button
+                              onClick={async () => {
+                                if (window.confirm(`Bạn có chắc muốn xóa chương "${m.title}"?`)) {
+                                  try {
+                                    await api.deleteModule(m.id);
+                                    toast.success('Đã xóa chương học thành công.');
+                                    fetchCourseData();
+                                  } catch (err: any) {
+                                    toast.error('Lỗi khi xóa chương: ' + err.message);
+                                  }
+                                }
+                              }}
+                              className="text-slate-400 hover:text-red-600 font-semibold p-1"
+                              title="Xóa chương"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
                               onClick={() => {
                                 setSelectedModuleId(String(m.id));
                                 resetLessonForm();
@@ -780,6 +803,24 @@ export const CourseDetailPage: React.FC = () => {
                         >
                           {selectedLesson.is_published ? 'Ẩn bài' : 'Xuất bản'}
                         </button>
+                        <button
+                          onClick={async () => {
+                            if (window.confirm(`Bạn có chắc muốn xóa bài học "${selectedLesson.title}"?`)) {
+                              try {
+                                await api.deleteLesson(selectedLesson.id);
+                                toast.success('Đã xóa bài học thành công.');
+                                setSelectedLesson(null);
+                                fetchCourseData();
+                              } catch (err: any) {
+                                toast.error('Lỗi khi xóa bài học: ' + err.message);
+                              }
+                            }
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-600 hover:bg-red-50 inline-flex items-center gap-1"
+                          title="Xóa bài học"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Xóa
+                        </button>
                       </div>
                     )}
                   </div>
@@ -796,7 +837,7 @@ export const CourseDetailPage: React.FC = () => {
                           return (
                             <div key={idx} className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between gap-2 shadow-2xs">
                               <span className="text-xs text-slate-700 font-medium truncate" title={fileUrl}>
-                                📄 {fileName}
+                                {fileName}
                               </span>
                               <div className="flex items-center space-x-1.5 shrink-0">
                                 <button
@@ -809,8 +850,8 @@ export const CourseDetailPage: React.FC = () => {
                                   <span>Xem</span>
                                 </button>
                                 <a
-                                  href={fileUrl}
-                                  download
+                                  href={`/api/download?path=${encodeURIComponent(fileUrl)}&name=${encodeURIComponent(fileName)}`}
+                                  download={fileName}
                                   className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-semibold flex items-center space-x-1 transition"
                                   title="Tải về máy tính"
                                 >
@@ -878,11 +919,12 @@ export const CourseDetailPage: React.FC = () => {
 
             <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={handleExportRosterCsv}
+                onClick={() => handleExportRosterCsv('xlsx')}
                 className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition"
+                title="Xuất danh sách sinh viên ra tệp Excel (.xlsx) chuẩn"
               >
-                <FileSpreadsheet className="w-4 h-4 text-slate-600" />
-                <span>Xuất CSV</span>
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <span>Xuất Excel</span>
               </button>
 
               {user?.role === 'ADMIN' && (

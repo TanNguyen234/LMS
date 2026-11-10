@@ -15,6 +15,24 @@ from backend.app.core.dependencies import require_admin
 router = APIRouter(prefix="/users", tags=["Users (Admin)"], dependencies=[Depends(require_admin)])
 
 
+def format_user_response(u: User) -> UserResponse:
+    return UserResponse(
+        userId=u.UserId,
+        email=u.Email,
+        fullName=u.FullName,
+        role=u.Role,
+        isActive=u.IsActive,
+        studentCode=u.StudentCode,
+        staffCode=u.StaffCode,
+        cohort=u.Cohort,
+        major=u.Major,
+        className=u.ClassName,
+        department=u.Department,
+        isChatEnabled=u.IsChatEnabled,
+        createdAt=u.CreatedAt
+    )
+
+
 @router.get("", response_model=PaginatedResponse[UserResponse])
 def list_users(
     page: int = Query(1, ge=1),
@@ -46,22 +64,7 @@ def list_users(
     total = query.count()
     users = query.order_by(User.CreatedAt.desc()).offset((page - 1) * pageSize).limit(pageSize).all()
 
-    items = [
-        UserResponse(
-            userId=u.UserId,
-            email=u.Email,
-            fullName=u.FullName,
-            role=u.Role,
-            isActive=u.IsActive,
-            studentCode=u.StudentCode,
-            staffCode=u.StaffCode,
-            cohort=u.Cohort,
-            major=u.Major,
-            className=u.ClassName,
-            createdAt=u.CreatedAt
-        )
-        for u in users
-    ]
+    items = [format_user_response(u) for u in users]
     return PaginatedResponse[UserResponse](
         items=items,
         page=page,
@@ -76,16 +79,7 @@ def get_user_by_id(user_id: uuid.UUID, db: Session = Depends(get_db)):
     u = db.query(User).filter(User.UserId == user_id).first()
     if not u:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return UserResponse(
-        userId=u.UserId,
-        email=u.Email,
-        fullName=u.FullName,
-        role=u.Role,
-        isActive=u.IsActive,
-        studentCode=u.StudentCode,
-        staffCode=u.StaffCode,
-        createdAt=u.CreatedAt
-    )
+    return format_user_response(u)
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -115,25 +109,15 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
         StaffCode=user_in.staffCode.strip() if user_in.staffCode else None,
         Cohort=user_in.cohort.strip() if user_in.cohort else None,
         Major=user_in.major.strip() if user_in.major else None,
-        ClassName=user_in.className.strip() if user_in.className else None
+        ClassName=user_in.className.strip() if user_in.className else None,
+        Department=user_in.department.strip() if user_in.department else None,
+        IsChatEnabled=user_in.isChatEnabled
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
-    return UserResponse(
-        userId=new_user.UserId,
-        email=new_user.Email,
-        fullName=new_user.FullName,
-        role=new_user.Role,
-        isActive=new_user.IsActive,
-        studentCode=new_user.StudentCode,
-        staffCode=new_user.StaffCode,
-        cohort=new_user.Cohort,
-        major=new_user.Major,
-        className=new_user.ClassName,
-        createdAt=new_user.CreatedAt
-    )
+    return format_user_response(new_user)
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -168,21 +152,16 @@ def update_user(user_id: uuid.UUID, user_in: UserUpdate, db: Session = Depends(g
         u.Major = user_in.major.strip() if user_in.major else None
     if user_in.className is not None:
         u.ClassName = user_in.className.strip() if user_in.className else None
+    if user_in.department is not None:
+        u.Department = user_in.department.strip() if user_in.department and user_in.department.strip() else None
+    if user_in.isChatEnabled is not None:
+        u.IsChatEnabled = user_in.isChatEnabled
     if user_in.password is not None and len(user_in.password.strip()) >= 6:
         u.PasswordHash = get_password_hash(user_in.password)
 
     db.commit()
     db.refresh(u)
-    return UserResponse(
-        userId=u.UserId,
-        email=u.Email,
-        fullName=u.FullName,
-        role=u.Role,
-        isActive=u.IsActive,
-        studentCode=u.StudentCode,
-        staffCode=u.StaffCode,
-        createdAt=u.CreatedAt
-    )
+    return format_user_response(u)
 
 
 @router.patch("/{user_id}/status", response_model=MessageResponse)
@@ -211,6 +190,10 @@ async def bulk_import_users_csv(
         text_content = content.decode("utf-8-sig")
     except UnicodeDecodeError:
         text_content = content.decode("cp1252", errors="ignore")
+
+    lines = text_content.splitlines(keepends=True)
+    if lines and lines[0].strip().lower().startswith("sep="):
+        text_content = "".join(lines[1:])
 
     reader = csv.DictReader(io.StringIO(text_content))
     total = 0

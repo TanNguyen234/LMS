@@ -2,7 +2,8 @@ import os
 import uuid
 import shutil
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends, Query
+from fastapi.responses import FileResponse
 from backend.app.models.models import User
 from backend.app.core.dependencies import get_current_user
 
@@ -10,12 +11,12 @@ router = APIRouter(tags=["Upload"])
 
 ALLOWED_EXTENSIONS = {
     ".pdf", ".docx", ".doc", ".zip", ".rar", ".7z", ".tar", ".gz",
-    ".png", ".jpg", ".jpeg", ".webp", ".txt", ".csv", ".xlsx", ".pptx"
+    ".png", ".jpg", ".jpeg", ".webp", ".txt", ".csv", ".xlsx", ".xls", ".pptx"
 }
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 # Target directories
-BASE_DIR = Path(__file__).resolve().parents[3]
+BASE_DIR = Path(__file__).resolve().parents[4]
 BACKEND_STORAGE = BASE_DIR / "backend" / "storage" / "uploads"
 FRONTEND_SUBMISSIONS = BASE_DIR / "frontend" / "public" / "submissions"
 FRONTEND_DIST_SUBMISSIONS = BASE_DIR / "frontend" / "dist" / "submissions"
@@ -24,6 +25,72 @@ BACKEND_STORAGE.mkdir(parents=True, exist_ok=True)
 FRONTEND_SUBMISSIONS.mkdir(parents=True, exist_ok=True)
 if (BASE_DIR / "frontend" / "dist").exists():
     FRONTEND_DIST_SUBMISSIONS.mkdir(parents=True, exist_ok=True)
+
+
+@router.get("/download")
+async def download_file(
+    path: str = Query(..., description="Đường dẫn tương đối của tệp cần tải về"),
+    name: str | None = Query(None, description="Tên tệp hiển thị khi tải về")
+):
+    """
+    Tải tệp đính kèm với Content-Disposition: attachment và Content-Type chuẩn xác.
+    Đảm bảo các tệp Excel (.xlsx, .xls), CSV, PDF, Word không bị lỗi ký tự và tải xuống trọn vẹn.
+    """
+    clean_rel = path.lstrip("/\\")
+
+    roots = [
+        BASE_DIR / "frontend" / "public",
+        BASE_DIR / "frontend" / "dist",
+        BACKEND_STORAGE
+    ]
+
+    target_file: Path | None = None
+    for root in roots:
+        try:
+            cand = (root / clean_rel).resolve()
+            cand.relative_to(root.resolve())
+            if cand.is_file():
+                target_file = cand
+                break
+        except (ValueError, RuntimeError):
+            continue
+
+    if not target_file:
+        filename_only = os.path.basename(clean_rel)
+        for cand in [FRONTEND_SUBMISSIONS / filename_only, BACKEND_STORAGE / filename_only]:
+            if cand.is_file():
+                target_file = cand
+                break
+
+    if not target_file or not target_file.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tệp yêu cầu không tồn tại trên hệ thống."
+        )
+
+    ext = target_file.suffix.lower()
+    content_type_map = {
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".xls": "application/vnd.ms-excel",
+        ".csv": "text/csv; charset=utf-8",
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".doc": "application/msword",
+        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ".zip": "application/zip",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+    }
+    media_type = content_type_map.get(ext, "application/octet-stream")
+    download_filename = name or target_file.name
+
+    return FileResponse(
+        path=str(target_file),
+        media_type=media_type,
+        filename=download_filename,
+        content_disposition_type="attachment"
+    )
 
 
 @router.post("/upload")

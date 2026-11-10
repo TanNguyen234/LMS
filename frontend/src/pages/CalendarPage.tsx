@@ -205,7 +205,7 @@ export const CalendarPage: React.FC = () => {
             onChange={(e) => setSelectedCourseId(e.target.value)}
             className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
-            <option value="ALL">📚 Tất cả khóa học ({courses.length})</option>
+            <option value="ALL">Tất cả khóa học ({courses.length})</option>
             {courses.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.code} - {c.title}

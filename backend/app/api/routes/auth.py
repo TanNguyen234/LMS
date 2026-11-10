@@ -45,6 +45,8 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
         isActive=user.IsActive,
         studentCode=user.StudentCode,
         staffCode=user.StaffCode,
+        department=user.Department,
+        isChatEnabled=user.IsChatEnabled,
         createdAt=user.CreatedAt
     )
     return TokenResponse(
@@ -65,5 +67,7 @@ def get_current_profile(current_user: User = Depends(get_current_user)):
         isActive=current_user.IsActive,
         studentCode=current_user.StudentCode,
         staffCode=current_user.StaffCode,
+        department=current_user.Department,
+        isChatEnabled=current_user.IsChatEnabled,
         createdAt=current_user.CreatedAt
     )
