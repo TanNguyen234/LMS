@@ -51,7 +51,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   });
 
   if (!response.ok) {
-    let errorDetail = 'Request failed';
+    let errorDetail = 'Yêu cầu xử lý thất bại';
     let errorData = null;
     try {
       errorData = await response.json();
