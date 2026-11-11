@@ -10,6 +10,7 @@ import {
 import { api } from '../../api/client';
 import { WhiteboardCanvas } from './WhiteboardCanvas';
 import type { Meeting, MeetingLog, User as AppUser } from '../../types';
+import { formatRole } from '../../utils/formatters';
 
 interface MeetingRoomProps {
   meeting: Meeting;
@@ -137,7 +138,7 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
       isMounted = false;
       // Record leave in database
       api.leaveMeeting(meeting.meetingId, {
-        activitySummary: 'Participant ended session',
+        activitySummary: 'Người tham gia kết thúc phiên',
       }).catch(console.error);
 
       if (jitsiApiRef.current) {
@@ -152,7 +153,7 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
   const handleLeaveCall = async () => {
     try {
       await api.leaveMeeting(meeting.meetingId, {
-        activitySummary: 'Left meeting room',
+        activitySummary: 'Rời khỏi phòng học',
       });
     } catch {}
     if (onLeave) onLeave();
@@ -243,7 +244,7 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
             }`}
           >
             <Edit3 className="w-3.5 h-3.5" />
-            <span>Bảng trắng (Whiteboard)</span>
+            <span>Bảng vẽ trực tuyến</span>
           </button>
 
           {isHost && (
@@ -345,7 +346,7 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
                                   : 'bg-emerald-900/60 text-emerald-300'
                               }`}
                             >
-                              {log.userRole === 'LECTURER' ? 'Giảng viên' : 'Sinh viên'}
+                              {formatRole(log.userRole)}
                             </span>
                           </td>
                           <td className="px-4 py-3 font-mono text-slate-400">{log.studentCode || '-'}</td>

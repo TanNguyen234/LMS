@@ -22,6 +22,7 @@ import { ChannelChat } from '../components/teams/ChannelChat';
 import { MeetingRoom } from '../components/teams/MeetingRoom';
 import { WhiteboardCanvas } from '../components/teams/WhiteboardCanvas';
 import type { Course, Meeting } from '../types';
+import { formatRole, formatMeetingStatus, formatDateTimeVi } from '../utils/formatters';
 
 export const VirtualClassroomPage: React.FC = () => {
   const { user } = useAuth();
@@ -256,7 +257,7 @@ export const VirtualClassroomPage: React.FC = () => {
             </div>
             <div className="hidden xl:block text-left">
               <div className="text-xs font-semibold text-slate-200 leading-none">{user?.fullName}</div>
-              <div className="text-[10px] text-slate-400 font-medium leading-none mt-1">{user?.role}</div>
+              <div className="text-[10px] text-slate-400 font-medium leading-none mt-1">{formatRole(user?.role)}</div>
             </div>
           </div>
         </div>
@@ -318,7 +319,7 @@ export const VirtualClassroomPage: React.FC = () => {
                           <span className="text-[10px] font-bold text-blue-400">{course.courseCode}</span>
                           {hasActiveMeeting && (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse">
-                              LIVE
+                              TRỰC TIẾP
                             </span>
                           )}
                         </div>
@@ -358,7 +359,7 @@ export const VirtualClassroomPage: React.FC = () => {
                         <div className="truncate pr-2">
                           <div className="font-medium truncate">{m.title}</div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
-                            {new Date(m.startedAt).toLocaleDateString('vi-VN')}
+                            {formatDateTimeVi(m.startedAt)}
                           </div>
                         </div>
                         <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
@@ -366,7 +367,7 @@ export const VirtualClassroomPage: React.FC = () => {
                             ? 'bg-emerald-900/60 text-emerald-300'
                             : 'bg-slate-800 text-slate-400'
                         }`}>
-                          {m.status}
+                          {formatMeetingStatus(m.status)}
                         </span>
                       </button>
                     ))}
@@ -569,11 +570,11 @@ export const VirtualClassroomPage: React.FC = () => {
                           <span className={`px-2 py-0.5 text-xs font-bold rounded ${
                             m.status === 'LIVE' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-slate-400'
                           }`}>
-                            {m.status}
+                            {formatMeetingStatus(m.status)}
                           </span>
                         </div>
                         <div className="flex items-center gap-4 text-xs text-slate-400">
-                          <div>Bắt đầu: {new Date(m.startedAt).toLocaleString('vi-VN')}</div>
+                          <div>Bắt đầu: {formatDateTimeVi(m.startedAt)}</div>
                           <div>Mã phòng: <code className="text-blue-400">{m.roomCode}</code></div>
                         </div>
                       </div>

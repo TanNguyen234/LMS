@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Send, MessageSquare, User, Shield, GraduationCap, Clock } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CourseMessage } from '../../types';
+import { formatDateTimeVi, formatRole } from '../../utils/formatters';
 
 interface ChannelChatProps {
   courseId: string;
@@ -53,32 +54,27 @@ export const ChannelChat: React.FC<ChannelChatProps> = ({ courseId, courseTitle 
   };
 
   const formatTime = (isoString: string) => {
-    try {
-      const date = new Date(isoString);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' - ' + date.toLocaleDateString();
-    } catch {
-      return isoString;
-    }
+    return formatDateTimeVi(isoString);
   };
 
   const getRoleBadge = (role: string) => {
-    switch (role) {
+    switch (role?.toUpperCase()) {
       case 'ADMIN':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-rose-100 text-rose-800">
-            <Shield className="w-3 h-3" /> Admin
+            <Shield className="w-3 h-3" /> {formatRole('ADMIN')}
           </span>
         );
       case 'LECTURER':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">
-            <GraduationCap className="w-3 h-3" /> Giảng viên
+            <GraduationCap className="w-3 h-3" /> {formatRole('LECTURER')}
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700">
-            <User className="w-3 h-3" /> Sinh viên
+            <User className="w-3 h-3" /> {formatRole('STUDENT')}
           </span>
         );
     }
@@ -93,7 +89,7 @@ export const ChannelChat: React.FC<ChannelChatProps> = ({ courseId, courseTitle 
             #
           </div>
           <div>
-            <h3 className="font-semibold text-slate-900 text-sm">Kênh thảo luận chung (General Channel)</h3>
+            <h3 className="font-semibold text-slate-900 text-sm">Kênh thảo luận chung của lớp</h3>
             <p className="text-xs text-slate-500">{courseTitle || 'Trao đổi & hỏi đáp môn học'}</p>
           </div>
         </div>
