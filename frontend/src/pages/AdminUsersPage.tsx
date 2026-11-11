@@ -12,6 +12,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { api } from '../api/client';
+import { formatRole, formatDateTimeVi } from '../utils/formatters';
 import type { User, UserRole } from '../types';
 
 export const AdminUsersPage: React.FC = () => {
@@ -146,7 +147,7 @@ export const AdminUsersPage: React.FC = () => {
             className="px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
           >
             <option value="ALL">Tất cả vai trò</option>
-            <option value="ADMIN">Admin (Quản trị)</option>
+            <option value="ADMIN">Quản trị viên</option>
             <option value="LECTURER">Giảng viên</option>
             <option value="STUDENT">Sinh viên</option>
           </select>
@@ -199,21 +200,17 @@ export const AdminUsersPage: React.FC = () => {
                       <div className="text-xs text-slate-400">{u.email}</div>
                     </td>
                     <td className="py-3.5 px-4">
-                      {u.role === 'ADMIN' && (
-                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">
-                          Admin
-                        </span>
-                      )}
-                      {u.role === 'LECTURER' && (
-                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">
-                          Giảng viên
-                        </span>
-                      )}
-                      {u.role === 'STUDENT' && (
-                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">
-                          Sinh viên
-                        </span>
-                      )}
+                      <span
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                          u.role === 'ADMIN'
+                            ? 'bg-purple-100 text-purple-700'
+                            : u.role === 'LECTURER'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-emerald-100 text-emerald-700'
+                        }`}
+                      >
+                        {formatRole(u.role)}
+                      </span>
                     </td>
                     <td className="py-3.5 px-4">
                       {u.is_active ? (
@@ -229,7 +226,7 @@ export const AdminUsersPage: React.FC = () => {
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-xs text-slate-400">
-                      {new Date(u.created_at).toLocaleDateString('vi-VN')}
+                      {formatDateTimeVi(u.created_at)}
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <button
@@ -325,7 +322,7 @@ export const AdminUsersPage: React.FC = () => {
                   >
                     <option value="STUDENT">Sinh viên</option>
                     <option value="LECTURER">Giảng viên</option>
-                    <option value="ADMIN">Admin</option>
+                    <option value="ADMIN">Quản trị viên</option>
                   </select>
                 </div>
 

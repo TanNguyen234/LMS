@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client';
 import type { Notification } from '../types';
+import { formatNotificationType, formatDateTimeVi } from '../utils/formatters';
 
 export const NotificationsPage: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -116,13 +117,13 @@ export const NotificationsPage: React.FC = () => {
                     <span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />
                   )}
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                    {n.type}
+                    {formatNotificationType(n.type)}
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">{n.message}</p>
                 <div className="flex items-center text-[11px] text-slate-400 space-x-1 pt-1">
                   <Clock className="w-3 h-3 text-slate-400" />
-                  <span>{new Date(n.created_at).toLocaleString('vi-VN')}</span>
+                  <span>{formatDateTimeVi(n.created_at)}</span>
                 </div>
               </div>
 

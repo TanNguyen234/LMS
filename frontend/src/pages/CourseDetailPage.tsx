@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { formatCourseStatus, formatEnrollmentStatus, formatDateTimeVi } from '../utils/formatters';
 import type { Course, Module, Lesson, Enrollment, User } from '../types';
 
 export const CourseDetailPage: React.FC = () => {
@@ -242,7 +243,7 @@ export const CourseDetailPage: React.FC = () => {
               </span>
               <span className="text-xs text-slate-500">{course.credits} Tín chỉ</span>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                {course.status}
+                {formatCourseStatus(course.status)}
               </span>
             </div>
             <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">{course.title}</h1>
@@ -469,11 +470,11 @@ export const CourseDetailPage: React.FC = () => {
                       <td className="py-3 px-4 text-xs text-slate-500">{e.student_email || '—'}</td>
                       <td className="py-3 px-4">
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${e.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-                          {e.status}
+                          {formatEnrollmentStatus(e.status)}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-xs text-slate-400">
-                        {new Date(e.enrolled_at).toLocaleDateString('vi-VN')}
+                        {formatDateTimeVi(e.enrolled_at)}
                       </td>
                       {user?.role === 'ADMIN' && <td className="py-3 px-4 text-right">{e.status === 'ACTIVE' && <button onClick={async () => { try { await api.dropEnrollment(courseId, e.student_id); setEnrollments((prev) => prev.map((item) => item.id === e.id ? { ...item, status: 'DROPPED' } : item)); } catch (err: any) { alert('Lỗi rút ghi danh: ' + err.message); } }} className="text-xs font-semibold text-red-600 hover:text-red-700">Rút ghi danh</button>}</td>}
                     </tr>

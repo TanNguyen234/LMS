@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { formatSubmissionStatus, formatDateTimeVi } from '../utils/formatters';
 import type { Quiz, QuizAttempt, QuizQuestion, Course } from '../types';
 
 type ActiveQuiz = Quiz & {
@@ -345,7 +346,7 @@ export const QuizzesPage: React.FC = () => {
               </div>
 
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-xs text-slate-400">Tạo ngày: {new Date(q.created_at).toLocaleDateString('vi-VN')}</span>
+                <span className="text-xs text-slate-400">Tạo ngày: {formatDateTimeVi(q.created_at)}</span>
 
                 <div className="flex items-center space-x-2">
                   {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
@@ -691,8 +692,8 @@ export const QuizzesPage: React.FC = () => {
             <div className="overflow-y-auto divide-y divide-slate-100">
               {quizAttempts.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">Chưa có lượt làm bài.</p> : quizAttempts.map((attempt) => (
                 <div key={attempt.id} className="py-3 flex items-center justify-between gap-3">
-                  <div><p className="font-semibold text-sm text-slate-800">{attempt.student_name || 'Sinh viên'}{attempt.student_code ? ` (${attempt.student_code})` : ''}</p><p className="text-xs text-slate-500">Bắt đầu: {new Date(attempt.started_at).toLocaleString('vi-VN')}</p></div>
-                  <div className="text-right"><p className="text-sm font-bold text-slate-800">{attempt.score ?? '—'} điểm</p><p className="text-xs text-slate-500">{attempt.status || '—'}{attempt.submitted_at ? ` · ${new Date(attempt.submitted_at).toLocaleString('vi-VN')}` : ''}</p></div>
+                  <div><p className="font-semibold text-sm text-slate-800">{attempt.student_name || 'Sinh viên'}{attempt.student_code ? ` (${attempt.student_code})` : ''}</p><p className="text-xs text-slate-500">Bắt đầu: {formatDateTimeVi(attempt.started_at)}</p></div>
+                  <div className="text-right"><p className="text-sm font-bold text-slate-800">{attempt.score ?? '—'} điểm</p><p className="text-xs text-slate-500">{formatSubmissionStatus(attempt.status)}{attempt.submitted_at ? ` · ${formatDateTimeVi(attempt.submitted_at)}` : ''}</p></div>
                 </div>
               ))}
             </div>

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { formatAssignmentStatus, formatDateTimeVi } from '../utils/formatters';
 import type { Assignment, Course, Submission } from '../types';
 
 export const AssignmentsPage: React.FC = () => {
@@ -265,10 +266,20 @@ export const AssignmentsPage: React.FC = () => {
                   <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-xs">
                     Điểm tối đa: {a.max_score}đ
                   </span>
-                  {user?.role !== 'STUDENT' && <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${a.status === 'CLOSED' ? 'bg-slate-100 text-slate-600' : a.status === 'DRAFT' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{a.status || 'PUBLISHED'}</span>}
+                  {user?.role !== 'STUDENT' && (
+                    <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${
+                      a.status === 'CLOSED'
+                        ? 'bg-slate-100 text-slate-600'
+                        : a.status === 'DRAFT'
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-emerald-50 text-emerald-700'
+                    }`}>
+                      {formatAssignmentStatus(a.status)}
+                    </span>
+                  )}
                   <span className="flex items-center text-xs text-slate-400 space-x-1">
                     <Calendar className="w-3.5 h-3.5" />
-                    <span>Hạn nộp: {new Date(a.due_date).toLocaleDateString('vi-VN')}</span>
+                    <span>Hạn nộp: {formatDateTimeVi(a.due_date)}</span>
                   </span>
                 </div>
                 <h3 className="text-base font-bold text-slate-800">{a.title}</h3>
@@ -432,7 +443,7 @@ export const AssignmentsPage: React.FC = () => {
                     <div>
                       <div className="font-semibold text-slate-800 text-sm">{sub.student_name || 'Sinh viên'}</div>
                       <div className="text-xs text-slate-400">
-                        Nộp lúc: {new Date(sub.submitted_at).toLocaleString('vi-VN')}
+                        Nộp lúc: {formatDateTimeVi(sub.submitted_at)}
                       </div>
                       {sub.submission_text && (
                         <p className="text-xs text-slate-600 mt-1 line-clamp-1 italic">"{sub.submission_text}"</p>

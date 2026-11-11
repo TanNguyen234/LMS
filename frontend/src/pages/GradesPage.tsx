@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { formatSourceType, formatDateTimeVi } from '../utils/formatters';
 import type { Grade, Course } from '../types';
 
 export const GradesPage: React.FC = () => {
@@ -73,13 +74,13 @@ export const GradesPage: React.FC = () => {
       case 'QUIZ':
         return (
           <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-100 text-purple-700">
-            <CheckSquare className="w-3 h-3 mr-1" /> Quiz
+            <CheckSquare className="w-3.5 h-3.5 mr-1" /> Bài trắc nghiệm
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-            {type}
+            {formatSourceType(type)}
           </span>
         );
     }
@@ -91,7 +92,7 @@ export const GradesPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
-            {user?.role === 'STUDENT' ? 'Bảng điểm & Kết quả học tập cá nhân' : 'Sổ điểm Lớp học phần (Gradebook)'}
+            {user?.role === 'STUDENT' ? 'Bảng điểm & Kết quả học tập cá nhân' : 'Sổ điểm Lớp học phần'}
           </h1>
           <p className="text-sm text-slate-500">
             {user?.role === 'STUDENT'
@@ -126,7 +127,7 @@ export const GradesPage: React.FC = () => {
             <span className="text-xs font-semibold text-slate-400 uppercase">Xếp loại học lực</span>
             <div className="flex items-baseline space-x-2 mt-2">
               <span className="text-xl font-bold text-emerald-600">
-                {calculateStudentAverage() >= 8.5 ? 'Giỏi (Excellent)' : calculateStudentAverage() >= 7 ? 'Khá (Good)' : 'Đạt'}
+                {calculateStudentAverage() >= 8.5 ? 'Xuất sắc / Giỏi' : calculateStudentAverage() >= 7 ? 'Khá' : 'Đạt'}
               </span>
             </div>
           </div>
@@ -211,7 +212,7 @@ export const GradesPage: React.FC = () => {
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-xs text-slate-400">
-                      {new Date(g.graded_at).toLocaleDateString('vi-VN')}
+                      {formatDateTimeVi(g.graded_at)}
                     </td>
                   </tr>
                 ))
