@@ -14,6 +14,9 @@ import type {
   Grade,
   Notification,
   DashboardStats,
+  Meeting,
+  MeetingLog,
+  CourseMessage,
 } from '../types';
 
 const API_BASE = '/api';
@@ -943,5 +946,64 @@ export const api = {
         recent_notifications: notifs.slice(0, 5),
       };
     }
+  },
+
+  // Meetings & Teams
+  async createMeeting(payload: { courseId: string; title: string; roomCode?: string }): Promise<Meeting> {
+    return request<Meeting>('/meetings', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getActiveMeetings(): Promise<Meeting[]> {
+    return request<Meeting[]>('/meetings/active');
+  },
+
+  async getCourseMeetings(courseId: string): Promise<Meeting[]> {
+    return request<Meeting[]>(`/meetings/course/${courseId}`);
+  },
+
+  async getMeetingDetail(meetingId: string): Promise<Meeting> {
+    return request<Meeting>(`/meetings/${meetingId}`);
+  },
+
+  async joinMeeting(meetingId: string): Promise<{ status: string; logId: string; roomCode: string }> {
+    return request<{ status: string; logId: string; roomCode: string }>(`/meetings/${meetingId}/join`, {
+      method: 'POST',
+    });
+  },
+
+  async leaveMeeting(meetingId: string, payload: { chatCount?: number; handRaisesCount?: number; activitySummary?: string }): Promise<{ status: string; durationSeconds: number }> {
+    return request<{ status: string; durationSeconds: number }>(`/meetings/${meetingId}/leave`, {
+      method: 'POST',
+      body: JSON.stringify({
+        chatCount: payload.chatCount || 0,
+        handRaisesCount: payload.handRaisesCount || 0,
+        activitySummary: payload.activitySummary || '',
+      }),
+    });
+  },
+
+  async endMeeting(meetingId: string): Promise<Meeting> {
+    return request<Meeting>(`/meetings/${meetingId}/end`, {
+      method: 'POST',
+    });
+  },
+
+  async getMeetingAuditLogs(meetingId: string): Promise<MeetingLog[]> {
+    return request<MeetingLog[]>(`/meetings/${meetingId}/logs`);
+  },
+
+  // Course Channel Messages
+  async getCourseMessages(courseId: string): Promise<CourseMessage[]> {
+    return request<CourseMessage[]>(`/courses/${courseId}/messages`);
+  },
+
+  async postCourseMessage(courseId: string, content: string, attachmentUrl?: string): Promise<CourseMessage> {
+    return request<CourseMessage>(`/courses/${courseId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ content, attachmentUrl }),
+    });
   },
 };

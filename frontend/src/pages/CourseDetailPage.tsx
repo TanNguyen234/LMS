@@ -13,6 +13,7 @@ import {
   PlayCircle,
   Pencil,
   Archive,
+  Video,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
@@ -249,6 +250,14 @@ export const CourseDetailPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              to={`/teams?courseId=${course.courseId}`}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
+              title="Vào phòng học trực tuyến và kênh thảo luận"
+            >
+              <Video className="w-4 h-4" />
+              <span>Học Online (MS Teams)</span>
+            </Link>
             {user?.role !== 'STUDENT' && (
               <>
                 <button

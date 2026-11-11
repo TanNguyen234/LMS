@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   X,
+  Video,
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { api } from '../../api/client';
@@ -62,6 +63,7 @@ export const AppLayout: React.FC = () => {
     { label: 'Bài tập', path: '/assignments', icon: FileText, roles: ['LECTURER', 'STUDENT'] },
     { label: 'Bài kiểm tra (Quiz)', path: '/quizzes', icon: CheckSquare, roles: ['LECTURER', 'STUDENT'] },
     { label: 'Bảng điểm', path: '/grades', icon: Award, roles: ['STUDENT', 'LECTURER'] },
+    { label: 'MS Teams (Học online)', path: '/teams', icon: Video, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
     { label: 'Thông báo', path: '/notifications', icon: Bell, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
   ];
 

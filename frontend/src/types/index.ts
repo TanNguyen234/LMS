@@ -290,3 +290,49 @@ export interface DashboardStats {
   gpa?: number;
   recent_notifications: Notification[];
 }
+
+export interface MeetingLog {
+  logId: string;
+  meetingId: string;
+  userId: string;
+  userName?: string;
+  userEmail?: string;
+  userRole?: string;
+  studentCode?: string;
+  joinedAt: string;
+  leftAt?: string | null;
+  durationSeconds: number;
+  chatCount: number;
+  handRaisesCount: number;
+  activitySummary?: string;
+}
+
+export interface Meeting {
+  meetingId: string;
+  courseId: string;
+  courseTitle?: string;
+  courseCode?: string;
+  hostId: string;
+  hostName?: string;
+  title: string;
+  roomCode: string;
+  status: 'SCHEDULED' | 'LIVE' | 'ENDED';
+  startedAt: string;
+  endedAt?: string | null;
+  createdAt: string;
+  participantCount: number;
+  activeLogs?: MeetingLog[];
+}
+
+export interface CourseMessage {
+  messageId: string;
+  courseId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: string;
+  senderEmail: string;
+  content: string;
+  attachmentUrl?: string | null;
+  createdAt: string;
+}
+
