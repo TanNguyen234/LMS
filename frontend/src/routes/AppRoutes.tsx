@@ -9,7 +9,7 @@ import { AssignmentsPage } from '../pages/AssignmentsPage';
 import { QuizzesPage } from '../pages/QuizzesPage';
 import { GradesPage } from '../pages/GradesPage';
 import { NotificationsPage } from '../pages/NotificationsPage';
-import { TeamsHubPage } from '../pages/TeamsHubPage';
+import { VirtualClassroomPage } from '../pages/VirtualClassroomPage';
 import { AppLayout } from '../components/layout/AppLayout';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 
@@ -17,6 +17,16 @@ export const AppRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+
+      {/* Standalone Expansive Virtual Classroom */}
+      <Route
+        path="/classroom"
+        element={
+          <ProtectedRoute>
+            <VirtualClassroomPage />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Authenticated Application */}
       <Route
@@ -46,7 +56,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="assignments" element={<AssignmentsPage />} />
         <Route path="quizzes" element={<QuizzesPage />} />
         <Route path="grades" element={<GradesPage />} />
-        <Route path="teams" element={<TeamsHubPage />} />
+        <Route path="teams" element={<Navigate to="/classroom" replace />} />
         <Route path="notifications" element={<NotificationsPage />} />
       </Route>
 

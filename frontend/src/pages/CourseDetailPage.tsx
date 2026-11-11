@@ -251,12 +251,12 @@ export const CourseDetailPage: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <Link
-              to={`/teams?courseId=${course.courseId}`}
-              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
-              title="Vào phòng học trực tuyến và kênh thảo luận"
+              to={`/classroom?courseId=${course.courseId}`}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
+              title="Vào phòng học trực tuyến và hội thảo ảo"
             >
               <Video className="w-4 h-4" />
-              <span>Học Online (MS Teams)</span>
+              <span>Vào phòng học trực tuyến</span>
             </Link>
             {user?.role !== 'STUDENT' && (
               <>
