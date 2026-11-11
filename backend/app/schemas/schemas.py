@@ -544,3 +544,79 @@ class StudentDashboardResponse(BaseModel):
     availableQuizzes: int
     unreadNotifications: int
     enrolledCourses: List[CourseResponse] = []
+
+
+# ==========================================
+# MEETING & TEAMS SCHEMAS
+# ==========================================
+
+class MeetingCreate(BaseModel):
+    courseId: uuid.UUID
+    title: str
+    roomCode: Optional[str] = None
+
+
+class MeetingLogCreate(BaseModel):
+    activitySummary: Optional[str] = None
+    chatCount: int = 0
+    handRaisesCount: int = 0
+
+
+class MeetingLogResponse(BaseModel):
+    logId: uuid.UUID
+    meetingId: uuid.UUID
+    userId: uuid.UUID
+    userName: Optional[str] = None
+    userEmail: Optional[str] = None
+    userRole: Optional[str] = None
+    studentCode: Optional[str] = None
+    joinedAt: datetime
+    leftAt: Optional[datetime] = None
+    durationSeconds: int
+    chatCount: int
+    handRaisesCount: int
+    activitySummary: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class MeetingResponse(BaseModel):
+    meetingId: uuid.UUID
+    courseId: uuid.UUID
+    courseTitle: Optional[str] = None
+    courseCode: Optional[str] = None
+    hostId: uuid.UUID
+    hostName: Optional[str] = None
+    title: str
+    roomCode: str
+    status: str
+    startedAt: datetime
+    endedAt: Optional[datetime] = None
+    createdAt: datetime
+    participantCount: int = 0
+    activeLogs: List[MeetingLogResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+class CourseMessageCreate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=4000)
+    attachmentUrl: Optional[str] = None
+
+
+class CourseMessageResponse(BaseModel):
+    messageId: uuid.UUID
+    courseId: uuid.UUID
+    senderId: uuid.UUID
+    senderName: str
+    senderRole: str
+    senderEmail: str
+    content: str
+    attachmentUrl: Optional[str] = None
+    createdAt: datetime
+
+    class Config:
+        from_attributes = True
+

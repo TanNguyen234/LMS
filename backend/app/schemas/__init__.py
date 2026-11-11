@@ -12,7 +12,9 @@ from backend.app.schemas.schemas import (
     QuizAttemptStartResponse, QuizAttemptSubmit, QuizAttemptResponse,
     ManualGradeCreate, GradeResponse,
     NotificationResponse,
-    AdminDashboardResponse, LecturerDashboardResponse, StudentDashboardResponse
+    AdminDashboardResponse, LecturerDashboardResponse, StudentDashboardResponse,
+    MeetingCreate, MeetingLogCreate, MeetingLogResponse, MeetingResponse,
+    CourseMessageCreate, CourseMessageResponse
 )
 
 __all__ = [
@@ -29,5 +31,7 @@ __all__ = [
     "QuizAttemptStartResponse", "QuizAttemptSubmit", "QuizAttemptResponse",
     "ManualGradeCreate", "GradeResponse",
     "NotificationResponse",
-    "AdminDashboardResponse", "LecturerDashboardResponse", "StudentDashboardResponse"
+    "AdminDashboardResponse", "LecturerDashboardResponse", "StudentDashboardResponse",
+    "MeetingCreate", "MeetingLogCreate", "MeetingLogResponse", "MeetingResponse",
+    "CourseMessageCreate", "CourseMessageResponse"
 ]

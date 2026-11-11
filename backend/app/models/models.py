@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column, String, Boolean, Integer, Float, DateTime,
-    ForeignKey, Text, SmallInteger, Index, UniqueConstraint, text
+    ForeignKey, Text, SmallInteger, Index, UniqueConstraint, text, Unicode, UnicodeText
 )
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from sqlalchemy.orm import relationship
@@ -248,3 +248,56 @@ class Notification(Base):
 
     # Relationships
     user = relationship("User", back_populates="notifications")
+
+
+class Meeting(Base):
+    __tablename__ = "Meetings"
+
+    MeetingId = Column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
+    CourseId = Column(UNIQUEIDENTIFIER, ForeignKey("Courses.CourseId"), nullable=False, index=True)
+    HostId = Column(UNIQUEIDENTIFIER, ForeignKey("Users.UserId"), nullable=False, index=True)
+    Title = Column(Unicode(200), nullable=False)
+    RoomCode = Column(String(100), nullable=False, index=True)
+    Status = Column(String(20), nullable=False, default="LIVE")  # 'SCHEDULED', 'LIVE', 'ENDED'
+    StartedAt = Column(DateTime, nullable=False, default=utcnow)
+    EndedAt = Column(DateTime, nullable=True)
+    CreatedAt = Column(DateTime, nullable=False, default=utcnow)
+
+    # Relationships
+    course = relationship("Course", backref="meetings")
+    host = relationship("User", foreign_keys=[HostId])
+    logs = relationship("MeetingLog", back_populates="meeting", cascade="all, delete-orphan")
+
+
+class MeetingLog(Base):
+    __tablename__ = "MeetingLogs"
+
+    LogId = Column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
+    MeetingId = Column(UNIQUEIDENTIFIER, ForeignKey("Meetings.MeetingId"), nullable=False, index=True)
+    UserId = Column(UNIQUEIDENTIFIER, ForeignKey("Users.UserId"), nullable=False, index=True)
+    JoinedAt = Column(DateTime, nullable=False, default=utcnow)
+    LeftAt = Column(DateTime, nullable=True)
+    DurationSeconds = Column(Integer, nullable=False, default=0)
+    ChatCount = Column(Integer, nullable=False, default=0)
+    HandRaisesCount = Column(Integer, nullable=False, default=0)
+    ActivitySummary = Column(Unicode(500), nullable=True)
+
+    # Relationships
+    meeting = relationship("Meeting", back_populates="logs")
+    user = relationship("User", foreign_keys=[UserId])
+
+
+class CourseMessage(Base):
+    __tablename__ = "CourseMessages"
+
+    MessageId = Column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
+    CourseId = Column(UNIQUEIDENTIFIER, ForeignKey("Courses.CourseId"), nullable=False, index=True)
+    SenderId = Column(UNIQUEIDENTIFIER, ForeignKey("Users.UserId"), nullable=False, index=True)
+    Content = Column(UnicodeText, nullable=False)
+    AttachmentUrl = Column(String(500), nullable=True)
+    CreatedAt = Column(DateTime, nullable=False, default=utcnow)
+
+    # Relationships
+    course = relationship("Course", backref="messages")
+    sender = relationship("User", foreign_keys=[SenderId])
+
