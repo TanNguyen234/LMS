@@ -30,6 +30,9 @@ htmlcov/
 backend/storage/
 frontend/public/submissions/
 
+# Scripts & Helpers
+START_SYSTEM.bat
+
 # IDE & OS
 .vscode/
 .idea/
