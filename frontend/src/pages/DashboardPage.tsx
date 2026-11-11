@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { formatRole, formatDateTimeVi } from '../utils/formatters';
 import type { DashboardStats, Course, Assignment } from '../types';
 
 export const DashboardPage: React.FC = () => {
@@ -61,7 +62,7 @@ export const DashboardPage: React.FC = () => {
           <div>
             <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-white/10 rounded-full text-xs font-semibold text-blue-100 backdrop-blur-xs mb-3">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Học kỳ Fall 2026 • Phân hệ {user?.role}</span>
+              <span>Học kỳ 1 • Vai trò: {formatRole(user?.role)}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
               Xin chào, {user?.full_name}!
@@ -108,7 +109,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="mt-3">
                 <span className="text-2xl font-bold text-slate-800">{stats?.students_count ?? 0}</span>
-                <span className="text-xs text-slate-400 block mt-0.5">Tài khoản sinh viên active</span>
+                <span className="text-xs text-slate-400 block mt-0.5">Tài khoản sinh viên đang hoạt động</span>
               </div>
             </div>
 
@@ -137,7 +138,7 @@ export const DashboardPage: React.FC = () => {
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                   100% Hoạt động bình thường
                 </span>
-                <span className="text-xs text-slate-400 block mt-1.5">SQL Server & FastAPI online</span>
+                <span className="text-xs text-slate-400 block mt-1.5">Cơ sở dữ liệu & API đang hoạt động</span>
               </div>
             </div>
           </>
@@ -327,7 +328,7 @@ export const DashboardPage: React.FC = () => {
                     </div>
                     <div className="flex items-center text-[11px] text-slate-400 mt-1.5 space-x-1">
                       <Clock className="w-3 h-3 text-slate-400" />
-                      <span>Hạn: {new Date(a.due_date).toLocaleDateString('vi-VN')}</span>
+                      <span>Hạn: {formatDateTimeVi(a.due_date)}</span>
                     </div>
                   </div>
                 ))

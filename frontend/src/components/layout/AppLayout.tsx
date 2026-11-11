@@ -17,6 +17,7 @@ import {
 import { useAuth } from '../../auth/AuthContext';
 import { api } from '../../api/client';
 import type { Notification } from '../../types';
+import { formatRole } from '../../utils/formatters';
 
 export const AppLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -61,7 +62,7 @@ export const AppLayout: React.FC = () => {
     { label: 'Người dùng', path: '/users', icon: Users, roles: ['ADMIN'] },
     { label: 'Khóa học', path: '/courses', icon: BookOpen, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
     { label: 'Bài tập', path: '/assignments', icon: FileText, roles: ['LECTURER', 'STUDENT'] },
-    { label: 'Bài kiểm tra (Quiz)', path: '/quizzes', icon: CheckSquare, roles: ['LECTURER', 'STUDENT'] },
+    { label: 'Bài kiểm tra trắc nghiệm', path: '/quizzes', icon: CheckSquare, roles: ['LECTURER', 'STUDENT'] },
     { label: 'Bảng điểm', path: '/grades', icon: Award, roles: ['STUDENT', 'LECTURER'] },
     { label: 'Phòng học trực tuyến', path: '/classroom', icon: Video, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
     { label: 'Thông báo', path: '/notifications', icon: Bell, roles: ['ADMIN', 'LECTURER', 'STUDENT'] },
@@ -70,13 +71,13 @@ export const AppLayout: React.FC = () => {
   const allowedNav = navItems.filter((item) => user && item.roles.includes(user.role));
 
   const getRoleBadge = (role?: string) => {
-    switch (role) {
+    switch (role?.toUpperCase()) {
       case 'ADMIN':
-        return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">Admin</span>;
+        return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">{formatRole('ADMIN')}</span>;
       case 'LECTURER':
-        return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">Giảng viên</span>;
+        return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">{formatRole('LECTURER')}</span>;
       case 'STUDENT':
-        return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">Sinh viên</span>;
+        return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">{formatRole('STUDENT')}</span>;
       default:
         return null;
     }

@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import type { UserRole } from '../../types';
+import { formatRole } from '../../utils/formatters';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -31,7 +32,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     return (
       <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
         <h2 className="text-xl font-bold text-slate-800 mb-2">Quyền truy cập bị từ chối (403)</h2>
-        <p className="text-sm text-slate-500 mb-4">Bạn không có quyền truy cập vào phân hệ này với vai trò hiện tại ({user.role}).</p>
+        <p className="text-sm text-slate-500 mb-4">Bạn không có quyền truy cập vào phân hệ này với vai trò hiện tại ({formatRole(user.role)}).</p>
         <Navigate to="/dashboard" replace />
       </div>
     );
