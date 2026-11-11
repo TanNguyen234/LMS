@@ -64,7 +64,7 @@ export const DashboardPage: React.FC = () => {
               <span>Học kỳ Fall 2026 • Phân hệ {user?.role}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Xin chào, {user?.full_name}! 👋
+              Xin chào, {user?.full_name}!
             </h1>
             <p className="text-blue-100 text-sm mt-1 max-w-xl">
               Chào mừng bạn quay lại Hệ thống LMS Đại học. Dưới đây là tóm tắt tiến độ và các đầu việc cần xử lý.

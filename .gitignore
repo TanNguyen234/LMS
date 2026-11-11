@@ -26,6 +26,10 @@ yarn-error.log*
 htmlcov/
 *.log
 
+# Storage & Submissions
+backend/storage/
+frontend/public/submissions/
+
 # IDE & OS
 .vscode/
 .idea/
