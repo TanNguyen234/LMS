@@ -1,4 +1,14 @@
-# University Learning Management System (LMS)
+# Quản lý dự án xây dựng hệ thống quản lý học tập trực tuyến (LMS) cho trường đại học
+
+**Yêu cầu cô đã giao (theo thông tin nhóm cung cấp):** tên đề tài trên, sử dụng **Trello** để quản lý dự án và **draw.io / diagrams.net** để vẽ sơ đồ. Hiện chưa có rubric chính thức về số tuần, ngân sách, bộ tài liệu, loại sơ đồ hoặc mức độ bắt buộc lập trình.
+
+**Bắt đầu từ đây:** [Kế hoạch Trello và bộ sơ đồ draw.io có thể chỉnh sửa](docs/coursework-trello-drawio/README.md).
+
+**Phân biệt:** Tài liệu `docs/project-management/` đang là kịch bản quản lý dự án do nhóm chuẩn bị. Kế hoạch 20 tuần/1,2 tỷ VNĐ và phần mềm LMS trong repo **không phải yêu cầu bắt buộc được xác nhận từ cô**. Không tự trình bày dữ liệu giả định là số liệu thực thi/đã phê duyệt.
+
+---
+
+## Prototype LMS hiện có trong repo
 
 University LMS is an academic project prototype for course content, assignment text submissions, timed quizzes, grading and notifications. The project keeps a FastAPI backend, SQL Server database and React/Vite web frontend.
 

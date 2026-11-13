@@ -1,6 +1,8 @@
 # 08 — Project Management Baseline
 
-> Đây là **baseline trung tâm** của đồ án cuối kỳ môn Quản lý dự án phần mềm. Nếu một file khác mâu thuẫn về scope, duration, team hoặc budget, ưu tiên baseline này rồi cập nhật file còn lại cho nhất quán.
+> Đây là **baseline trung tâm** của đồ án cuối kỳ môn Quản lý dự án phần mềm. Nếu nhóm quyết định sử dụng kịch bản này, dùng nó làm baseline **nội bộ giả định** và cập nhật các file liên quan cho nhất quán; không xem đây là baseline bắt buộc do cô ban hành.
+
+**Lưu ý nguồn yêu cầu:** Cô mới giao tên đề tài, **Trello** quản lý dự án và **draw.io** vẽ sơ đồ (sinh viên xác nhận 23/10/2026). Đây là **kịch bản quản lý dự án do nhóm tự xây dựng để tham khảo**, không phải số liệu, hồ sơ hoặc thang chấm do cô quy định. Thời lượng 20 tuần, ngân sách 1,2 tỷ VND, quy mô 10.000 SV/500 GV, số FTE và danh sách tài liệu có thể cần điều chỉnh sau khi xác nhận rubric. Dùng [bộ Trello/draw.io](coursework-trello-drawio/README.md) làm điểm bắt đầu sát yêu cầu đã biết.
 
 ## 1. Project Charter
 
