@@ -468,9 +468,8 @@ def test_challenger_quiz_secret_protection_full_lifecycle(client, lecturer1_toke
         "score": 3.0,
         "sortOrder": 3
     }, headers=lec_headers)
-    assert q3.status_code == 400
-    assert "invalid questiontype" in q3.json()["detail"].lower()
-    assert secret_key_3 not in q3.text
+    assert q3.status_code == 201, q3.text
+    assert q3.json()["questionType"] == "SHORT_TEXT"
 
     # --- AUDIT PHASE 1: Quiz detail & Start Attempt secret protection ---
 
@@ -747,20 +746,31 @@ def test_challenger_quiz_expiry_rejects_start_and_expires_active_attempt(
         attempt.StartedAt = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=5)
         db.commit()
 
-    rejected_submit = client.post(
+    # Expired submit ignores the late request payload, grades from server-side draft (empty -> 0.0),
+    # marks EXPIRED, records the grade, and blocks repeat submissions.
+    late_submit = client.post(
         f"/api/quiz-attempts/{attempt_id}/submit",
         json={"answers": {question_id: "A"}},
         headers=student_headers,
     )
-    assert rejected_submit.status_code == 400
-    assert "deadline has passed" in rejected_submit.json()["detail"].lower()
+    assert late_submit.status_code == 200, late_submit.text
+    assert late_submit.json()["status"] == "EXPIRED"
+    assert late_submit.json()["score"] == 0.0
+
+    repeat_submit = client.post(
+        f"/api/quiz-attempts/{attempt_id}/submit",
+        json={"answers": {question_id: "A"}},
+        headers=student_headers,
+    )
+    assert repeat_submit.status_code == 400
 
     with SessionLocal() as db:
         attempt = db.query(QuizAttempt).filter(QuizAttempt.AttemptId == attempt_id).one()
         assert attempt.Status == "EXPIRED"
-        assert db.query(Grade).filter(Grade.SourceType == "QUIZ", Grade.SourceId == timed_quiz_id).count() == 0
+        assert float(attempt.Score) == 0.0
+        assert db.query(Grade).filter(Grade.SourceType == "QUIZ", Grade.SourceId == timed_quiz_id).count() == 1
         assert db.query(Notification).filter(
             Notification.Type == "QUIZ",
             Notification.RelatedUrl == f"/courses/{course_id}/quizzes/{timed_quiz_id}",
-        ).count() == 0
+        ).count() >= 1
 

@@ -25,15 +25,24 @@ def test_assignment_status_rejects_database_invalid_active_value():
         })
 
 
-def test_quiz_question_contract_rejects_unsupported_short_text_and_zero_score():
+def test_quiz_question_contract_supports_short_text_and_validates_types_and_options():
     base = {
         "questionText": "Question",
         "questionType": "SINGLE_CHOICE",
         "correctAnswer": "A",
     }
-    with pytest.raises(HTTPException) as error:
-        validate_question_contract("SHORT_TEXT", None, "answer")
-    assert error.value.status_code == 400
+    # BR-08: SHORT_TEXT questions are valid (graded manually by lecturer)
+    validate_question_contract("SHORT_TEXT", None, "answer")
+    with pytest.raises(HTTPException) as invalid_type_error:
+        validate_question_contract("MULTIPLE_CHOICE", None, "A")
+    assert invalid_type_error.value.status_code == 400
+    with pytest.raises(HTTPException) as tf_meta_error:
+        validate_question_contract(
+            "TRUE_FALSE",
+            json.dumps([{"key": "true", "text": "True", "isCorrect": True}]),
+            "true",
+        )
+    assert tf_meta_error.value.status_code == 400
     with pytest.raises(ValidationError):
         QuizQuestionCreate.model_validate({**base, "score": 0})
 
