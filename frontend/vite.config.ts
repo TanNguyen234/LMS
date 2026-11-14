@@ -17,11 +17,12 @@ export default defineConfig({
       '/api': {
         target: apiTarget,
         changeOrigin: true,
+        ws: true,
       },
       '/uploads': {
         target: apiTarget,
         changeOrigin: true,
-      }
-    }
-  }
+      },
+    },
+  },
 })
