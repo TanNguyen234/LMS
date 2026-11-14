@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, status
@@ -20,19 +21,33 @@ from backend.app.api.routes.notifications import router as notifications_router
 from backend.app.api.routes.dashboard import router as dashboard_router
 from backend.app.api.routes.meetings import router as meetings_router
 from backend.app.api.routes.messages import router as messages_router
+from backend.app.api.routes.files import router as files_router
+from backend.app.api.routes.ws import router as ws_router
+from backend.app.api.routes.progress import router as progress_router
+from backend.app.api.routes.ai import router as ai_router
+
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_jwt_secret(settings.APP_ENV, settings.JWT_SECRET)
 
-    # Initialize demo passwords if in development
-    db = SessionLocal()
+    # Initialize demo passwords if in development; tolerate transient DB unavailability at startup
+    db = None
     try:
+        db = SessionLocal()
         init_development_passwords(db)
+    except Exception as exc:
+        logger.warning("Skipping development password warmup during startup: %s", exc)
     finally:
-        db.close()
-    
+        if db is not None:
+            try:
+                db.close()
+            except Exception as exc:
+                logger.warning("Failed closing startup warmup DB session: %s", exc)
+
     yield
 
 
@@ -92,10 +107,30 @@ app.include_router(notifications_router, prefix=api_prefix)
 app.include_router(dashboard_router, prefix=api_prefix)
 app.include_router(meetings_router, prefix=api_prefix)
 app.include_router(messages_router, prefix=api_prefix)
+app.include_router(files_router, prefix=api_prefix)
+app.include_router(ws_router, prefix=api_prefix)
+app.include_router(progress_router, prefix=api_prefix)
+app.include_router(ai_router, prefix=api_prefix)
 
 
 # Serve Built React Frontend (SPA fallback)
 frontend_dist = (Path(__file__).resolve().parents[2] / "frontend" / "dist").resolve()
+
+NON_SPA_PREFIXES = ("api/", "uploads/", "assets/", "docs")
+NON_SPA_EXACT = ("api", "uploads", "assets", "openapi.json", "health")
+NON_SPA_ASSET_EXTENSIONS = {
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".svg",
+    ".js",
+    ".css",
+    ".ico",
+    ".map",
+    ".woff2",
+    ".json",
+}
 
 
 def resolve_spa_file(root: Path, requested_path: str) -> Path | None:
@@ -108,23 +143,49 @@ def resolve_spa_file(root: Path, requested_path: str) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
-if frontend_dist.exists():
-    assets_dir = frontend_dist / "assets"
-    if assets_dir.exists():
-        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend-assets")
+def is_reserved_non_spa_path(requested_path: str) -> bool:
+    normalized = requested_path.lstrip("/").lower()
+    if normalized in NON_SPA_EXACT:
+        return True
+    if any(normalized.startswith(prefix) for prefix in NON_SPA_PREFIXES):
+        return True
+    return False
 
-    @app.get("/{full_path:path}", include_in_schema=False)
+
+def has_non_spa_asset_extension(requested_path: str) -> bool:
+    normalized = requested_path.lstrip("/")
+    if not normalized:
+        return False
+    return Path(normalized).suffix.lower() in NON_SPA_ASSET_EXTENSIONS
+
+
+def build_spa_response(dist_root: Path, full_path: str):
+    if is_reserved_non_spa_path(full_path):
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+    file_path = resolve_spa_file(dist_root, full_path)
+    if file_path is not None:
+        return FileResponse(file_path)
+
+    if has_non_spa_asset_extension(full_path):
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+    index_file = resolve_spa_file(dist_root, "index.html")
+    if index_file is None:
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+    return FileResponse(index_file)
+
+
+def register_spa_routes(target_app: FastAPI, dist_root: Path) -> None:
+    if not dist_root.exists():
+        return
+    assets_dir = dist_root / "assets"
+    if assets_dir.exists():
+        target_app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend-assets")
+
+    @target_app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
-        if (
-            full_path.startswith("api/")
-            or full_path == "api"
-            or full_path.startswith("docs")
-            or full_path.startswith("openapi.json")
-            or full_path == "health"
-        ):
-            return JSONResponse(status_code=404, content={"detail": "Not found"})
-        
-        file_path = resolve_spa_file(frontend_dist, full_path)
-        if file_path:
-            return FileResponse(file_path)
-        return FileResponse(frontend_dist / "index.html")
+        return build_spa_response(dist_root, full_path)
+
+
+register_spa_routes(app, frontend_dist)
