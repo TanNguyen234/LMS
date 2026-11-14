@@ -26,7 +26,6 @@ function Execute-SqlFile {
     )
     Write-Host "Executing $filePath ..."
     $content = Get-Content -Path $filePath -Raw -Encoding UTF8
-    # Split batches by GO (case insensitive, on its own line)
     $batches = [System.Text.RegularExpressions.Regex]::Split($content, "(?mi)^\s*GO\s*$")
     foreach ($batch in $batches) {
         $trimmed = $batch.Trim()
@@ -45,13 +44,12 @@ function Execute-SqlFile {
     Write-Host "Successfully executed $filePath" -ForegroundColor Green
 }
 
-# 3. Connect to UniversityLms
+# 3. Connect to target database
 $dbConnStr = "Server=$Server;Database=$Database;Integrated Security=True;TrustServerCertificate=True"
 $dbConn = New-Object System.Data.SqlClient.SqlConnection($dbConnStr)
 $dbConn.Open()
 
 try {
-    # Check if Users table exists. If so, drop tables or report
     $checkTablesCmd = $dbConn.CreateCommand()
     $checkTablesCmd.CommandText = "SELECT COUNT(*) FROM sys.tables WHERE name = 'Users'"
     $tableCount = [int]$checkTablesCmd.ExecuteScalar()
@@ -60,26 +58,12 @@ try {
         Execute-SqlFile -conn $dbConn -filePath "$PSScriptRoot\01_schema.sql"
         Execute-SqlFile -conn $dbConn -filePath "$PSScriptRoot\02_seed.sql"
     } else {
-        Write-Host "Tables already exist in $Database. Skipping initial schema and seed." -ForegroundColor Yellow
+        Write-Host "Tables already exist in $Database. Run alembic upgrade head to migrate existing schema." -ForegroundColor Yellow
     }
 
-    # Validate seed
-    Write-Host "`n=== Validating Seed Data ==="
+    Write-Host "`n=== Validating 19-Table Seed Data ==="
     $valCmd = $dbConn.CreateCommand()
-    $valCmd.CommandText = @"
-SELECT 'Users' AS TableName, COUNT(*) AS [RowCount] FROM dbo.Users
-UNION ALL SELECT 'Courses', COUNT(*) FROM dbo.Courses
-UNION ALL SELECT 'Enrollments', COUNT(*) FROM dbo.Enrollments
-UNION ALL SELECT 'Modules', COUNT(*) FROM dbo.Modules
-UNION ALL SELECT 'Lessons', COUNT(*) FROM dbo.Lessons
-UNION ALL SELECT 'Assignments', COUNT(*) FROM dbo.Assignments
-UNION ALL SELECT 'Submissions', COUNT(*) FROM dbo.Submissions
-UNION ALL SELECT 'Quizzes', COUNT(*) FROM dbo.Quizzes
-UNION ALL SELECT 'QuizQuestions', COUNT(*) FROM dbo.QuizQuestions
-UNION ALL SELECT 'QuizAttempts', COUNT(*) FROM dbo.QuizAttempts
-UNION ALL SELECT 'Grades', COUNT(*) FROM dbo.Grades
-UNION ALL SELECT 'Notifications', COUNT(*) FROM dbo.Notifications;
-"@
+    $valCmd.CommandText = Get-Content -Path "$PSScriptRoot\04_seed_validation.sql" -Raw -Encoding UTF8
     $reader = $valCmd.ExecuteReader()
     $dt = New-Object System.Data.DataTable
     $dt.Load($reader)

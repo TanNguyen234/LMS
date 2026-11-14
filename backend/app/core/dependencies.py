@@ -1,18 +1,20 @@
 import uuid
 from typing import List
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-from backend.app.db.session import get_db
+
 from backend.app.core.security import decode_access_token
-from backend.app.models.models import User, Course, Enrollment
+from backend.app.db.session import get_db
+from backend.app.models.models import Course, Enrollment, User
 
 security_bearer = HTTPBearer(auto_error=True)
 
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_bearer),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> User:
     """Validate JWT token and return active user."""
     token = credentials.credentials
@@ -49,20 +51,22 @@ def get_current_user(
     if not user.IsActive:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is inactive"
+            detail="Account is inactive",
         )
     return user
 
 
 def require_roles(allowed_roles: List[str]):
     """Enforce server-side role check."""
+
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.Role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied: Requires role in {allowed_roles}"
+                detail=f"Access denied: Requires role in {allowed_roles}",
             )
         return current_user
+
     return role_checker
 
 
@@ -82,7 +86,7 @@ def get_course_or_404(course_id: uuid.UUID, db: Session) -> Course:
 def verify_lecturer_course_owner(
     course_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> Course:
     """Enforce that current user is either ADMIN or the assigned LECTURER of the course."""
     course = get_course_or_404(course_id, db)
@@ -92,36 +96,94 @@ def verify_lecturer_course_owner(
         return course
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="You are not authorized to modify this course"
+        detail="You are not authorized to modify this course",
     )
 
 
-def verify_course_access(
+def verify_course_read_access(
     course_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> Course:
-    """Verify that user has read access to course: Admin, course lecturer, or active enrolled student."""
+    """
+    Enforce read access to a course:
+    - ADMIN: any course.
+    - LECTURER: only courses they teach.
+    - STUDENT: enrollment Status in ('ACTIVE', 'COMPLETED') on courses in ('ACTIVE', 'ARCHIVED').
+      Strictly blocks 'DRAFT' courses and 'DROPPED' enrollments.
+    """
     course = get_course_or_404(course_id, db)
     if current_user.Role == "ADMIN":
         return course
     if current_user.Role == "LECTURER":
         if course.LecturerId == current_user.UserId:
             return course
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Lecturer is not assigned to this course"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not teaching this course")
     if current_user.Role == "STUDENT":
-        enrollment = db.query(Enrollment).filter(
-            Enrollment.CourseId == course_id,
-            Enrollment.StudentId == current_user.UserId,
-            Enrollment.Status == "ACTIVE"
-        ).first()
+        if course.Status not in ("ACTIVE", "ARCHIVED"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Course is not open for student access",
+            )
+        enrollment = (
+            db.query(Enrollment)
+            .filter(
+                Enrollment.CourseId == course_id,
+                Enrollment.StudentId == current_user.UserId,
+                Enrollment.Status.in_(["ACTIVE", "COMPLETED"]),
+            )
+            .first()
+        )
         if not enrollment:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Student is not actively enrolled in this course"
+                detail="Student is not enrolled in this course",
             )
         return course
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+
+def verify_course_write_access(
+    course_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Course:
+    """
+    Enforce interactive/write access to a course:
+    - ADMIN: any course.
+    - LECTURER: only courses they teach.
+    - STUDENT: both Course.Status == 'ACTIVE' and Enrollment.Status == 'ACTIVE'.
+    """
+    course = get_course_or_404(course_id, db)
+    if current_user.Role == "ADMIN":
+        return course
+    if current_user.Role == "LECTURER":
+        if course.LecturerId == current_user.UserId:
+            return course
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not teaching this course")
+    if current_user.Role == "STUDENT":
+        if course.Status != "ACTIVE":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Course is not active for student participation",
+            )
+        enrollment = (
+            db.query(Enrollment)
+            .filter(
+                Enrollment.CourseId == course_id,
+                Enrollment.StudentId == current_user.UserId,
+                Enrollment.Status == "ACTIVE",
+            )
+            .first()
+        )
+        if not enrollment:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Student is not actively enrolled in this course",
+            )
+        return course
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+
+# Compatibility alias until Wave 1 finishes separating read vs write routes
+verify_course_access = verify_course_read_access
