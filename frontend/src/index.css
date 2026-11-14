@@ -1,16 +1,299 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-accent: #d97706;
+  --color-success: #059669;
+  --color-danger: #dc2626;
+
+  --color-bg: var(--lms-bg);
+  --color-surface: var(--lms-surface);
+  --color-surface-muted: var(--lms-surface-muted);
+  --color-border: var(--lms-border);
+  --color-text: var(--lms-text);
+  --color-text-muted: var(--lms-text-muted);
+}
+
+:root {
+  color-scheme: light dark;
+  --lms-primary: var(--color-primary);
+  --lms-primary-hover: var(--color-primary-hover);
+  --lms-bg: light-dark(#f8fafc, #0f172a);
+  --lms-surface: light-dark(#ffffff, #1e293b);
+  --lms-surface-muted: light-dark(#f1f5f9, #334155);
+  --lms-border: light-dark(#e2e8f0, #334155);
+  --lms-text: light-dark(#0f172a, #f8fafc);
+  --lms-text-muted: light-dark(#475569, #94a3b8);
+  --lms-text-secondary: var(--lms-text-muted);
+}
+
+@supports not (color: light-dark(#ffffff, #000000)) {
+  :root {
+    --lms-primary: var(--color-primary);
+    --lms-primary-hover: var(--color-primary-hover);
+    --lms-bg: #f8fafc;
+    --lms-surface: #ffffff;
+    --lms-surface-muted: #f1f5f9;
+    --lms-border: #e2e8f0;
+    --lms-text: #0f172a;
+    --lms-text-muted: #475569;
+    --lms-text-secondary: #475569;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not(.theme-light) {
+      --lms-bg: #0f172a;
+      --lms-surface: #1e293b;
+      --lms-surface-muted: #334155;
+      --lms-border: #334155;
+      --lms-text: #f8fafc;
+      --lms-text-muted: #94a3b8;
+      --lms-text-secondary: #94a3b8;
+    }
+  }
+}
+
+.theme-light {
+  color-scheme: light;
+  --lms-primary: var(--color-primary);
+  --lms-primary-hover: var(--color-primary-hover);
+  --lms-bg: #f8fafc;
+  --lms-surface: #ffffff;
+  --lms-surface-muted: #f1f5f9;
+  --lms-border: #e2e8f0;
+  --lms-text: #0f172a;
+  --lms-text-muted: #475569;
+  --lms-text-secondary: #475569;
+}
+
+.theme-dark {
+  color-scheme: dark;
+  --lms-primary: var(--color-primary);
+  --lms-primary-hover: var(--color-primary-hover);
+  --lms-bg: #0f172a;
+  --lms-surface: #1e293b;
+  --lms-surface-muted: #334155;
+  --lms-border: #334155;
+  --lms-text: #f8fafc;
+  --lms-text-muted: #94a3b8;
+  --lms-text-secondary: #94a3b8;
+}
+
 @layer base {
-  *, ::after, ::before {
+  *,
+  ::after,
+  ::before {
     box-sizing: border-box;
   }
-  
+
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background-color: #f8fafc;
-    color: #0f172a;
-    -webkit-font-smoothing: antialiased;
     min-height: 100vh;
+    font-family: var(--font-sans);
+    background-color: var(--lms-bg);
+    color: var(--lms-text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  input:user-invalid,
+  select:user-invalid,
+  textarea:user-invalid {
+    border-color: var(--color-danger);
+  }
+}
+
+dialog:modal {
+  overscroll-behavior: contain;
+  max-height: calc(100dvh - 2rem);
+}
+
+dialog::backdrop {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+@supports (scrollbar-color: auto) {
+  * {
+    scrollbar-color: var(--lms-border) transparent;
+    scrollbar-width: thin;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 180ms ease-out both;
+}
+
+.animate-slideUp {
+  animation: slideUp 200ms ease-out both;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Container-responsive table stacked cards below 600px */
+.lms-table-region {
+  container-type: inline-size;
+  overflow-x: auto;
+}
+
+@container (width < 600px) {
+  .lms-responsive-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .lms-responsive-table,
+  .lms-responsive-table tbody,
+  .lms-responsive-table tr,
+  .lms-responsive-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .lms-responsive-table tr {
+    border: 1px solid var(--lms-border);
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    background-color: var(--lms-surface);
+  }
+
+  .lms-responsive-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--lms-border);
+    text-align: right;
+  }
+
+  .lms-responsive-table td:last-child {
+    border-bottom: none;
+  }
+
+  .lms-responsive-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--lms-text-muted);
+    text-align: left;
+    flex-shrink: 0;
+  }
+}
+
+/* Safe rendered HTML formatting without requiring @tailwindcss/typography plugin */
+.lms-rich-content {
+  line-height: 1.65;
+  color: var(--lms-text);
+  word-break: break-word;
+}
+
+.lms-rich-content h1,
+.lms-rich-content h2,
+.lms-rich-content h3,
+.lms-rich-content h4 {
+  font-weight: 700;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  color: var(--lms-text);
+}
+
+.lms-rich-content p {
+  margin-top: 0.5em;
+  margin-bottom: 0.75em;
+}
+
+.lms-rich-content ul,
+.lms-rich-content ol {
+  margin: 0.5em 0 0.75em 1.25em;
+  padding-left: 0.5em;
+}
+
+.lms-rich-content ul {
+  list-style-type: disc;
+}
+
+.lms-rich-content ol {
+  list-style-type: decimal;
+}
+
+.lms-rich-content pre,
+.lms-rich-content code {
+  font-family: var(--font-mono);
+  background-color: var(--lms-surface-muted);
+  border-radius: 0.375rem;
+}
+
+.lms-rich-content code {
+  padding: 0.125rem 0.375rem;
+  font-size: 0.875em;
+}
+
+.lms-rich-content pre {
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  margin: 0.75em 0;
+}
+
+.lms-rich-content a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
   }
 }

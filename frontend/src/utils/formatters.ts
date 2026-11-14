@@ -1,5 +1,5 @@
 /**
- * Utility functions for localizing database key-values and enums into Vietnamese.
+ * Utility functions for localizing database key-values, enums, grades, and dates into Vietnamese.
  */
 
 export const formatRole = (role?: string): string => {
@@ -49,6 +49,12 @@ export const formatSubmissionStatus = (status?: string): string => {
       return 'Đã nộp bài';
     case 'PENDING':
       return 'Chờ chấm điểm';
+    case 'PENDING_REVIEW':
+      return 'Chờ giảng viên chấm';
+    case 'EXPIRED':
+      return 'Hết giờ làm bài';
+    case 'IN_PROGRESS':
+      return 'Đang làm bài';
     case 'LATE':
       return 'Nộp muộn';
     case 'ON_TIME':
@@ -137,12 +143,29 @@ export const formatContentType = (type?: string): string => {
   switch (type?.toUpperCase()) {
     case 'TEXT':
       return 'Bài đọc';
+    case 'PDF':
+      return 'Tài liệu PDF';
     case 'VIDEO':
       return 'Video bài giảng';
+    case 'SLIDE':
+      return 'Slide bài giảng';
     case 'DOCUMENT':
       return 'Tài liệu';
     default:
       return type || 'Nội dung';
+  }
+};
+
+export const formatScoreVisibility = (visibility?: string): string => {
+  switch (visibility?.toUpperCase()) {
+    case 'SCORE_ONLY':
+      return 'Chỉ hiện điểm';
+    case 'AFTER_ATTEMPT':
+      return 'Xem đáp án ngay sau khi nộp';
+    case 'AFTER_CLOSE':
+      return 'Xem đáp án sau khi đóng bài';
+    default:
+      return visibility || 'Xem đáp án sau khi đóng bài';
   }
 };
 
@@ -153,16 +176,50 @@ export const formatUserStatus = (isActive?: boolean): string => {
 export const formatDateTimeVi = (dateString?: string | null): string => {
   if (!dateString) return 'Chưa cập nhật';
   try {
-    const d = new Date(dateString);
-    if (isNaN(d.getTime())) return dateString;
-    return d.toLocaleString('vi-VN', {
+    const parsed = new Date(dateString);
+    if (Number.isNaN(parsed.getTime())) return dateString;
+    return parsed.toLocaleString('vi-VN', {
       hour: '2-digit',
       minute: '2-digit',
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric'
+      year: 'numeric',
     });
   } catch {
     return dateString;
   }
+};
+
+export const formatFileSize = (bytes?: number | null): string => {
+  if (bytes == null || bytes < 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+};
+
+export const formatDurationSeconds = (seconds?: number | null): string => {
+  if (seconds == null || seconds <= 0) return '0 phút';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hrs > 0) return `${hrs} giờ ${mins} phút`;
+  if (mins > 0) return `${mins} phút ${secs} giây`;
+  return `${secs} giây`;
+};
+
+export interface GpaConversionResult {
+  gpa4: number;
+  letterGrade: string;
+  passed: boolean;
+}
+
+export const convertScore10ToGpa4 = (score10: number): GpaConversionResult => {
+  if (score10 >= 8.5) return { gpa4: 4.0, letterGrade: 'A', passed: true };
+  if (score10 >= 8.0) return { gpa4: 3.5, letterGrade: 'B+', passed: true };
+  if (score10 >= 7.0) return { gpa4: 3.0, letterGrade: 'B', passed: true };
+  if (score10 >= 6.5) return { gpa4: 2.5, letterGrade: 'C+', passed: true };
+  if (score10 >= 5.5) return { gpa4: 2.0, letterGrade: 'C', passed: true };
+  if (score10 >= 5.0) return { gpa4: 1.5, letterGrade: 'D+', passed: true };
+  if (score10 >= 4.0) return { gpa4: 1.0, letterGrade: 'D', passed: true };
+  return { gpa4: 0.0, letterGrade: 'F', passed: false };
 };
