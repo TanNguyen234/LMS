@@ -1,587 +1,887 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
-  FileText,
-  Plus,
-  X,
   Award,
+  CheckCircle2,
+  ClipboardList,
+  Clock,
   Eye,
-  Calendar,
-  Send,
-  Pencil,
+  FileText,
   LockKeyhole,
+  Pencil,
+  Plus,
+  Search,
+  Send,
+  Unlock,
 } from 'lucide-react';
+import {
+  getCourseAssignments,
+  getCourses,
+  getMySubmission,
+  updateAssignment,
+} from '../api/learning';
 import { useAuth } from '../auth/AuthContext';
-import { api } from '../api/client';
-import { formatAssignmentStatus, formatDateTimeVi } from '../utils/formatters';
+import { AssignmentFormModal } from '../components/assignments/AssignmentFormModal';
+import {
+  getAssignmentDeadlineMeta,
+  getAssignmentDueAt,
+  getAssignmentId,
+  getAssignmentMaxScore,
+  getAssignmentStatus,
+  getErrorMessage,
+  getSubmissionStatusBadgeVariant,
+  toSafeDisplayHtml,
+} from '../components/assignments/assignmentUtils';
+import { StudentSubmitDrawer } from '../components/assignments/StudentSubmitDrawer';
+import { SubmissionsGradingDrawer } from '../components/assignments/SubmissionsGradingDrawer';
+import { FilePreviewModal } from '../components/files/FilePreviewModal';
+import { Badge } from '../components/ui/Badge';
+import { useConfirm } from '../components/ui/ConfirmDialog';
+import { DataTable, type DataTableColumn } from '../components/ui/DataTable';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
+import { SafeHtml } from '../components/ui/SafeHtml';
+import { SkeletonCard, SkeletonTable } from '../components/ui/Skeleton';
+import { useToast } from '../components/ui/Toast';
 import type { Assignment, Course, Submission } from '../types';
+import {
+  formatAssignmentStatus,
+  formatDateTimeVi,
+  formatSubmissionStatus,
+} from '../utils/formatters';
 
-export const AssignmentsPage: React.FC = () => {
+export interface AssignmentsPageProps {
+  embeddedCourseId?: string;
+}
+
+type StatusFilterKey =
+  | 'ALL'
+  | 'OPEN'
+  | 'DUE_SOON'
+  | 'PAST_DUE'
+  | 'CLOSED'
+  | 'DRAFT';
+
+export function AssignmentsPage({ embeddedCourseId }: AssignmentsPageProps = {}) {
   const { user } = useAuth();
+  const confirm = useConfirm();
+  const toast = useToast();
+  const baseId = useId();
+  const params = useParams<{ id?: string; assignmentId?: string }>();
+  const [searchParams] = useSearchParams();
+
+  const isInstructor = user?.role === 'LECTURER' || user?.role === 'ADMIN';
+  const isEmbedded = Boolean(embeddedCourseId);
+
+  const queryCourseId = searchParams.get('courseId') ?? '';
+  const deepLinkAssignmentId =
+    params.assignmentId ?? searchParams.get('assignmentId') ?? '';
+
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
+  const [coursesReady, setCoursesReady] = useState(isEmbedded);
+  const [manualCourseId, setManualCourseId] = useState<string>(
+    params.id ?? queryCourseId ?? '',
+  );
+  const selectedCourseId = embeddedCourseId ?? manualCourseId;
+
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [mySubmissions, setMySubmissions] = useState<Record<string, Submission | null>>({});
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const [loadedKey, setLoadedKey] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
 
-  // Modals state
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilterKey>('ALL');
+
+  const [formOpen, setFormOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [newDueDate, setNewDueDate] = useState('');
-  const [newMaxScore, setNewMaxScore] = useState(10);
-  const [newStatus, setNewStatus] = useState<'DRAFT' | 'PUBLISHED' | 'CLOSED'>('PUBLISHED');
-  const [submitting, setSubmitting] = useState(false);
 
-  // Submissions review modal for lecturer
-  const [isSubmissionsModalOpen, setIsSubmissionsModalOpen] = useState(false);
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [gradingTarget, setGradingTarget] = useState<Assignment | null>(null);
+  const [submitTarget, setSubmitTarget] = useState<Assignment | null>(null);
 
-  // Grading modal state
-  const [gradingSubmission, setGradingSubmission] = useState<Submission | null>(null);
-  const [gradeScore, setGradeScore] = useState<number>(10);
-  const [gradeFeedback, setGradeFeedback] = useState<string>('Bài làm tốt!');
+  const [previewPrompt, setPreviewPrompt] = useState<{
+    fileId?: string | null;
+    externalUrl?: string | null;
+    title: string;
+  } | null>(null);
 
-  // Student submit modal
-  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
-  const [submitAssignmentTarget, setSubmitAssignmentTarget] = useState<Assignment | null>(null);
-  const [submissionText, setSubmissionText] = useState('');
+  const deepLinkHandledRef = useRef<string>('');
+
+  const activeFetchKey = selectedCourseId ? `${selectedCourseId}:${reloadNonce}` : '';
+  const coursesLoading = !isEmbedded && !coursesReady;
+  const loading =
+    coursesLoading || (Boolean(selectedCourseId) && loadedKey !== activeFetchKey);
 
   useEffect(() => {
-    const fetchCourses = async () => {
+    if (embeddedCourseId) return;
+
+    let cancelled = false;
+    void getCourses()
+      .then((list) => {
+        if (cancelled) return;
+        setCourses(list);
+        const preferred = params.id || queryCourseId;
+        if (preferred && list.some((c) => String(c.courseId ?? c.id) === preferred)) {
+          setManualCourseId(preferred);
+        } else if (list.length > 0) {
+          setManualCourseId((prev) =>
+            prev && list.some((c) => String(c.courseId ?? c.id) === prev)
+              ? prev
+              : String(list[0].courseId ?? list[0].id),
+          );
+        } else {
+          setManualCourseId('');
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(getErrorMessage(err, 'Không thể tải danh sách khóa học.'));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCoursesReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [embeddedCourseId, params.id, queryCourseId]);
+
+  useEffect(() => {
+    if (!selectedCourseId) return;
+    let cancelled = false;
+    const currentKey = `${selectedCourseId}:${reloadNonce}`;
+
+    const run = async () => {
       try {
-        const data = await api.getCourses();
-        setCourses(data);
-        if (data.length > 0) {
-          setSelectedCourseId(String(data[0].id));
+        const list = await getCourseAssignments(selectedCourseId);
+        if (cancelled) return;
+        setAssignments(list);
+        setError(null);
+
+        if (!isInstructor && list.length > 0) {
+          const entries = await Promise.allSettled(
+            list.map(async (item) => {
+              const aid = getAssignmentId(item);
+              const sub = await getMySubmission(aid);
+              return [aid, sub] as const;
+            }),
+          );
+          if (cancelled) return;
+          const map: Record<string, Submission | null> = {};
+          for (const res of entries) {
+            if (res.status === 'fulfilled') {
+              map[res.value[0]] = res.value[1];
+            }
+          }
+          setMySubmissions(map);
+        } else {
+          setMySubmissions({});
+        }
+
+        if (deepLinkAssignmentId) {
+          const handleKey = `${selectedCourseId}:${deepLinkAssignmentId}`;
+          if (deepLinkHandledRef.current !== handleKey) {
+            const match = list.find(
+              (item) => getAssignmentId(item) === deepLinkAssignmentId,
+            );
+            if (match) {
+              deepLinkHandledRef.current = handleKey;
+              if (isInstructor) {
+                setGradingTarget(match);
+              } else {
+                setSubmitTarget(match);
+              }
+            }
+          }
         }
       } catch (err) {
-        console.error(err);
+        if (!cancelled) {
+          setError(getErrorMessage(err, 'Không thể tải danh sách bài tập.'));
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoadedKey(currentKey);
       }
     };
-    fetchCourses();
-  }, []);
 
-  const fetchAssignments = async () => {
-    if (!selectedCourseId) return;
-    try {
-      setLoading(true);
-      const data = await api.getCourseAssignments(selectedCourseId);
-      if (user?.role === 'STUDENT') {
-        const withSubmissions = await Promise.all(data.map(async (assignment) => ({
-          ...assignment,
-          my_submission: await api.getMySubmission(assignment.id) || undefined,
-        })));
-        setAssignments(withSubmissions);
-      } else {
-        setAssignments(data);
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deepLinkAssignmentId, isInstructor, reloadNonce, selectedCourseId]);
+
+  const handleRetry = () => {
+    setError(null);
+    setReloadNonce((n) => n + 1);
+  };
+
+  const filteredAssignments = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return assignments.filter((item) => {
+      const deadlineMeta = getAssignmentDeadlineMeta(item);
+      if (statusFilter !== 'ALL' && deadlineMeta.key !== statusFilter) {
+        return false;
       }
-    } catch (err) {
-      console.error(err);
-      setAssignments([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (!query) return true;
+      const haystack = `${item.title} ${item.description ?? ''}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [assignments, searchQuery, statusFilter]);
 
-  useEffect(() => {
-    fetchAssignments();
-  }, [selectedCourseId]);
+  const summaryStats = useMemo(() => {
+    let openCount = 0;
+    let dueSoonCount = 0;
+    let submittedOrGraded = 0;
 
-  const resetAssignmentForm = () => {
-    setNewTitle('');
-    setNewDesc('');
-    setNewDueDate('');
-    setNewMaxScore(10);
-    setNewStatus('PUBLISHED');
-    setEditingAssignment(null);
-  };
-
-  const handleSaveAssignment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingAssignment && !courses.some((course) => course.id === selectedCourseId)) return;
-    setSubmitting(true);
-    try {
-      const dueAt = newDueDate ? new Date(newDueDate).toISOString() : new Date(Date.now() + 7 * 86400000).toISOString();
-      if (editingAssignment) {
-        const updated = await api.updateAssignment(editingAssignment.id, {
-          title: newTitle,
-          description: newDesc,
-          dueAt,
-          maxScore: Number(newMaxScore),
-          status: newStatus,
-        });
-        setAssignments((prev) => prev.map((assignment) => assignment.id === updated.id ? updated : assignment));
-      } else {
-        const created = await api.createAssignment(selectedCourseId, {
-          title: newTitle,
-          description: newDesc,
-          due_date: dueAt,
-          max_score: Number(newMaxScore),
-          status: newStatus,
-        });
-        setAssignments((prev) => [created, ...prev]);
+    for (const item of assignments) {
+      const meta = getAssignmentDeadlineMeta(item);
+      if (meta.key === 'OPEN') openCount += 1;
+      if (meta.key === 'DUE_SOON') {
+        openCount += 1;
+        dueSoonCount += 1;
       }
-      setIsCreateModalOpen(false);
-      resetAssignmentForm();
-    } catch (err: any) {
-      alert((editingAssignment ? 'Lỗi cập nhật bài tập: ' : 'Lỗi tạo bài tập: ') + err.message);
-    } finally {
-      setSubmitting(false);
+      if (!isInstructor) {
+        const sub = mySubmissions[getAssignmentId(item)];
+        if (sub) submittedOrGraded += 1;
+      }
     }
-  };
 
-  const openEditAssignment = (assignment: Assignment) => {
-    const dueAt = new Date(assignment.dueAt || assignment.due_date);
-    setEditingAssignment(assignment);
-    setNewTitle(assignment.title);
-    setNewDesc(assignment.description || '');
-    setNewDueDate(new Date(dueAt.getTime() - dueAt.getTimezoneOffset() * 60_000).toISOString().slice(0, 16));
-    setNewMaxScore(Number(assignment.maxScore ?? assignment.max_score));
-    setNewStatus((assignment.status as 'DRAFT' | 'PUBLISHED' | 'CLOSED') || 'PUBLISHED');
-    setIsCreateModalOpen(true);
-  };
+    return {
+      total: assignments.length,
+      openCount,
+      dueSoonCount,
+      submittedOrGraded,
+    };
+  }, [assignments, isInstructor, mySubmissions]);
 
-  const handleOpenSubmissions = async (assignment: Assignment) => {
-    setSelectedAssignment(assignment);
+  const handleTransitionStatus = async (
+    assignment: Assignment,
+    nextStatus: 'PUBLISHED' | 'CLOSED',
+  ) => {
+    const isClosing = nextStatus === 'CLOSED';
+    const confirmed = await confirm({
+      title: isClosing ? 'Đóng hạn bài tập?' : 'Mở lại / Công bố bài tập?',
+      message: isClosing
+        ? `Bài tập "${assignment.title}" sẽ ngừng nhận bài nộp mới từ sinh viên.`
+        : `Bài tập "${assignment.title}" sẽ mở cho sinh viên trong khóa học xem và nộp bài.`,
+      confirmText: isClosing ? 'Đóng bài tập' : 'Xác nhận mở',
+      cancelText: 'Hủy',
+      variant: isClosing ? 'danger' : 'primary',
+    });
+    if (!confirmed) return;
+
     try {
-      const subs = await api.getAssignmentSubmissions(assignment.id);
-      setSubmissions(subs);
-      setIsSubmissionsModalOpen(true);
-    } catch (err: any) {
-      alert('Lỗi tải bài nộp: ' + err.message);
-    }
-  };
-
-  const handleGradeSubmission = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!gradingSubmission) return;
-    setSubmitting(true);
-    try {
-      await api.gradeSubmission(gradingSubmission.id, {
-        score: Number(gradeScore),
-        feedback: gradeFeedback,
-        weight_percent: 10,
+      const updated = await updateAssignment(getAssignmentId(assignment), {
+        status: nextStatus,
       });
-      alert('Đã lưu điểm thành công!');
-      // refresh submissions
-      if (selectedAssignment && selectedAssignment.id) {
-        const subs = await api.getAssignmentSubmissions(selectedAssignment.id);
-        setSubmissions(subs);
-      }
-      setGradingSubmission(null);
-    } catch (err: any) {
-      alert('Lỗi chấm điểm: ' + err.message);
-    } finally {
-      setSubmitting(false);
+      setAssignments((prev) =>
+        prev.map((item) =>
+          getAssignmentId(item) === getAssignmentId(assignment) ? updated : item,
+        ),
+      );
+      toast.success(
+        isClosing
+          ? 'Đã đóng hạn nộp bài tập.'
+          : 'Đã cập nhật trạng thái mở bài tập.',
+      );
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Không thể thay đổi trạng thái bài tập.'));
     }
   };
 
-  const handleStudentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!submitAssignmentTarget || !submitAssignmentTarget.id) return;
-    setSubmitting(true);
-    try {
-      const savedSubmission = await api.submitAssignment(submitAssignmentTarget.id, submissionText);
-      setAssignments((prev) => prev.map((assignment) => assignment.id === savedSubmission.assignment_id
-        ? { ...assignment, my_submission: savedSubmission }
-        : assignment));
-      alert('Nộp bài thành công!');
-      setIsSubmitModalOpen(false);
-      setSubmissionText('');
-      setSubmitAssignmentTarget(null);
-    } catch (err: any) {
-      alert('Lỗi nộp bài: ' + err.message);
-    } finally {
-      setSubmitting(false);
+  const openPromptPreview = (assignment: Assignment) => {
+    if (assignment.attachmentFileId) {
+      setPreviewPrompt({
+        fileId: assignment.attachmentFileId,
+        title: `Đề bài: ${assignment.title}`,
+      });
+    } else if (assignment.attachmentUrl) {
+      setPreviewPrompt({
+        externalUrl: assignment.attachmentUrl,
+        title: `Tài liệu đề bài: ${assignment.title}`,
+      });
     }
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Quản lý Bài tập & Đánh giá</h1>
-          <p className="text-sm text-slate-500">
-            {user?.role === 'STUDENT'
-              ? 'Nộp bài tập trực tuyến và xem kết quả chấm điểm từ giảng viên'
-              : 'Giao bài tập, thu thập bài nộp và chấm điểm trực tiếp'}
-          </p>
-        </div>
-
-        {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            disabled={!courses.some((course) => course.id === selectedCourseId)}
-            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tạo bài tập mới</span>
-          </button>
-        )}
-      </div>
-
-      {/* Course Filter Dropdown */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center space-x-3">
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">
-          Khóa học:
-        </label>
-        <select
-          value={selectedCourseId}
-          onChange={(e) => setSelectedCourseId(e.target.value)}
-          className="w-full sm:w-96 px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium text-slate-800"
-        >
-          {courses.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.code} - {c.title}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Assignments List */}
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-slate-400">Đang tải danh sách bài tập...</p>
-        </div>
-      ) : assignments.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center text-slate-400">
-          <FileText className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-          <h3 className="font-semibold text-slate-700">Chưa có bài tập nào</h3>
-          <p className="text-sm mt-1">Chưa có bài tập nào được giao cho khóa học này.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {assignments.map((a) => (
-            <div
-              key={a.id}
-              className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs hover:border-blue-200 transition flex flex-col md:flex-row md:items-center justify-between gap-4"
-            >
-              <div className="space-y-1.5 flex-1">
-                <div className="flex items-center space-x-2">
-                  <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-xs">
-                    Điểm tối đa: {a.max_score}đ
-                  </span>
-                  {user?.role !== 'STUDENT' && (
-                    <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${
-                      a.status === 'CLOSED'
-                        ? 'bg-slate-100 text-slate-600'
-                        : a.status === 'DRAFT'
-                        ? 'bg-amber-50 text-amber-700'
-                        : 'bg-emerald-50 text-emerald-700'
-                    }`}>
-                      {formatAssignmentStatus(a.status)}
-                    </span>
-                  )}
-                  <span className="flex items-center text-xs text-slate-400 space-x-1">
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>Hạn nộp: {formatDateTimeVi(a.due_date)}</span>
-                  </span>
-                </div>
-                <h3 className="text-base font-bold text-slate-800">{a.title}</h3>
-                <p className="text-xs text-slate-500 line-clamp-2">{a.description || 'Không có mô tả chi tiết.'}</p>
-              </div>
-
-              <div className="flex items-center space-x-3 shrink-0">
-                {user?.role === 'STUDENT' ? (
-                  a.status === 'CLOSED' || a.status === 'DRAFT' || a.my_submission?.status === 'GRADED' ? (
-                    <span className="px-3 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-semibold">
-                      {a.my_submission?.status === 'GRADED' ? 'Đã chấm' : a.status === 'CLOSED' ? 'Đã đóng' : 'Chưa mở'}
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setSubmitAssignmentTarget(a);
-                        setSubmissionText(a.my_submission?.contentText || a.my_submission?.submission_text || '');
-                        setIsSubmitModalOpen(true);
-                      }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center space-x-1.5"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>{a.my_submission ? 'Cập nhật bài nộp' : 'Nộp bài tập'}</span>
-                    </button>
-                  )
-                ) : (
-                  <>
-                    <button
-                      onClick={() => openEditAssignment(a)}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold inline-flex items-center gap-1"
-                    ><Pencil className="w-3.5 h-3.5" /> Sửa</button>
-                    <button
-                      onClick={async () => {
-                        const status = a.status === 'CLOSED' ? 'PUBLISHED' : 'CLOSED';
-                        try {
-                          const updated = await api.updateAssignment(a.id, { status });
-                          setAssignments((prev) => prev.map((item) => item.id === updated.id ? updated : item));
-                        } catch (err: any) { alert('Lỗi cập nhật trạng thái: ' + err.message); }
-                      }}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold inline-flex items-center gap-1"
-                    ><LockKeyhole className="w-3.5 h-3.5" /> {a.status === 'CLOSED' ? 'Mở lại' : 'Đóng'}</button>
-                    <button
-                      onClick={() => handleOpenSubmissions(a)}
-                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
-                    ><Eye className="w-3.5 h-3.5 text-slate-500" /><span>Xem & Chấm bài</span></button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Modal: Create / Edit Assignment */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">{editingAssignment ? 'Cập nhật bài tập' : 'Tạo bài tập mới'}</h3>
-              <button onClick={() => { setIsCreateModalOpen(false); resetAssignmentForm(); }}>
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-            <form onSubmit={handleSaveAssignment} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tiêu đề bài tập</label>
-                <input
-                  type="text"
-                  required
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                  placeholder="Bài tập tuần 3: Thiết kế CSDL LMS"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Yêu cầu chi tiết</label>
-                <textarea
-                  rows={4}
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                  placeholder="Nêu rõ yêu cầu sinh viên cần thực hiện, tiêu chí đánh giá..."
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Hạn nộp</label>
-                  <input
-                    type="datetime-local"
-                    value={newDueDate}
-                    onChange={(e) => setNewDueDate(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Điểm tối đa</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={newMaxScore}
-                    onChange={(e) => setNewMaxScore(Number(e.target.value))}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Trạng thái bài tập</label>
-                <select value={newStatus} onChange={(e) => setNewStatus(e.target.value as typeof newStatus)} className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white">
-                  <option value="DRAFT">Bản nháp</option>
-                  <option value="PUBLISHED">Đã giao</option>
-                  <option value="CLOSED">Đã đóng</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => { setIsCreateModalOpen(false); resetAssignmentForm(); }}
-                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {submitting ? 'Đang lưu...' : editingAssignment ? 'Lưu thay đổi' : 'Giao bài tập'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Submissions List for Lecturer */}
-      {isSubmissionsModalOpen && selectedAssignment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-3xl w-full p-6 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="font-bold text-slate-800 text-base">Danh sách bài nộp: {selectedAssignment.title}</h3>
-                <p className="text-xs text-slate-400">Tổng số sinh viên đã nộp: {submissions.length}</p>
-              </div>
-              <button onClick={() => setIsSubmissionsModalOpen(false)}>
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto divide-y divide-slate-100 my-4">
-              {submissions.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 text-sm">Chưa có sinh viên nào nộp bài.</div>
-              ) : (
-                submissions.map((sub) => (
-                  <div key={sub.id} className="py-3.5 flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-slate-800 text-sm">{sub.student_name || 'Sinh viên'}</div>
-                      <div className="text-xs text-slate-400">
-                        Nộp lúc: {formatDateTimeVi(sub.submitted_at)}
-                      </div>
-                      {sub.submission_text && (
-                        <p className="text-xs text-slate-600 mt-1 line-clamp-1 italic">"{sub.submission_text}"</p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => {
-                          setGradingSubmission(sub);
-                        }}
-                        className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold flex items-center space-x-1"
-                      >
-                        <Award className="w-3.5 h-3.5" />
-                        <span>Chấm điểm</span>
-                      </button>
-                    </div>
-                  </div>
-                ))
+  const instructorColumns: DataTableColumn<Assignment>[] = [
+    {
+      key: 'title',
+      header: 'Bài tập',
+      sortable: true,
+      sortValue: (row) => row.title,
+      render: (row) => {
+        const status = getAssignmentStatus(row);
+        const deadlineMeta = getAssignmentDeadlineMeta(row);
+        return (
+          <div className="min-w-[200px] max-w-md space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-[var(--lms-text)]">{row.title}</span>
+              <Badge variant={deadlineMeta.variant} size="sm" dot>
+                {deadlineMeta.label}
+              </Badge>
+              {status === 'PUBLISHED' && (
+                <Badge variant="neutral" size="sm">
+                  {formatAssignmentStatus(status)}
+                </Badge>
               )}
             </div>
-
-            <div className="pt-3 border-t border-slate-100 flex justify-end">
+            {row.description && (
+              <p className="line-clamp-1 text-xs text-[var(--lms-text-muted)]">
+                {row.description.replace(/<[^>]+>/g, ' ').trim()}
+              </p>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'dueAt',
+      header: 'Hạn nộp',
+      sortable: true,
+      sortValue: (row) => getAssignmentDueAt(row),
+      render: (row) => (
+        <div className="tabular-nums whitespace-nowrap text-xs">
+          <p className="font-medium text-[var(--lms-text)]">
+            {formatDateTimeVi(getAssignmentDueAt(row))}
+          </p>
+          <p className="text-[var(--lms-text-muted)]">
+            {row.allowLate ? 'Cho phép nộp muộn' : 'Không nhận nộp muộn'}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'scoring',
+      header: 'Điểm / Trọng số',
+      align: 'right',
+      sortable: true,
+      sortValue: (row) => getAssignmentMaxScore(row),
+      render: (row) => (
+        <div className="tabular-nums whitespace-nowrap text-right text-xs">
+          <p className="font-bold text-[var(--lms-text)]">
+            {getAssignmentMaxScore(row)} điểm
+          </p>
+          <p className="text-[var(--lms-text-muted)]">
+            {row.weightPercent != null ? `Trọng số ${row.weightPercent}%` : 'Không tính trọng số'}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Thao tác',
+      align: 'right',
+      render: (row) => {
+        const status = getAssignmentStatus(row);
+        const hasAttachment = Boolean(row.attachmentFileId || row.attachmentUrl);
+        return (
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            {hasAttachment && (
               <button
-                onClick={() => setIsSubmissionsModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold"
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openPromptPreview(row);
+                }}
+                title="Xem tệp đề bài"
+                className="inline-flex items-center gap-1 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]"
               >
-                Đóng
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                Đề bài
               </button>
+            )}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setGradingTarget(row);
+              }}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              <Award className="h-3.5 w-3.5" aria-hidden="true" />
+              Chấm bài
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setEditingAssignment(row);
+                setFormOpen(true);
+              }}
+              aria-label={`Chỉnh sửa ${row.title}`}
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]"
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+              Sửa
+            </button>
+            {status === 'CLOSED' || status === 'DRAFT' ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleTransitionStatus(row, 'PUBLISHED');
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+              >
+                <Unlock className="h-3.5 w-3.5" aria-hidden="true" />
+                {status === 'DRAFT' ? 'Công bố' : 'Mở lại'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleTransitionStatus(row, 'CLOSED');
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-900/70 dark:bg-red-950/50 dark:text-red-300"
+              >
+                <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
+                Đóng hạn
+              </button>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
+  const studentColumns: DataTableColumn<Assignment>[] = [
+    {
+      key: 'title',
+      header: 'Bài tập',
+      sortable: true,
+      sortValue: (row) => row.title,
+      render: (row) => {
+        const deadlineMeta = getAssignmentDeadlineMeta(row);
+        return (
+          <div className="min-w-[200px] max-w-md space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-[var(--lms-text)]">{row.title}</span>
+              <Badge variant={deadlineMeta.variant} size="sm" dot>
+                {deadlineMeta.label}
+              </Badge>
+            </div>
+            {row.description && (
+              <p className="line-clamp-1 text-xs text-[var(--lms-text-muted)]">
+                {row.description.replace(/<[^>]+>/g, ' ').trim()}
+              </p>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'dueAt',
+      header: 'Hạn nộp',
+      sortable: true,
+      sortValue: (row) => getAssignmentDueAt(row),
+      render: (row) => (
+        <div className="tabular-nums whitespace-nowrap text-xs">
+          <p className="font-medium text-[var(--lms-text)]">
+            {formatDateTimeVi(getAssignmentDueAt(row))}
+          </p>
+          <p className="text-[var(--lms-text-muted)]">
+            Tối đa {getAssignmentMaxScore(row)} đ
+            {row.weightPercent != null ? ` • ${row.weightPercent}%` : ''}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'submission',
+      header: 'Trạng thái & Điểm',
+      render: (row) => {
+        const sub = mySubmissions[getAssignmentId(row)] ?? null;
+        if (!sub) {
+          return (
+            <Badge variant="neutral" size="sm">
+              Chưa nộp bài
+            </Badge>
+          );
+        }
+        const isGraded = (sub.status || '').toUpperCase() === 'GRADED';
+        return (
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={getSubmissionStatusBadgeVariant(sub.status)} size="sm">
+                {formatSubmissionStatus(sub.status)}
+              </Badge>
+              {isGraded && sub.score != null && (
+                <span className="tabular-nums rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  {sub.score}/{getAssignmentMaxScore(row)}
+                </span>
+              )}
+            </div>
+            {isGraded && sub.feedback && (
+              <div className="max-w-xs text-xs text-[var(--lms-text-muted)] line-clamp-2">
+                <SafeHtml html={toSafeDisplayHtml(sub.feedback)} as="span" />
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      header: 'Thao tác',
+      align: 'right',
+      render: (row) => {
+        const sub = mySubmissions[getAssignmentId(row)] ?? null;
+        const isGraded = (sub?.status || '').toUpperCase() === 'GRADED';
+        const hasAttachment = Boolean(row.attachmentFileId || row.attachmentUrl);
+        return (
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            {hasAttachment && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openPromptPreview(row);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]"
+              >
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                Đề bài
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setSubmitTarget(row);
+              }}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              {isGraded ? (
+                <>
+                  <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                  Xem kết quả
+                </>
+              ) : sub ? (
+                <>
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                  Cập nhật bài
+                </>
+              ) : (
+                <>
+                  <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                  Nộp bài
+                </>
+              )}
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  const selectedCourse = courses.find(
+    (c) => String(c.courseId ?? c.id) === selectedCourseId,
+  );
+
+  return (
+    <div className={isEmbedded ? 'space-y-4' : 'space-y-6'}>
+      {!isEmbedded ? (
+        <header className="flex flex-col gap-4 rounded-2xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-[var(--lms-text)]">
+              Bài tập & Chấm điểm
+            </h1>
+            <p className="mt-1 text-sm text-[var(--lms-text-muted)]">
+              {isInstructor
+                ? 'Quản lý đề bài, theo dõi hạn nộp và chấm điểm bài làm của sinh viên.'
+                : 'Theo dõi hạn nộp bài tập, nộp tệp bài làm và xem nhận xét từ giảng viên.'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {isInstructor && selectedCourseId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingAssignment(null);
+                  setFormOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Tạo bài tập mới
+              </button>
+            )}
+          </div>
+        </header>
+      ) : null}
+
+      <section
+        aria-label="Bộ lọc bài tập"
+        className="flex flex-col gap-3 rounded-2xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-4 shadow-xs lg:flex-row lg:items-end lg:justify-between"
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-1 lg:flex-wrap lg:items-end">
+          {!isEmbedded && (
+            <div className="min-w-[220px] flex-1">
+              <label
+                htmlFor={`${baseId}-course-select`}
+                className="mb-1 block text-xs font-semibold text-[var(--lms-text-muted)]"
+              >
+                Khóa học
+              </label>
+              <select
+                id={`${baseId}-course-select`}
+                disabled={coursesLoading || courses.length === 0}
+                value={selectedCourseId}
+                onChange={(event) => {
+                  setError(null);
+                  setManualCourseId(event.target.value);
+                }}
+                className="w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none"
+              >
+                {courses.length === 0 ? (
+                  <option value="">Chưa có khóa học</option>
+                ) : (
+                  courses.map((course) => {
+                    const cid = String(course.courseId ?? course.id);
+                    const code = course.courseCode ?? course.code;
+                    return (
+                      <option key={cid} value={cid}>
+                        {code ? `${code} - ${course.title}` : course.title}
+                      </option>
+                    );
+                  })
+                )}
+              </select>
+            </div>
+          )}
+
+          <div className="min-w-[200px] flex-1">
+            <label
+              htmlFor={`${baseId}-search`}
+              className="mb-1 block text-xs font-semibold text-[var(--lms-text-muted)]"
+            >
+              Tìm kiếm bài tập
+            </label>
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--lms-text-muted)]"
+                aria-hidden="true"
+              />
+              <input
+                id={`${baseId}-search`}
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Tìm theo tiêu đề hoặc mô tả..."
+                className="w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] py-2 pl-9 pr-3 text-sm text-[var(--lms-text)] placeholder:text-[var(--lms-text-muted)] focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="min-w-[170px]">
+            <label
+              htmlFor={`${baseId}-status-filter`}
+              className="mb-1 block text-xs font-semibold text-[var(--lms-text-muted)]"
+            >
+              Trạng thái hạn nộp
+            </label>
+            <select
+              id={`${baseId}-status-filter`}
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as StatusFilterKey)}
+              className="w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none"
+            >
+              <option value="ALL">Tất cả ({assignments.length})</option>
+              <option value="OPEN">Đang mở</option>
+              <option value="DUE_SOON">Sắp hết hạn</option>
+              <option value="PAST_DUE">Quá hạn</option>
+              <option value="CLOSED">Đã đóng</option>
+              {isInstructor && <option value="DRAFT">Bản nháp</option>}
+            </select>
+          </div>
+        </div>
+
+        {isEmbedded && isInstructor && selectedCourseId && (
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingAssignment(null);
+                setFormOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Tạo bài tập
+            </button>
+          </div>
+        )}
+      </section>
+
+      {!loading && selectedCourseId && assignments.length > 0 && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="flex items-center gap-3 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-4 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
+              <ClipboardList className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-xs text-[var(--lms-text-muted)]">Tổng số bài tập</p>
+              <p className="tabular-nums text-lg font-bold text-[var(--lms-text)]">
+                {summaryStats.total}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-4 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400">
+              <Clock className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-xs text-[var(--lms-text-muted)]">Đang mở / Sắp hết hạn</p>
+              <p className="tabular-nums text-lg font-bold text-[var(--lms-text)]">
+                {summaryStats.openCount}{' '}
+                <span className="text-xs font-medium text-[var(--lms-text-muted)]">
+                  ({summaryStats.dueSoonCount} sắp hạn)
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-4 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-xs text-[var(--lms-text-muted)]">
+                {isInstructor ? 'Khóa học đang chọn' : 'Bài bạn đã nộp'}
+              </p>
+              <p className="tabular-nums truncate text-sm font-bold text-[var(--lms-text)]">
+                {isInstructor
+                  ? selectedCourse?.courseCode || selectedCourse?.code || 'Đang quản lý'
+                  : `${summaryStats.submittedOrGraded} / ${summaryStats.total}`}
+              </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal: Inline Grading Submission */}
-      {gradingSubmission && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6">
-            <h3 className="font-bold text-slate-800 text-base mb-1">
-              Chấm điểm cho: {gradingSubmission.student_name}
-            </h3>
-            <p className="text-xs text-slate-400 mb-4">Nội dung nộp: {gradingSubmission.submission_text || 'Không có nội dung văn bản'}</p>
-
-            <form onSubmit={handleGradeSubmission} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Điểm số (0 - 10)</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  max="10"
-                  required
-                  value={gradeScore}
-                  onChange={(e) => setGradeScore(Number(e.target.value))}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-bold text-blue-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Nhận xét & Phản hồi</label>
-                <textarea
-                  rows={3}
-                  value={gradeFeedback}
-                  onChange={(e) => setGradeFeedback(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm"
-                  placeholder="Ghi nhận xét cụ thể để sinh viên cải thiện..."
-                />
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setGradingSubmission(null)}
-                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
-                >
-                  Lưu điểm
-                </button>
-              </div>
-            </form>
+      {error ? (
+        <ErrorBanner message={error} onRetry={handleRetry} />
+      ) : loading ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <SkeletonCard lines={2} />
+            <SkeletonCard lines={2} />
+            <SkeletonCard lines={2} />
           </div>
+          <SkeletonTable rows={5} columns={4} />
         </div>
-      )}
-
-      {/* Modal: Student Submit Assignment */}
-      {isSubmitModalOpen && submitAssignmentTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800 text-base">Nộp bài: {submitAssignmentTarget.title}</h3>
-              <button onClick={() => setIsSubmitModalOpen(false)}>
-                <X className="w-5 h-5 text-slate-400" />
+      ) : !selectedCourseId ? (
+        <EmptyState
+          icon={<ClipboardList className="h-6 w-6" aria-hidden="true" />}
+          title="Chưa có khóa học nào"
+          description={
+            isInstructor
+              ? 'Hãy tạo hoặc được phân công một khóa học để bắt đầu giao bài tập.'
+              : 'Bạn chưa ghi danh vào khóa học nào để xem bài tập.'
+          }
+        />
+      ) : (
+        <DataTable<Assignment>
+          columns={isInstructor ? instructorColumns : studentColumns}
+          data={filteredAssignments}
+          caption="Danh sách bài tập trong khóa học"
+          hideCaption
+          getRowKey={(row) => getAssignmentId(row)}
+          emptyTitle={
+            assignments.length === 0
+              ? 'Chưa có bài tập nào'
+              : 'Không tìm thấy bài tập phù hợp'
+          }
+          emptyDescription={
+            assignments.length === 0
+              ? isInstructor
+                ? 'Tạo bài tập đầu tiên để sinh viên bắt đầu nộp bài.'
+                : 'Giảng viên chưa giao bài tập nào cho khóa học này.'
+              : 'Thử xóa từ khóa tìm kiếm hoặc chọn bộ lọc trạng thái khác.'
+          }
+          emptyAction={
+            assignments.length === 0 && isInstructor ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingAssignment(null);
+                  setFormOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-blue-500"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Tạo bài tập đầu tiên
               </button>
-            </div>
-
-            <form onSubmit={handleStudentSubmit} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                  Nội dung trả lời / Báo cáo tóm tắt
-                </label>
-                <textarea
-                  rows={5}
-                  required
-                  value={submissionText}
-                  onChange={(e) => setSubmissionText(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                  placeholder="Dán câu trả lời, báo cáo tóm tắt hoặc liên kết tài liệu tại đây..."
-                />
-              </div>
-
-              <p className="text-xs text-slate-500">Bài nộp được lưu dưới dạng văn bản. Tải tệp trực tiếp chưa được hỗ trợ; có thể dán liên kết chia sẻ trong nội dung.</p>
-
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsSubmitModalOpen(false)}
-                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {submitting ? 'Đang nộp...' : 'Xác nhận nộp bài'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+            ) : undefined
+          }
+          onRowClick={(row) => {
+            if (isInstructor) {
+              setGradingTarget(row);
+            } else {
+              setSubmitTarget(row);
+            }
+          }}
+        />
       )}
+
+      {selectedCourseId && (
+        <AssignmentFormModal
+          isOpen={formOpen}
+          onClose={() => {
+            setFormOpen(false);
+            setEditingAssignment(null);
+          }}
+          courseId={selectedCourseId}
+          assignment={editingAssignment}
+          onSaved={(saved, isEdit) => {
+            setAssignments((prev) => {
+              if (isEdit) {
+                return prev.map((item) =>
+                  getAssignmentId(item) === getAssignmentId(saved) ? saved : item,
+                );
+              }
+              return [saved, ...prev];
+            });
+          }}
+        />
+      )}
+
+      <SubmissionsGradingDrawer
+        isOpen={Boolean(gradingTarget)}
+        onClose={() => setGradingTarget(null)}
+        assignment={gradingTarget}
+      />
+
+      {selectedCourseId && (
+        <StudentSubmitDrawer
+          isOpen={Boolean(submitTarget)}
+          onClose={() => setSubmitTarget(null)}
+          assignment={submitTarget}
+          courseId={selectedCourseId}
+          existingSubmission={
+            submitTarget ? mySubmissions[getAssignmentId(submitTarget)] ?? null : null
+          }
+          onSubmitted={(saved) => {
+            if (!submitTarget) return;
+            const aid = getAssignmentId(submitTarget);
+            setMySubmissions((prev) => ({ ...prev, [aid]: saved }));
+          }}
+        />
+      )}
+
+      <FilePreviewModal
+        isOpen={Boolean(previewPrompt)}
+        onClose={() => setPreviewPrompt(null)}
+        fileId={previewPrompt?.fileId}
+        externalUrl={previewPrompt?.externalUrl}
+        title={previewPrompt?.title ?? 'Xem trước đề bài'}
+      />
     </div>
   );
-};
+}
+
+export default AssignmentsPage;

@@ -1,706 +1,889 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
-  CheckSquare,
-  Plus,
+  BarChart3,
+  BookOpen,
+  CheckCircle2,
+  ClipboardList,
   Clock,
-  Award,
-  Play,
-  X,
-  Timer,
+  Eye,
+  EyeOff,
+  HelpCircle,
+  ListChecks,
   Pencil,
-  History,
-  Archive,
+  Play,
+  Plus,
+  Search,
 } from 'lucide-react';
+import {
+  getCourseQuizzes,
+  getCourses,
+  getMyQuizAttempts,
+  toggleQuizPublish,
+} from '../api/learning';
 import { useAuth } from '../auth/AuthContext';
-import { api } from '../api/client';
-import { formatSubmissionStatus, formatDateTimeVi } from '../utils/formatters';
-import type { Quiz, QuizAttempt, QuizQuestion, Course } from '../types';
+import { QuizAnalyticsPanel } from '../components/quizzes/QuizAnalyticsPanel';
+import { QuizAttemptsModal } from '../components/quizzes/QuizAttemptsModal';
+import { QuizBuilderDrawer } from '../components/quizzes/QuizBuilderDrawer';
+import { QuizFormModal } from '../components/quizzes/QuizFormModal';
+import { QuizRunnerModal } from '../components/quizzes/QuizRunnerModal';
+import {
+  getQuizDurationMinutes,
+  getQuizErrorMessage,
+  getQuizId,
+  getQuizMaxScore,
+  getQuizPublished,
+  getQuizWindowMeta,
+} from '../components/quizzes/quizUtils';
+import { Badge } from '../components/ui/Badge';
+import { useConfirm } from '../components/ui/ConfirmDialog';
+import { DataTable, type DataTableColumn } from '../components/ui/DataTable';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
+import { SkeletonCard, SkeletonTable } from '../components/ui/Skeleton';
+import { useToast } from '../components/ui/Toast';
+import type { Course, Quiz, QuizAttempt } from '../types';
+import { formatDateTimeVi, formatScoreVisibility } from '../utils/formatters';
 
-type ActiveQuiz = Quiz & {
-  attemptId?: string;
-  startedAt?: string;
-  mode: 'attempt' | 'preview';
-};
+export interface QuizzesPageProps {
+  embeddedCourseId?: string;
+}
 
-export const QuizzesPage: React.FC = () => {
+type QuizFilterKey = 'ALL' | 'OPEN' | 'UPCOMING' | 'CLOSED' | 'DRAFT';
+
+export function QuizzesPage({ embeddedCourseId }: QuizzesPageProps = {}) {
   const { user } = useAuth();
+  const confirm = useConfirm();
+  const toast = useToast();
+  const baseId = useId();
+  const params = useParams<{ id?: string; quizId?: string }>();
+  const [searchParams] = useSearchParams();
+
+  const isInstructor = user?.role === 'LECTURER' || user?.role === 'ADMIN';
+  const isEmbedded = Boolean(embeddedCourseId);
+
+  const queryCourseId = searchParams.get('courseId') ?? '';
+  const deepLinkQuizId = params.quizId ?? searchParams.get('quizId') ?? '';
+
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
+  const [coursesReady, setCoursesReady] = useState(isEmbedded);
+  const [manualCourseId, setManualCourseId] = useState<string>(
+    params.id ?? queryCourseId ?? '',
+  );
+  const selectedCourseId = embeddedCourseId ?? manualCourseId;
+
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [myAttemptsMap, setMyAttemptsMap] = useState<Record<string, QuizAttempt[]>>({});
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const [loadedKey, setLoadedKey] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
 
-  // Modals state
-  const [isCreateQuizModalOpen, setIsCreateQuizModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<QuizFilterKey>('ALL');
+
+  const [formOpen, setFormOpen] = useState(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [newDuration, setNewDuration] = useState(15);
-  const [newPassingScore, setNewPassingScore] = useState(5);
-  const [submitting, setSubmitting] = useState(false);
 
-  // Add Question Modal
-  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
-  const [targetQuiz, setTargetQuiz] = useState<Quiz | null>(null);
-  const [editingQuestion, setEditingQuestion] = useState<QuizQuestion | null>(null);
-  const [questionText, setQuestionText] = useState('');
-  const [questionPoints, setQuestionPoints] = useState(2.5);
-  const [optA, setOptA] = useState('');
-  const [optB, setOptB] = useState('');
-  const [optC, setOptC] = useState('');
-  const [optD, setOptD] = useState('');
-  const [correctOpt, setCorrectOpt] = useState('A');
+  const [builderTarget, setBuilderTarget] = useState<Quiz | null>(null);
+  const [attemptsTarget, setAttemptsTarget] = useState<Quiz | null>(null);
+  const [analyticsTarget, setAnalyticsTarget] = useState<Quiz | null>(null);
+  const [runnerTarget, setRunnerTarget] = useState<Quiz | null>(null);
 
-  // Student Taking Quiz State
-  const [activeQuiz, setActiveQuiz] = useState<ActiveQuiz | null>(null);
-  const [studentAnswers, setStudentAnswers] = useState<Record<string, string>>({});
-  const [quizScoreResult, setQuizScoreResult] = useState<{ score: number; max: number } | null>(null);
-  const [remainingSeconds, setRemainingSeconds] = useState(0);
-  const [attemptsQuiz, setAttemptsQuiz] = useState<Quiz | null>(null);
-  const [quizAttempts, setQuizAttempts] = useState<QuizAttempt[]>([]);
+  const deepLinkHandledRef = useRef<string>('');
+
+  const activeFetchKey = selectedCourseId ? `${selectedCourseId}:${reloadNonce}` : '';
+  const coursesLoading = !isEmbedded && !coursesReady;
+  const loading =
+    coursesLoading || (Boolean(selectedCourseId) && loadedKey !== activeFetchKey);
 
   useEffect(() => {
-    const fetchCourses = async () => {
+    if (embeddedCourseId) return;
+
+    let cancelled = false;
+    void getCourses()
+      .then((list) => {
+        if (cancelled) return;
+        setCourses(list);
+        const preferred = params.id || queryCourseId;
+        if (preferred && list.some((c) => String(c.courseId ?? c.id) === preferred)) {
+          setManualCourseId(preferred);
+        } else if (list.length > 0) {
+          setManualCourseId((prev) =>
+            prev && list.some((c) => String(c.courseId ?? c.id) === prev)
+              ? prev
+              : String(list[0].courseId ?? list[0].id),
+          );
+        } else {
+          setManualCourseId('');
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(getQuizErrorMessage(err, 'Không thể tải danh sách khóa học.'));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCoursesReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [embeddedCourseId, params.id, queryCourseId]);
+
+  useEffect(() => {
+    if (!selectedCourseId) return;
+    let cancelled = false;
+    const currentKey = `${selectedCourseId}:${reloadNonce}`;
+
+    const run = async () => {
       try {
-        const data = await api.getCourses();
-        setCourses(data);
-        if (data.length > 0) setSelectedCourseId(String(data[0].id));
+        const list = await getCourseQuizzes(selectedCourseId);
+        if (cancelled) return;
+        setQuizzes(list);
+        setError(null);
+
+        let nextAttemptsMap: Record<string, QuizAttempt[]> = {};
+        if (!isInstructor && list.length > 0) {
+          const results = await Promise.allSettled(
+            list.map(async (q) => {
+              const qid = getQuizId(q);
+              const atts = await getMyQuizAttempts(qid);
+              return [qid, atts] as const;
+            }),
+          );
+          if (cancelled) return;
+          for (const item of results) {
+            if (item.status === 'fulfilled') {
+              nextAttemptsMap[item.value[0]] = item.value[1];
+            }
+          }
+          setMyAttemptsMap(nextAttemptsMap);
+        } else {
+          nextAttemptsMap = {};
+          setMyAttemptsMap(nextAttemptsMap);
+        }
+
+        if (deepLinkQuizId) {
+          const key = `${selectedCourseId}:${deepLinkQuizId}`;
+          if (deepLinkHandledRef.current !== key) {
+            const match = list.find((q) => getQuizId(q) === deepLinkQuizId);
+            if (match) {
+              deepLinkHandledRef.current = key;
+              if (isInstructor) {
+                setAttemptsTarget(match);
+              } else {
+                const attempts = nextAttemptsMap[deepLinkQuizId] ?? [];
+                if (attempts.length > 0) {
+                  setAttemptsTarget(match);
+                } else if (getQuizWindowMeta(match).key === 'OPEN') {
+                  setRunnerTarget(match);
+                }
+              }
+            }
+          }
+        }
       } catch (err) {
-        console.error(err);
+        if (!cancelled) {
+          setError(getQuizErrorMessage(err, 'Không thể tải danh sách bài kiểm tra.'));
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoadedKey(currentKey);
       }
     };
-    fetchCourses();
-  }, []);
 
-  const fetchQuizzes = async () => {
-    if (!selectedCourseId) return;
-    try {
-      setLoading(true);
-      const data = await api.getCourseQuizzes(selectedCourseId);
-      setQuizzes(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deepLinkQuizId, isInstructor, reloadNonce, selectedCourseId]);
+
+  const handleRetry = () => {
+    setError(null);
+    setReloadNonce((n) => n + 1);
   };
 
-  useEffect(() => {
-    fetchQuizzes();
-  }, [selectedCourseId]);
-
-  useEffect(() => {
-    if (!activeQuiz || activeQuiz.mode !== 'attempt' || !activeQuiz.startedAt) {
-      return;
-    }
-
-    const startedAt = Date.parse(activeQuiz.startedAt);
-    const quizEndAt = activeQuiz.endAt ? Date.parse(activeQuiz.endAt) : Number.POSITIVE_INFINITY;
-    const attemptEndAt = startedAt + activeQuiz.duration_minutes * 60_000 + 60_000;
-    const deadline = Math.min(quizEndAt, attemptEndAt);
-    const updateCountdown = () => setRemainingSeconds(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
-    const timer = window.setInterval(updateCountdown, 1000);
-    return () => window.clearInterval(timer);
-  }, [activeQuiz]);
-
-  const resetQuizForm = () => {
-    setNewTitle('');
-    setNewDesc('');
-    setNewDuration(15);
-    setNewPassingScore(5);
-    setEditingQuiz(null);
+  const triggerReload = () => {
+    setReloadNonce((n) => n + 1);
   };
 
-  const handleSaveQuiz = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingQuiz && !courses.some((course) => course.id === selectedCourseId)) return;
-    setSubmitting(true);
-    try {
-      if (editingQuiz) {
-        const updated = await api.updateQuiz(editingQuiz.id, {
-          title: newTitle,
-          description: newDesc,
-          duration_minutes: Number(newDuration),
-          passingScore: Number(newPassingScore),
-        });
-        setQuizzes((prev) => prev.map((quiz) => quiz.id === updated.id ? updated : quiz));
-      } else {
-        const created = await api.createQuiz(selectedCourseId, {
-          title: newTitle,
-          description: newDesc,
-          duration_minutes: Number(newDuration),
-          passingScore: Number(newPassingScore),
-          is_published: true,
-        });
-        setQuizzes((prev) => [created, ...prev]);
+  const filteredQuizzes = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return quizzes.filter((q) => {
+      const win = getQuizWindowMeta(q);
+      if (statusFilter !== 'ALL' && win.key !== statusFilter) return false;
+      if (!query) return true;
+      const haystack = `${q.title} ${q.description ?? ''}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [quizzes, searchQuery, statusFilter]);
+
+  const summaryStats = useMemo(() => {
+    let openCount = 0;
+    let draftOrUpcoming = 0;
+    let completedCount = 0;
+
+    for (const q of quizzes) {
+      const win = getQuizWindowMeta(q);
+      if (win.key === 'OPEN') openCount += 1;
+      if (win.key === 'DRAFT' || win.key === 'UPCOMING') draftOrUpcoming += 1;
+      if (!isInstructor) {
+        const atts = myAttemptsMap[getQuizId(q)] ?? [];
+        if (atts.some((a) => (a.status || '').toUpperCase() !== 'IN_PROGRESS')) {
+          completedCount += 1;
+        }
       }
-      setIsCreateQuizModalOpen(false);
-      resetQuizForm();
-    } catch (err: any) {
-      alert((editingQuiz ? 'Lỗi cập nhật bài quiz: ' : 'Lỗi tạo bài quiz: ') + err.message);
-    } finally {
-      setSubmitting(false);
+    }
+
+    return {
+      total: quizzes.length,
+      openCount,
+      draftOrUpcoming,
+      completedCount,
+    };
+  }, [isInstructor, myAttemptsMap, quizzes]);
+
+  const handleTogglePublish = async (quiz: Quiz) => {
+    const currentlyPublished = getQuizPublished(quiz);
+    const nextPublished = !currentlyPublished;
+
+    const confirmed = await confirm({
+      title: nextPublished ? 'Công bố bài kiểm tra?' : 'Ẩn / Hủy công bố bài kiểm tra?',
+      message: nextPublished
+        ? `Bài kiểm tra "${quiz.title}" sẽ hiển thị cho sinh viên trong khóa học theo khung giờ đã cấu hình.`
+        : `Ẩn bài kiểm tra "${quiz.title}" khỏi sinh viên (không thể hủy công bố nếu đang có sinh viên làm bài).`,
+      confirmText: nextPublished ? 'Công bố ngay' : 'Ẩn bài kiểm tra',
+      cancelText: 'Hủy',
+      variant: nextPublished ? 'primary' : 'danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      await toggleQuizPublish(getQuizId(quiz), nextPublished);
+      setQuizzes((prev) =>
+        prev.map((item) =>
+          getQuizId(item) === getQuizId(quiz)
+            ? { ...item, isPublished: nextPublished, is_published: nextPublished }
+            : item,
+        ),
+      );
+      toast.success(
+        nextPublished
+          ? 'Đã công bố bài kiểm tra.'
+          : 'Đã chuyển bài kiểm tra về trạng thái chưa công bố.',
+      );
+    } catch (err) {
+      toast.error(
+        getQuizErrorMessage(err, 'Không thể thay đổi trạng thái công bố bài kiểm tra.'),
+      );
     }
   };
 
-  const handleSaveQuestion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!targetQuiz) return;
-    setSubmitting(true);
-    try {
-      const data = {
-        question_text: questionText,
-        question_type: 'SINGLE_CHOICE',
-        points: Number(questionPoints),
-        options: [
-          { id: 'A', text: optA },
-          { id: 'B', text: optB },
-          { id: 'C', text: optC },
-          { id: 'D', text: optD },
-        ],
-        correct_option_id: correctOpt,
-      };
-      if (editingQuestion) await api.updateQuizQuestion(editingQuestion.id, data);
-      else await api.addQuizQuestion(targetQuiz.id, data);
-      alert(editingQuestion ? 'Đã cập nhật câu hỏi thành công!' : 'Đã thêm câu hỏi trắc nghiệm thành công!');
-      setIsQuestionModalOpen(false);
-      await fetchQuizzes();
-      if (activeQuiz?.mode === 'preview' && activeQuiz.id === targetQuiz.id) await handlePreviewQuiz(targetQuiz);
-      setEditingQuestion(null);
-      setQuestionText('');
-      setOptA('');
-      setOptB('');
-      setOptC('');
-      setOptD('');
-    } catch (err: any) {
-      alert('Lỗi thêm câu hỏi: ' + err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleToggleQuizPublish = async (quiz: Quiz) => {
-    const nextPublished = !(quiz.isPublished ?? quiz.is_published);
-    try {
-      await api.publishQuiz(quiz.id, nextPublished);
-      setQuizzes((prev) => prev.map((item) => item.id === quiz.id ? { ...item, isPublished: nextPublished, is_published: nextPublished } : item));
-    } catch (err: any) { alert('Lỗi cập nhật trạng thái quiz: ' + err.message); }
-  };
-
-  const openEditQuiz = (quiz: Quiz) => {
-    setEditingQuiz(quiz);
-    setNewTitle(quiz.title);
-    setNewDesc(quiz.description || '');
-    setNewDuration(Number(quiz.timeLimitMinutes ?? quiz.duration_minutes));
-    setNewPassingScore(Number(quiz.passingScore ?? 5));
-    setIsCreateQuizModalOpen(true);
-  };
-
-  const handleOpenAttempts = async (quiz: Quiz) => {
-    try {
-      const attempts = await api.getQuizAttempts(quiz.id);
-      setAttemptsQuiz(quiz);
-      setQuizAttempts(attempts);
-    } catch (err: any) { alert('Lỗi tải lượt làm bài: ' + err.message); }
-  };
-
-  const openEditQuestion = (quiz: Quiz, question: QuizQuestion) => {
-    setTargetQuiz(quiz);
-    setEditingQuestion(question);
-    setQuestionText(question.question_text || question.questionText);
-    setQuestionPoints(Number(question.points ?? question.score));
-    const options = question.options || [];
-    setOptA(options.find((option) => String(option.id) === 'A')?.text || '');
-    setOptB(options.find((option) => String(option.id) === 'B')?.text || '');
-    setOptC(options.find((option) => String(option.id) === 'C')?.text || '');
-    setOptD(options.find((option) => String(option.id) === 'D')?.text || '');
-    setCorrectOpt(String(question.correctAnswer ?? question.correct_option_id ?? 'A'));
-    setIsQuestionModalOpen(true);
-  };
-
-  const handleStartQuiz = async (quiz: Quiz) => {
-    try {
-      const attempt = await api.startQuizAttempt(quiz.quizId || String(quiz.id));
-      const maxScore = Number(attempt.maxScore ?? attempt.questions.reduce((sum, q) => sum + Number(q.score || 0), 0));
-      const attemptEnd = Date.parse(attempt.startedAt) + attempt.timeLimitMinutes * 60_000 + 60_000;
-      const quizEnd = quiz.endAt ? Date.parse(quiz.endAt) : Number.POSITIVE_INFINITY;
-      setRemainingSeconds(Math.max(0, Math.ceil((Math.min(attemptEnd, quizEnd) - Date.now()) / 1000)));
-      setActiveQuiz({
-        ...quiz,
-        attemptId: attempt.attemptId,
-        startedAt: attempt.startedAt,
-        duration_minutes: attempt.timeLimitMinutes,
-        maxScore,
-        max_score: maxScore,
-        questions: attempt.questions,
-        mode: 'attempt',
-      });
-      setStudentAnswers({});
-      setQuizScoreResult(null);
-    } catch (err: any) {
-      alert('Không thể bắt đầu bài kiểm tra: ' + err.message);
-    }
-  };
-
-  const handlePreviewQuiz = async (quiz: Quiz) => {
-    try {
-      const fullQuiz = await api.getQuiz(quiz.quizId || String(quiz.id));
-      setActiveQuiz({ ...fullQuiz, mode: 'preview' });
-      setStudentAnswers({});
-      setQuizScoreResult(null);
-    } catch (err: any) {
-      alert('Lỗi mở bản xem trước: ' + err.message);
-    }
-  };
-
-  const handleSubmitQuiz = async () => {
-    if (!activeQuiz?.attemptId || activeQuiz.mode !== 'attempt') return;
-    setSubmitting(true);
-    try {
-      const result = await api.submitQuiz(activeQuiz.attemptId, studentAnswers);
-      setQuizScoreResult({
-        score: result.score,
-        max: Number(activeQuiz.max_score ?? activeQuiz.maxScore ?? 0),
-      });
-    } catch (err: any) {
-      alert('Lỗi nộp bài kiểm tra: ' + err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Bài kiểm tra Trắc nghiệm (Quiz)</h1>
-          <p className="text-sm text-slate-500">
-            {user?.role === 'STUDENT'
-              ? 'Làm bài kiểm tra đánh giá kiến thức trực tuyến với cơ chế chấm điểm tự động'
-              : 'Soạn ngân hàng câu hỏi trắc nghiệm và quản lý các đợt kiểm tra trực tuyến'}
+  const instructorColumns: DataTableColumn<Quiz>[] = [
+    {
+      key: 'title',
+      header: 'Bài kiểm tra',
+      sortable: true,
+      sortValue: (row) => row.title,
+      render: (row) => {
+        const win = getQuizWindowMeta(row);
+        return (
+          <div className="min-w-[210px] max-w-md space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-[var(--lms-text)]">{row.title}</span>
+              <Badge variant={win.variant} size="sm" dot>
+                {win.label}
+              </Badge>
+            </div>
+            <p className="text-xs text-[var(--lms-text-muted)]">
+              {formatScoreVisibility(row.scoreVisibility)}
+              {row.weightPercent != null ? ` • Trọng số ${row.weightPercent}%` : ''}
+            </p>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'schedule',
+      header: 'Khung thời gian',
+      sortable: true,
+      sortValue: (row) => row.endAt ?? '',
+      render: (row) => (
+        <div className="tabular-nums whitespace-nowrap text-xs">
+          <p className="text-[var(--lms-text)]">
+            Mở: {formatDateTimeVi(row.startAt)}
+          </p>
+          <p className="text-[var(--lms-text-muted)]">
+            Đóng: {formatDateTimeVi(row.endAt)}
           </p>
         </div>
-
-        {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
-          <button
-            onClick={() => { resetQuizForm(); setIsCreateQuizModalOpen(true); }}
-            disabled={!courses.some((course) => course.id === selectedCourseId)}
-            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tạo bài Quiz mới</span>
-          </button>
-        )}
-      </div>
-
-      {/* Course Filter Dropdown */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center space-x-3">
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">
-          Khóa học:
-        </label>
-        <select
-          value={selectedCourseId}
-          onChange={(e) => setSelectedCourseId(e.target.value)}
-          className="w-full sm:w-96 px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium text-slate-800"
-        >
-          {courses.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.code} - {c.title}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Quiz List */}
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-slate-400">Đang tải danh sách bài kiểm tra...</p>
+      ),
+    },
+    {
+      key: 'config',
+      header: 'Cấu hình',
+      align: 'right',
+      render: (row) => (
+        <div className="tabular-nums whitespace-nowrap text-right text-xs">
+          <p className="font-semibold text-[var(--lms-text)]">
+            {getQuizDurationMinutes(row)} phút • {row.maxAttempts ?? 1} lượt
+          </p>
+          <p className="text-[var(--lms-text-muted)]">
+            Tối đa {getQuizMaxScore(row)} đ • Đạt &ge; {row.passingScore ?? 5}
+          </p>
         </div>
-      ) : quizzes.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center text-slate-400">
-          <CheckSquare className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-          <h3 className="font-semibold text-slate-700">Chưa có bài kiểm tra nào</h3>
-          <p className="text-sm mt-1">Chưa có bài quiz nào trong khóa học này.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {quizzes.map((q) => (
-            <div
-              key={q.id}
-              className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs hover:border-blue-200 transition flex flex-col justify-between"
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Thao tác',
+      align: 'right',
+      render: (row) => {
+        const published = getQuizPublished(row);
+        return (
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setBuilderTarget(row);
+              }}
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 py-1.5 text-xs font-semibold text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]"
             >
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="flex items-center text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
-                    <Clock className="w-3.5 h-3.5 mr-1" />
-                    {q.duration_minutes} phút
-                  </span>
-                  <span className="text-xs font-bold text-slate-600">Điểm tối đa: {Number(q.max_score ?? q.maxScore ?? 0)}đ</span>
-                </div>
-                {user?.role !== 'STUDENT' && <span className={`inline-flex mb-2 px-2 py-0.5 rounded-full text-[11px] font-semibold ${(q.isPublished ?? q.is_published) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{(q.isPublished ?? q.is_published) ? 'Đã xuất bản' : 'Bản nháp / đã ẩn'}</span>}
-                <h3 className="font-bold text-slate-800 text-base">{q.title}</h3>
-                <p className="text-xs text-slate-500 mt-1 line-clamp-2">{q.description || 'Không có mô tả'}</p>
-              </div>
+              <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
+              Câu hỏi
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setAttemptsTarget(row);
+              }}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
+              Bài làm
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setAnalyticsTarget(row);
+              }}
+              aria-label={`Thống kê ${row.title}`}
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]"
+            >
+              <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" />
+              Thống kê
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setEditingQuiz(row);
+                setFormOpen(true);
+              }}
+              aria-label={`Chỉnh sửa ${row.title}`}
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]"
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+              Sửa
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                void handleTogglePublish(row);
+              }}
+              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${
+                published
+                  ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                  : 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+              }`}
+            >
+              {published ? (
+                <>
+                  <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                  Ẩn bài
+                </>
+              ) : (
+                <>
+                  <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                  Công bố
+                </>
+              )}
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
 
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-xs text-slate-400">Tạo ngày: {formatDateTimeVi(q.created_at)}</span>
-
-                <div className="flex items-center space-x-2">
-                  {(user?.role === 'ADMIN' || user?.role === 'LECTURER') && (
-                    <>
-                      <button onClick={() => openEditQuiz(q)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1"><Pencil className="w-3.5 h-3.5" /> Sửa</button>
-                      <button onClick={() => handleToggleQuizPublish(q)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1"><Archive className="w-3.5 h-3.5" /> {(q.isPublished ?? q.is_published) ? 'Ẩn' : 'Xuất bản'}</button>
-                      <button onClick={() => { setTargetQuiz(q); setEditingQuestion(null); setQuestionText(''); setQuestionPoints(2.5); setOptA(''); setOptB(''); setOptC(''); setOptD(''); setCorrectOpt('A'); setIsQuestionModalOpen(true); }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">+ Câu hỏi</button>
-                      <button onClick={() => handleOpenAttempts(q)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1"><History className="w-3.5 h-3.5" /> Lượt làm</button>
-                    </>
-                  )}
-
-                  {user?.role === 'STUDENT' ? (
-                    <button
-                      onClick={() => handleStartQuiz(q)}
-                      disabled={Number(q.max_score ?? q.maxScore ?? 0) <= 0}
-                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-1 disabled:opacity-50"
-                    >
-                      <Play className="w-3.5 h-3.5" />
-                      <span>{Number(q.max_score ?? q.maxScore ?? 0) <= 0 ? 'Chưa có câu hỏi' : 'Làm bài'}</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handlePreviewQuiz(q)}
-                      className="px-3.5 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold"
-                    >
-                      Xem trước
-                    </button>
-                  )}
-                </div>
-              </div>
+  const studentColumns: DataTableColumn<Quiz>[] = [
+    {
+      key: 'title',
+      header: 'Bài kiểm tra',
+      sortable: true,
+      sortValue: (row) => row.title,
+      render: (row) => {
+        const win = getQuizWindowMeta(row);
+        return (
+          <div className="min-w-[200px] max-w-md space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-[var(--lms-text)]">{row.title}</span>
+              <Badge variant={win.variant} size="sm" dot>
+                {win.label}
+              </Badge>
             </div>
-          ))}
-        </div>
-      )}
+            <p className="tabular-nums text-xs text-[var(--lms-text-muted)]">
+              Thời lượng {getQuizDurationMinutes(row)} phút • Đóng lúc{' '}
+              {formatDateTimeVi(row.endAt)}
+            </p>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'attempts',
+      header: 'Lượt làm & Điểm cao nhất',
+      render: (row) => {
+        const qId = getQuizId(row);
+        const attempts = myAttemptsMap[qId] ?? [];
+        const maxAttempts = row.maxAttempts ?? 1;
+        const maxScore = getQuizMaxScore(row);
+        const inProgress = attempts.find(
+          (a) => (a.status || '').toUpperCase() === 'IN_PROGRESS',
+        );
+        const finalized = attempts.filter((a) => {
+          const s = (a.status || '').toUpperCase();
+          return s === 'SUBMITTED' || s === 'EXPIRED';
+        });
+        const pendingReview = attempts.some(
+          (a) => (a.status || '').toUpperCase() === 'PENDING_REVIEW',
+        );
 
-      {/* Student Taking Quiz Active Interface Modal */}
-      {activeQuiz && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-2xl w-full p-6 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="font-bold text-slate-800 text-base">{activeQuiz.title}</h3>
-                <div className="flex items-center space-x-2 mt-0.5 text-xs text-slate-500">
-                  <span className="flex items-center text-blue-600 font-semibold">
-                    <Timer className="w-3.5 h-3.5 mr-1" /> Thời gian: {activeQuiz.duration_minutes} phút
-                  </span>
-                  <span>•</span>
-                  <span>Điểm tối đa: {Number(activeQuiz.max_score ?? activeQuiz.maxScore ?? 0)} điểm</span>
-                </div>
-              </div>
+        const bestScore =
+          finalized.length > 0
+            ? Math.max(...finalized.map((a) => Number(a.score ?? 0)))
+            : null;
+
+        return (
+          <div className="space-y-1 text-xs">
+            <p className="tabular-nums font-medium text-[var(--lms-text)]">
+              Đã dùng: {attempts.length} / {maxAttempts} lượt
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {inProgress && <Badge variant="info">Có bài đang làm dở</Badge>}
+              {bestScore !== null ? (
+                <span className="tabular-nums rounded-md bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  Cao nhất: {bestScore}/{maxScore}
+                </span>
+              ) : pendingReview ? (
+                <Badge variant="warning">Chờ giảng viên chấm</Badge>
+              ) : !inProgress ? (
+                <span className="text-[var(--lms-text-muted)]">Chưa làm bài</span>
+              ) : null}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      header: 'Thao tác',
+      align: 'right',
+      render: (row) => {
+        const qId = getQuizId(row);
+        const win = getQuizWindowMeta(row);
+        const attempts = myAttemptsMap[qId] ?? [];
+        const maxAttempts = row.maxAttempts ?? 1;
+        const inProgress = attempts.find(
+          (a) => (a.status || '').toUpperCase() === 'IN_PROGRESS',
+        );
+        const canStartNew = win.key === 'OPEN' && attempts.length < maxAttempts;
+        const canResume = win.key === 'OPEN' && Boolean(inProgress);
+
+        return (
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            {attempts.length > 0 && (
               <button
-              onClick={() => {
-                  setActiveQuiz(null);
-                  setQuizScoreResult(null);
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setAttemptsTarget(row);
                 }}
-                aria-label={activeQuiz.mode === 'preview' ? 'Đóng bản xem trước' : 'Đóng bài kiểm tra'}
+                className="inline-flex items-center gap-1 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 py-1.5 text-xs font-semibold text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]"
               >
-                <X className="w-5 h-5 text-slate-400" />
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                Lịch sử ({attempts.length})
               </button>
-            </div>
-
-            {quizScoreResult ? (
-              <div className="py-12 text-center space-y-4">
-                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                  <Award className="w-8 h-8" />
-                </div>
-                <h4 className="text-xl font-bold text-slate-800">Kết quả bài làm của bạn</h4>
-                <div className="text-4xl font-extrabold text-emerald-600">
-                  {quizScoreResult.score.toFixed(1)} / {quizScoreResult.max}
-                </div>
-                <p className="text-xs text-slate-500">
-                  Điểm số đã được hệ thống lưu vào sổ điểm và thông báo tới giảng viên phụ trách.
-                </p>
-                <button
-                  onClick={() => {
-                    setActiveQuiz(null);
-                    setQuizScoreResult(null);
-                  }}
-                  className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
-                >
-                  Hoàn thành và Đóng
-                </button>
-              </div>
-            ) : (
-              <>
-                {activeQuiz.mode === 'attempt' && (
-                  <div className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800" aria-live="polite">
-                    Còn lại: {Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')} — thời gian hiển thị chỉ tham khảo; máy chủ kiểm tra hạn nộp.
-                  </div>
-                )}
-                {activeQuiz.mode === 'preview' && (
-                  <div className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600">
-                    Chế độ xem trước. Bản xem trước không tạo lượt làm bài và không cho nộp đáp án.
-                  </div>
-                )}
-                <div className="flex-1 overflow-y-auto space-y-6 my-4 pr-1">
-                  {!activeQuiz.questions || activeQuiz.questions.length === 0 ? (
-                    <div className="py-8 text-center text-slate-400 text-sm">
-                      Chưa có câu hỏi nào trong bài quiz này. Giảng viên vui lòng thêm câu hỏi trước.
-                    </div>
-                  ) : (
-                    activeQuiz.questions.map((q, idx) => (
-                      <div key={q.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
-                        <div className="flex items-start justify-between">
-                          <span className="font-semibold text-slate-800 text-sm">
-                            Câu {idx + 1}: {q.question_text}
-                          </span>
-                          <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded ml-2">
-                            {q.points} điểm
-                          </span>
-                          {activeQuiz.mode === 'preview' && (user?.role === 'ADMIN' || user?.role === 'LECTURER') && <button onClick={() => openEditQuestion(activeQuiz, q)} className="ml-2 text-xs font-semibold text-blue-600 hover:underline">Sửa câu hỏi</button>}
-                        </div>
-
-                        <div className="space-y-2">
-                          {(Array.isArray(q.options) ? q.options : []).map((opt) => (
-                            <label
-                              key={opt.id}
-                              className={`flex items-center space-x-3 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
-                                studentAnswers[q.id] === String(opt.id)
-                                  ? 'border-blue-500 bg-blue-50/50 text-blue-800 font-medium'
-                                  : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                              }`}
-                            >
-                              <input
-                                type="radio"
-                                name={`q_${q.id}`}
-                                value={opt.id}
-                                checked={studentAnswers[q.id] === String(opt.id)}
-                                onChange={() => setStudentAnswers((prev) => ({ ...prev, [q.id]: String(opt.id) }))}
-                                className="text-blue-600 focus:ring-blue-500"
-                              />
-                              <span>
-                                <strong className="mr-1">{opt.id}.</strong> {opt.text}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {activeQuiz.mode === 'attempt' && activeQuiz.questions && activeQuiz.questions.length > 0 && (
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs text-slate-400">
-                      Đã trả lời: {Object.keys(studentAnswers).length} / {activeQuiz.questions.length} câu
-                    </span>
-                    <button
-                      onClick={handleSubmitQuiz}
-                      disabled={submitting}
-                      className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {submitting ? 'Đang chấm điểm...' : 'Nộp bài & Chấm điểm'}
-                    </button>
-                  </div>
-                )}
-              </>
             )}
-          </div>
-        </div>
-      )}
 
-      {/* Modal: Create Quiz */}
-      {isCreateQuizModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">{editingQuiz ? 'Cập nhật bài Quiz' : 'Tạo bài Quiz mới'}</h3>
-              <button onClick={() => { setIsCreateQuizModalOpen(false); resetQuizForm(); }}>
-                <X className="w-5 h-5 text-slate-400" />
+            {canResume ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setRunnerTarget(row);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600"
+              >
+                <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                Tiếp tục làm nháp
               </button>
-            </div>
-            <form onSubmit={handleSaveQuiz} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tiêu đề bài Quiz</label>
-                <input
-                  type="text"
-                  required
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                  placeholder="Kiểm tra trắc nghiệm Chương 1"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Mô tả tóm tắt</label>
-                <textarea
-                  rows={2}
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Thời gian (phút)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="180"
-                    value={newDuration}
-                    onChange={(e) => setNewDuration(Number(e.target.value))}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Điểm đạt</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={newPassingScore}
-                    onChange={(e) => setNewPassingScore(Number(e.target.value))}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => { setIsCreateQuizModalOpen(false); resetQuizForm(); }}
-                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
-                >
-                  {editingQuiz ? 'Lưu thay đổi' : 'Lưu bài Quiz'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Add Question */}
-      {isQuestionModalOpen && targetQuiz && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">{editingQuestion ? 'Sửa câu hỏi' : 'Thêm câu hỏi'}: {targetQuiz.title}</h3>
-              <button onClick={() => { setIsQuestionModalOpen(false); setEditingQuestion(null); }}>
-                <X className="w-5 h-5 text-slate-400" />
+            ) : canStartNew ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setRunnerTarget(row);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                Bắt đầu làm bài
               </button>
+            ) : null}
+          </div>
+        );
+      },
+    },
+  ];
+
+  const selectedCourse = courses.find(
+    (c) => String(c.courseId ?? c.id) === selectedCourseId,
+  );
+
+  return (
+    <div className={isEmbedded ? 'space-y-4' : 'space-y-6'}>
+      {!isEmbedded ? (
+        <header className="flex flex-col gap-4 rounded-2xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-[var(--lms-text)]">
+              Kiểm tra & Trắc nghiệm
+            </h1>
+            <p className="mt-1 text-sm text-[var(--lms-text-muted)]">
+              {isInstructor
+                ? 'Soạn ngân hàng câu hỏi, tạo câu hỏi bằng AI, chấm tự luận ngắn và xem thống kê kết quả.'
+                : 'Làm bài kiểm tra trực tuyến theo thời gian thực, tự động lưu nháp và xem kết quả.'}
+            </p>
+          </div>
+
+          {isInstructor && selectedCourseId && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingQuiz(null);
+                setFormOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Tạo bài kiểm tra
+            </button>
+          )}
+        </header>
+      ) : null}
+
+      <section
+        aria-label="Bộ lọc bài kiểm tra"
+        className="flex flex-col gap-3 rounded-2xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-4 shadow-xs lg:flex-row lg:items-end lg:justify-between"
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-1 lg:flex-wrap lg:items-end">
+          {!isEmbedded && (
+            <div className="min-w-[220px] flex-1">
+              <label
+                htmlFor={`${baseId}-course-select`}
+                className="mb-1 block text-xs font-semibold text-[var(--lms-text-muted)]"
+              >
+                Khóa học
+              </label>
+              <select
+                id={`${baseId}-course-select`}
+                disabled={coursesLoading || courses.length === 0}
+                value={selectedCourseId}
+                onChange={(event) => {
+                  setError(null);
+                  setManualCourseId(event.target.value);
+                }}
+                className="w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none"
+              >
+                {courses.length === 0 ? (
+                  <option value="">Chưa có khóa học</option>
+                ) : (
+                  courses.map((course) => {
+                    const cid = String(course.courseId ?? course.id);
+                    const code = course.courseCode ?? course.code;
+                    return (
+                      <option key={cid} value={cid}>
+                        {code ? `${code} - ${course.title}` : course.title}
+                      </option>
+                    );
+                  })
+                )}
+              </select>
             </div>
+          )}
 
-            <form onSubmit={handleSaveQuestion} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Câu hỏi</label>
-                <input
-                  type="text"
-                  required
-                  value={questionText}
-                  onChange={(e) => setQuestionText(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                  placeholder="Kiến trúc Monolith có ưu điểm cốt lõi nào?"
-                />
-              </div>
+          <div className="min-w-[200px] flex-1">
+            <label
+              htmlFor={`${baseId}-search`}
+              className="mb-1 block text-xs font-semibold text-[var(--lms-text-muted)]"
+            >
+              Tìm kiếm bài kiểm tra
+            </label>
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--lms-text-muted)]"
+                aria-hidden="true"
+              />
+              <input
+                id={`${baseId}-search`}
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Tìm theo tên hoặc hướng dẫn..."
+                className="w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] py-2 pl-9 pr-3 text-sm text-[var(--lms-text)] placeholder:text-[var(--lms-text-muted)] focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+          </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Điểm câu hỏi</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  max="10"
-                  value={questionPoints}
-                  onChange={(e) => setQuestionPoints(Number(e.target.value))}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm"
-                />
-              </div>
+          <div className="min-w-[170px]">
+            <label
+              htmlFor={`${baseId}-status-filter`}
+              className="mb-1 block text-xs font-semibold text-[var(--lms-text-muted)]"
+            >
+              Trạng thái mở bài
+            </label>
+            <select
+              id={`${baseId}-status-filter`}
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as QuizFilterKey)}
+              className="w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none"
+            >
+              <option value="ALL">Tất cả ({quizzes.length})</option>
+              <option value="OPEN">Đang mở</option>
+              <option value="UPCOMING">Sắp mở</option>
+              <option value="CLOSED">Đã đóng</option>
+              {isInstructor && <option value="DRAFT">Chưa công bố</option>}
+            </select>
+          </div>
+        </div>
 
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-600 uppercase">4 Phương án trả lời</label>
-                {[
-                  { id: 'A', val: optA, set: setOptA },
-                  { id: 'B', val: optB, set: setOptB },
-                  { id: 'C', val: optC, set: setOptC },
-                  { id: 'D', val: optD, set: setOptD },
-                ].map((item) => (
-                  <div key={item.id} className="flex items-center space-x-2">
-                    <span className="w-6 text-xs font-bold text-slate-500 text-center">{item.id}.</span>
-                    <input
-                      type="text"
-                      required
-                      value={item.val}
-                      onChange={(e) => item.set(e.target.value)}
-                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs"
-                      placeholder={`Nội dung đáp án ${item.id}`}
-                    />
-                  </div>
-                ))}
-              </div>
+        {isEmbedded && isInstructor && selectedCourseId && (
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingQuiz(null);
+                setFormOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Tạo bài kiểm tra
+            </button>
+          </div>
+        )}
+      </section>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Đáp án chính xác</label>
-                <select
-                  value={correctOpt}
-                  onChange={(e) => setCorrectOpt(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white font-semibold text-emerald-700"
-                >
-                  <option value="A">Đáp án A</option>
-                  <option value="B">Đáp án B</option>
-                  <option value="C">Đáp án C</option>
-                  <option value="D">Đáp án D</option>
-                </select>
-              </div>
+      {!loading && selectedCourseId && quizzes.length > 0 && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="flex items-center gap-3 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-4 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
+              <ClipboardList className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-xs text-[var(--lms-text-muted)]">Tổng số bài kiểm tra</p>
+              <p className="tabular-nums text-lg font-bold text-[var(--lms-text)]">
+                {summaryStats.total}
+              </p>
+            </div>
+          </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => { setIsQuestionModalOpen(false); setEditingQuestion(null); }}
-                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
-                >
-                  {editingQuestion ? 'Lưu thay đổi' : 'Lưu câu hỏi'}
-                </button>
-              </div>
-            </form>
+          <div className="flex items-center gap-3 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-4 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+              <Clock className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-xs text-[var(--lms-text-muted)]">Đang mở làm bài</p>
+              <p className="tabular-nums text-lg font-bold text-[var(--lms-text)]">
+                {summaryStats.openCount}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-4 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-950/60 dark:text-sky-400">
+              {isInstructor ? (
+                <BookOpen className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              )}
+            </div>
+            <div>
+              <p className="text-xs text-[var(--lms-text-muted)]">
+                {isInstructor ? 'Khóa học đang chọn' : 'Bài đã hoàn thành'}
+              </p>
+              <p className="tabular-nums truncate text-sm font-bold text-[var(--lms-text)]">
+                {isInstructor
+                  ? selectedCourse?.courseCode || selectedCourse?.code || 'Đang quản lý'
+                  : `${summaryStats.completedCount} / ${summaryStats.total}`}
+              </p>
+            </div>
           </div>
         </div>
       )}
 
-      {attemptsQuiz && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-2xl w-full p-6 max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div><h3 className="font-bold text-slate-800">Lượt làm: {attemptsQuiz.title}</h3><p className="text-xs text-slate-500">{quizAttempts.length} lượt được lưu</p></div>
-              <button onClick={() => setAttemptsQuiz(null)} aria-label="Đóng danh sách lượt làm"><X className="w-5 h-5 text-slate-400" /></button>
-            </div>
-            <div className="overflow-y-auto divide-y divide-slate-100">
-              {quizAttempts.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">Chưa có lượt làm bài.</p> : quizAttempts.map((attempt) => (
-                <div key={attempt.id} className="py-3 flex items-center justify-between gap-3">
-                  <div><p className="font-semibold text-sm text-slate-800">{attempt.student_name || 'Sinh viên'}{attempt.student_code ? ` (${attempt.student_code})` : ''}</p><p className="text-xs text-slate-500">Bắt đầu: {formatDateTimeVi(attempt.started_at)}</p></div>
-                  <div className="text-right"><p className="text-sm font-bold text-slate-800">{attempt.score ?? '—'} điểm</p><p className="text-xs text-slate-500">{formatSubmissionStatus(attempt.status)}{attempt.submitted_at ? ` · ${formatDateTimeVi(attempt.submitted_at)}` : ''}</p></div>
-                </div>
-              ))}
-            </div>
-            <div className="pt-3 border-t border-slate-100 flex justify-end"><button onClick={() => setAttemptsQuiz(null)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold">Đóng</button></div>
+      {error ? (
+        <ErrorBanner message={error} onRetry={handleRetry} />
+      ) : loading ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <SkeletonCard lines={2} />
+            <SkeletonCard lines={2} />
+            <SkeletonCard lines={2} />
           </div>
+          <SkeletonTable rows={5} columns={4} />
         </div>
+      ) : !selectedCourseId ? (
+        <EmptyState
+          icon={<ClipboardList className="h-6 w-6" aria-hidden="true" />}
+          title="Chưa có khóa học nào"
+          description={
+            isInstructor
+              ? 'Hãy tạo hoặc được phân công một khóa học để soạn bài kiểm tra.'
+              : 'Bạn chưa ghi danh vào khóa học nào để xem bài kiểm tra.'
+          }
+        />
+      ) : (
+        <DataTable<Quiz>
+          columns={isInstructor ? instructorColumns : studentColumns}
+          data={filteredQuizzes}
+          caption="Danh sách bài kiểm tra"
+          hideCaption
+          getRowKey={(row) => getQuizId(row)}
+          emptyTitle={
+            quizzes.length === 0
+              ? 'Chưa có bài kiểm tra nào'
+              : 'Không tìm thấy bài kiểm tra phù hợp'
+          }
+          emptyDescription={
+            quizzes.length === 0
+              ? isInstructor
+                ? 'Tạo bài kiểm tra đầu tiên và thêm câu hỏi thủ công hoặc bằng AI.'
+                : 'Giảng viên chưa mở bài kiểm tra nào cho khóa học này.'
+              : 'Thử điều chỉnh từ khóa hoặc bộ lọc trạng thái.'
+          }
+          emptyAction={
+            quizzes.length === 0 && isInstructor ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingQuiz(null);
+                  setFormOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-blue-500"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Tạo bài kiểm tra đầu tiên
+              </button>
+            ) : undefined
+          }
+          onRowClick={(row) => {
+            if (isInstructor) {
+              setBuilderTarget(row);
+            } else {
+              const attempts = myAttemptsMap[getQuizId(row)] ?? [];
+              const win = getQuizWindowMeta(row);
+              const hasInProgress = attempts.some(
+                (a) => (a.status || '').toUpperCase() === 'IN_PROGRESS',
+              );
+              if (win.key === 'OPEN' && (hasInProgress || attempts.length === 0)) {
+                setRunnerTarget(row);
+              } else if (attempts.length > 0) {
+                setAttemptsTarget(row);
+              }
+            }
+          }}
+        />
       )}
+
+      {selectedCourseId && (
+        <QuizFormModal
+          isOpen={formOpen}
+          onClose={() => {
+            setFormOpen(false);
+            setEditingQuiz(null);
+          }}
+          courseId={selectedCourseId}
+          quiz={editingQuiz}
+          onSaved={(saved, isEdit) => {
+            setQuizzes((prev) => {
+              if (isEdit) {
+                return prev.map((item) =>
+                  getQuizId(item) === getQuizId(saved) ? saved : item,
+                );
+              }
+              return [saved, ...prev];
+            });
+          }}
+        />
+      )}
+
+      {selectedCourseId && (
+        <QuizBuilderDrawer
+          isOpen={Boolean(builderTarget)}
+          onClose={() => setBuilderTarget(null)}
+          quiz={builderTarget}
+          courseId={selectedCourseId}
+          onChanged={triggerReload}
+        />
+      )}
+
+      <QuizAttemptsModal
+        isOpen={Boolean(attemptsTarget)}
+        onClose={() => setAttemptsTarget(null)}
+        quiz={attemptsTarget}
+        isInstructor={isInstructor}
+        onGraded={triggerReload}
+      />
+
+      <QuizAnalyticsPanel
+        isOpen={Boolean(analyticsTarget)}
+        onClose={() => setAnalyticsTarget(null)}
+        quiz={analyticsTarget}
+      />
+
+      <QuizRunnerModal
+        isOpen={Boolean(runnerTarget)}
+        onClose={() => {
+          setRunnerTarget(null);
+          triggerReload();
+        }}
+        quiz={runnerTarget}
+        onAttemptFinalized={(attempt) => {
+          const qid = runnerTarget ? getQuizId(runnerTarget) : '';
+          if (!qid) return;
+          setMyAttemptsMap((prev) => {
+            const current = prev[qid] ?? [];
+            const exists = current.some(
+              (item) => (item.attemptId ?? item.id) === (attempt.attemptId ?? attempt.id),
+            );
+            const updated = exists
+              ? current.map((item) =>
+                  (item.attemptId ?? item.id) === (attempt.attemptId ?? attempt.id)
+                    ? attempt
+                    : item,
+                )
+              : [attempt, ...current];
+            return { ...prev, [qid]: updated };
+          });
+        }}
+      />
     </div>
   );
-};
+}
+
+export default QuizzesPage;
