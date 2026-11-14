@@ -1,591 +1,741 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
-  Video,
-  Edit3,
-  MessageSquare,
-  ShieldCheck,
-  Search,
-  Play,
-  ArrowLeft,
-  Maximize2,
-  Minimize2,
-  ExternalLink,
-  ChevronLeft,
-  ChevronRight,
   BookOpen,
-  Radio
+  ClipboardList,
+  Download,
+  Menu,
+  MessageSquare,
+  PenTool,
+  Play,
+  Plus,
+  Radio,
+  RefreshCw,
+  Video,
+  X,
 } from 'lucide-react';
 import { api } from '../api/client';
+import { ApiError } from '../api/http';
+import {
+  getCourseMeetings,
+  getMeetingAuditLogs,
+  startMeeting,
+  type WhiteboardOp,
+} from '../api/realtime';
 import { useAuth } from '../auth/AuthContext';
 import { ChannelChat } from '../components/teams/ChannelChat';
 import { MeetingRoom } from '../components/teams/MeetingRoom';
-import { WhiteboardCanvas } from '../components/teams/WhiteboardCanvas';
-import type { Course, Meeting } from '../types';
-import { formatRole, formatMeetingStatus, formatDateTimeVi } from '../utils/formatters';
+import { WhiteboardCanvas, type WhiteboardOpEvent } from '../components/teams/WhiteboardCanvas';
+import { Badge } from '../components/ui/Badge';
+import { useConfirm } from '../components/ui/ConfirmDialog';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
+import { useToast } from '../components/ui/Toast';
+import type { Course, Meeting, MeetingLog } from '../types';
+import { exportToCsv } from '../utils/exportUtils';
+import {
+  formatDateTimeVi,
+  formatDurationSeconds,
+  formatMeetingStatus,
+  formatRole,
+} from '../utils/formatters';
 
-export const VirtualClassroomPage: React.FC = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+type ClassroomTab = 'stage' | 'whiteboard' | 'chat' | 'logs';
 
-  // Core Data
+export function VirtualClassroomPage() {
+  const { hasRole } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const confirm = useConfirm();
+  const toast = useToast();
+
+  const titleInputId = useId();
+  const logMeetingSelectId = useId();
+
+  const canManageMeetings = hasRole(['ADMIN', 'LECTURER']);
+
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+  );
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [activeMeetings, setActiveMeetings] = useState<Meeting[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string>(
+    searchParams.get('courseId') || ''
+  );
   const [courseMeetings, setCourseMeetings] = useState<Meeting[]>([]);
-  const [currentMeeting, setCurrentMeeting] = useState<Meeting | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [joinedMeeting, setJoinedMeeting] = useState<Meeting | null>(null);
+  const [activeTab, setActiveTab] = useState<ClassroomTab>('stage');
 
-  // Tab & View Controls
-  const [activeTab, setActiveTab] = useState<'video' | 'whiteboard' | 'chat' | 'logs'>('video');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [searchKeyword, setSearchKeyword] = useState('');
+  const [loadingCourses, setLoadingCourses] = useState(true);
+  const [loadingMeetings, setLoadingMeetings] = useState(false);
+  const [startingMeeting, setStartingMeeting] = useState(false);
+  const [newMeetingTitle, setNewMeetingTitle] = useState('');
+  const [pageError, setPageError] = useState<string | null>(null);
 
-  // Meeting Form
-  const [meetingTitle, setMeetingTitle] = useState('');
-  const [creating, setCreating] = useState(false);
+  // Whiteboard coordination between mounted MeetingRoom WS & WhiteboardCanvas tab
+  const [wbOpEvent, setWbOpEvent] = useState<WhiteboardOpEvent | null>(null);
+  const [wbSnapshotJson, setWbSnapshotJson] = useState<string | null>(null);
+  const meetingWbSenderRef = useRef<((op: WhiteboardOp) => boolean) | null>(null);
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const isLecturerOrAdmin = user?.role === 'ADMIN' || user?.role === 'LECTURER';
+  // Real Audit Logs state
+  const [selectedLogMeetingId, setSelectedLogMeetingId] = useState<string>('');
+  const [loadedLogMeetingId, setLoadedLogMeetingId] = useState<string>('');
+  const [auditLogs, setAuditLogs] = useState<MeetingLog[]>([]);
 
-  const fetchData = async () => {
+  const loadingLogs =
+    canManageMeetings &&
+    activeTab === 'logs' &&
+    Boolean(selectedLogMeetingId) &&
+    loadedLogMeetingId !== selectedLogMeetingId;
+
+  const selectedCourse = useMemo(
+    () => courses.find((c) => String(c.courseId || c.id) === selectedCourseId) || null,
+    [courses, selectedCourseId]
+  );
+
+  const liveMeetingForCourse = useMemo(
+    () => courseMeetings.find((m) => m.status === 'LIVE') || null,
+    [courseMeetings]
+  );
+
+  const paramCourseId = searchParams.get('courseId');
+
+  const fetchCourses = useCallback(async () => {
+    setLoadingCourses(true);
     try {
-      setLoading(true);
-      const [coursesData, activeData] = await Promise.all([
-        api.getCourses(),
-        api.getActiveMeetings()
-      ]);
-      setCourses(coursesData);
-      setActiveMeetings(activeData);
-
-      const paramCourseId = searchParams.get('courseId');
-      const paramMeetingId = searchParams.get('meetingId');
-
-      let targetCourse = coursesData[0] || null;
-      if (paramCourseId) {
-        const found = coursesData.find((c) => c.courseId === paramCourseId);
-        if (found) targetCourse = found;
-      }
-      setSelectedCourse(targetCourse);
-
-      if (targetCourse) {
-        const meetings = await api.getCourseMeetings(targetCourse.courseId);
-        setCourseMeetings(meetings);
-
-        if (paramMeetingId) {
-          const m = meetings.find((item) => item.meetingId === paramMeetingId);
-          if (m) {
-            setCurrentMeeting(m);
-            setActiveTab('video');
-          }
-        } else {
-          const live = meetings.find((item) => item.status === 'LIVE');
-          if (live) setCurrentMeeting(live);
-        }
+      const list = await api.getCourses();
+      setCourses(list);
+      setPageError(null);
+      if (list.length > 0) {
+        const exists = list.some((c) => String(c.courseId || c.id) === paramCourseId);
+        const fallbackId = String(list[0].courseId || list[0].id);
+        setSelectedCourseId((prev) => (exists && paramCourseId ? paramCourseId : prev || fallbackId));
       }
     } catch (err) {
-      console.error('Failed to load virtual classroom data:', err);
+      setPageError(err instanceof ApiError ? err.detail : 'Không thể tải danh sách lớp học.');
     } finally {
-      setLoading(false);
+      setLoadingCourses(false);
     }
-  };
+  }, [paramCourseId]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await api.getCourses();
+        if (cancelled) return;
+        setCourses(list);
+        setPageError(null);
+        if (list.length > 0) {
+          const exists = list.some((c) => String(c.courseId || c.id) === paramCourseId);
+          const fallbackId = String(list[0].courseId || list[0].id);
+          setSelectedCourseId((prev) => (exists && paramCourseId ? paramCourseId : prev || fallbackId));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setPageError(err instanceof ApiError ? err.detail : 'Không thể tải danh sách lớp học.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingCourses(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [paramCourseId]);
 
-  const handleSelectCourse = async (course: Course) => {
-    setSelectedCourse(course);
+  const fetchCourseMeetings = useCallback(async (courseId: string) => {
+    if (!courseId) return;
+    setLoadingMeetings(true);
     try {
-      const meetings = await api.getCourseMeetings(course.courseId);
-      setCourseMeetings(meetings);
-      const live = meetings.find((m) => m.status === 'LIVE');
-      setCurrentMeeting(live || null);
+      const list = await getCourseMeetings(courseId);
+      setCourseMeetings(list);
+      setSelectedLogMeetingId((prev) => {
+        if (prev && list.some((m) => m.meetingId === prev)) return prev;
+        return list[0]?.meetingId || '';
+      });
     } catch (err) {
-      console.error('Failed to load meetings for course:', err);
+      toast.error(err instanceof ApiError ? err.detail : 'Không thể tải lịch sử phòng học.');
+    } finally {
+      setLoadingMeetings(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (!selectedCourseId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await getCourseMeetings(selectedCourseId);
+        if (cancelled) return;
+        setCourseMeetings(list);
+        setSelectedLogMeetingId((prev) => {
+          if (prev && list.some((m) => m.meetingId === prev)) return prev;
+          return list[0]?.meetingId || '';
+        });
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(err instanceof ApiError ? err.detail : 'Không thể tải lịch sử phòng học.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingMeetings(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCourseId, toast]);
+
+  useEffect(() => {
+    if (!canManageMeetings || activeTab !== 'logs' || !selectedLogMeetingId) return;
+    let cancelled = false;
+    void getMeetingAuditLogs(selectedLogMeetingId)
+      .then((logs) => {
+        if (!cancelled) {
+          setAuditLogs(logs);
+          setLoadedLogMeetingId(selectedLogMeetingId);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLoadedLogMeetingId(selectedLogMeetingId);
+          toast.error(err instanceof ApiError ? err.detail : 'Không thể tải nhật ký điểm danh.');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canManageMeetings, activeTab, selectedLogMeetingId, toast]);
+
+  const handleSelectCourse = (courseId: string) => {
+    if (joinedMeeting && joinedMeeting.courseId !== courseId) {
+      setJoinedMeeting(null);
+    }
+    setSelectedCourseId(courseId);
+    setSearchParams({ courseId });
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setSidebarOpen(false);
     }
   };
 
   const handleStartMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCourse || !meetingTitle.trim() || creating) return;
+    if (!selectedCourseId || !newMeetingTitle.trim() || startingMeeting) return;
 
-    setCreating(true);
+    setStartingMeeting(true);
     try {
-      const meeting = await api.createMeeting({
-        courseId: selectedCourse.courseId,
-        title: meetingTitle.trim()
+      const created = await startMeeting({
+        courseId: selectedCourseId,
+        title: newMeetingTitle.trim(),
+        replaceActive: false,
       });
-      setCurrentMeeting(meeting);
-      setActiveTab('video');
-      setMeetingTitle('');
-
-      const updated = await api.getCourseMeetings(selectedCourse.courseId);
-      setCourseMeetings(updated);
-      const actives = await api.getActiveMeetings();
-      setActiveMeetings(actives);
+      setNewMeetingTitle('');
+      setJoinedMeeting(created);
+      setActiveTab('stage');
+      toast.success('Đã mở phòng học trực tuyến.');
+      void fetchCourseMeetings(selectedCourseId);
     } catch (err) {
-      console.error('Failed to start meeting:', err);
-      alert('Không thể tạo phòng học trực tuyến. Vui lòng thử lại.');
+      if (err instanceof ApiError && err.status === 409) {
+        const replace = await confirm({
+          title: 'Lớp học đang có phòng trực tuyến',
+          message:
+            'Lớp học này hiện có một phòng đang phát sóng. Bạn có muốn đóng phòng cũ và mở phòng học mới thay thế không?',
+          confirmText: 'Thay thế phòng cũ',
+          cancelText: 'Giữ phòng cũ',
+          variant: 'danger',
+        });
+        if (replace) {
+          try {
+            const replaced = await startMeeting({
+              courseId: selectedCourseId,
+              title: newMeetingTitle.trim(),
+              replaceActive: true,
+            });
+            setNewMeetingTitle('');
+            setJoinedMeeting(replaced);
+            setActiveTab('stage');
+            toast.success('Đã mở phòng học mới thay thế phòng cũ.');
+            void fetchCourseMeetings(selectedCourseId);
+          } catch (retryErr) {
+            toast.error(
+              retryErr instanceof ApiError ? retryErr.detail : 'Không thể thay thế phòng học.'
+            );
+          }
+        }
+      } else {
+        toast.error(err instanceof ApiError ? err.detail : 'Không thể mở phòng học trực tuyến.');
+      }
     } finally {
-      setCreating(false);
+      setStartingMeeting(false);
     }
   };
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
-    } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
-    }
+  const handleExportLogsCsv = () => {
+    if (auditLogs.length === 0) return;
+    const headers = [
+      'Họ và tên',
+      'Email',
+      'Vai trò',
+      'Mã sinh viên',
+      'Thời điểm vào',
+      'Thời điểm rời',
+      'Thời lượng (giây)',
+      'Số tin nhắn',
+      'Số lần giơ tay',
+      'Tóm tắt hoạt động',
+    ];
+    const rows = auditLogs.map((l) => [
+      l.userName || '',
+      l.userEmail || '',
+      formatRole(l.userRole),
+      l.studentCode || '',
+      formatDateTimeVi(l.joinedAt),
+      l.leftAt ? formatDateTimeVi(l.leftAt) : 'Đang trong phòng',
+      l.durationSeconds,
+      l.chatCount,
+      l.handRaisesCount,
+      l.activitySummary || '',
+    ]);
+    exportToCsv(`diem-danh-${selectedLogMeetingId.slice(0, 8)}.csv`, headers, rows);
   };
 
-  useEffect(() => {
-    const handleFsChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  const registerWbSender = useCallback((sender: ((op: WhiteboardOp) => boolean) | null) => {
+    meetingWbSenderRef.current = sender;
   }, []);
 
-  const openInNewTab = () => {
-    const currentUrl = window.location.href;
-    window.open(currentUrl, '_blank');
-  };
-
-  const filteredCourses = courses.filter((c) =>
-    c.title.toLowerCase().includes(searchKeyword.toLowerCase()) ||
-    c.courseCode.toLowerCase().includes(searchKeyword.toLowerCase())
-  );
-
-  const activeMeetingInSelectedCourse = courseMeetings.find((m) => m.status === 'LIVE');
+  const tabs: Array<{ id: ClassroomTab; label: string; icon: React.ReactNode }> = [
+    { id: 'stage', label: 'Phòng học trực tuyến', icon: <Video className="w-4 h-4" /> },
+    { id: 'whiteboard', label: 'Bảng vẽ cộng tác', icon: <PenTool className="w-4 h-4" /> },
+    { id: 'chat', label: 'Thảo luận kênh lớp', icon: <MessageSquare className="w-4 h-4" /> },
+    ...(canManageMeetings
+      ? [{ id: 'logs' as ClassroomTab, label: 'Nhật ký điểm danh', icon: <ClipboardList className="w-4 h-4" /> }]
+      : []),
+  ];
 
   return (
-    <div
-      ref={containerRef}
-      className="flex flex-col h-screen w-screen overflow-hidden bg-slate-900 text-slate-100 font-sans"
-    >
-      {/* ====================================================================== */}
-      {/* TOP BAR: Navigation, Course Quick-Switch, and Screen Expansion Controls */}
-      {/* ====================================================================== */}
-      <header className="h-14 bg-slate-950 border-b border-slate-800 px-4 flex items-center justify-between flex-shrink-0 z-20">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/courses')}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5 text-xs font-medium"
-            title="Quay lại danh sách khóa học LMS"
+            type="button"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+            aria-expanded={sidebarOpen}
+            aria-label="Đóng mở danh sách lớp học"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-xs font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Quay lại LMS</span>
+            {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            Danh sách lớp học
           </button>
 
-          <div className="h-5 w-px bg-slate-800 mx-1" />
-
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold shadow-sm">
-              <Video className="w-4 h-4" />
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-white tracking-tight leading-none">
-                Phòng Học Trực Tuyến
-              </h1>
-              <p className="text-[11px] text-slate-400 font-medium leading-none mt-0.5">
-                Giảng đường ảo & Hội thảo
-              </p>
-            </div>
-          </div>
-
-          {selectedCourse && (
-            <div className="hidden md:flex items-center gap-2 ml-4 px-3 py-1 bg-slate-900 border border-slate-800 rounded-lg">
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-900/60 text-blue-300 border border-blue-700/40">
-                {selectedCourse.courseCode}
-              </span>
-              <span className="text-xs font-semibold text-slate-200 truncate max-w-[280px]">
-                {selectedCourse.title}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Right Expansion Controls */}
-        <div className="flex items-center gap-2">
-          {activeMeetingInSelectedCourse && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-950/80 border border-emerald-700/50 rounded-lg text-emerald-300 text-xs font-semibold animate-pulse">
-              <Radio className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Đang học trực tuyến</span>
-            </div>
-          )}
-
-          {/* Toggle Sidebar Width */}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`p-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ${
-              sidebarOpen
-                ? 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-                : 'bg-blue-600 text-white shadow'
-            }`}
-            title={sidebarOpen ? 'Thu gọn danh sách môn để mở rộng tối đa' : 'Mở rộng danh sách môn học'}
-          >
-            {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            <span className="hidden lg:inline">{sidebarOpen ? 'Mở rộng không gian' : 'Hiện danh sách'}</span>
-          </button>
-
-          {/* Fullscreen Button */}
-          <button
-            onClick={toggleFullscreen}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition"
-            title={isFullscreen ? 'Thu nhỏ cửa sổ' : 'Toàn màn hình'}
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
-
-          {/* New Tab Button */}
-          <button
-            onClick={openInNewTab}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition hidden sm:block"
-            title="Mở sang tab mới độc lập"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </button>
-
-          {/* User Badge */}
-          <div className="ml-1 pl-2 border-l border-slate-800 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-blue-700 text-white flex items-center justify-center font-bold text-xs shadow">
-              {user?.fullName?.charAt(0).toUpperCase() || 'U'}
-            </div>
-            <div className="hidden xl:block text-left">
-              <div className="text-xs font-semibold text-slate-200 leading-none">{user?.fullName}</div>
-              <div className="text-[10px] text-slate-400 font-medium leading-none mt-1">{formatRole(user?.role)}</div>
-            </div>
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-[var(--lms-text)]">
+              Lớp học trực tuyến
+            </h1>
+            <p className="text-xs md:text-sm text-[var(--lms-text-secondary)]">
+              Học trực tuyến WebRTC, bảng vẽ vector thời gian thực, thảo luận kênh lớp và điểm danh tự động
+            </p>
           </div>
         </div>
-      </header>
 
-      {/* ====================================================================== */}
-      {/* MAIN WORKSPACE: Collapsible Sidebar + Expansive Interactive Stage      */}
-      {/* ====================================================================== */}
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* ==================================================================== */}
-        {/* COLLAPSIBLE SIDEBAR: Course Navigation & Meeting Archives           */}
-        {/* ==================================================================== */}
+        {joinedMeeting && activeTab !== 'stage' && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('stage')}
+            className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 cursor-pointer"
+          >
+            <Radio className="w-3.5 h-3.5" />
+            Quay lại phòng đang tham gia
+          </button>
+        )}
+      </div>
+
+      {pageError && <ErrorBanner message={pageError} onRetry={() => void fetchCourses()} />}
+
+      <div className="flex flex-col md:flex-row gap-4 items-start">
         {sidebarOpen && (
-          <aside className="w-80 bg-slate-950 border-r border-slate-800/80 flex flex-col flex-shrink-0 z-10 transition-all duration-200">
-            {/* Search Box */}
-            <div className="p-3 border-b border-slate-800/70">
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  placeholder="Tìm kiếm môn học..."
-                  className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
+          <aside className="w-full md:w-72 shrink-0 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-3 shadow-sm">
+            <div className="flex items-center justify-between mb-2.5 px-1">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--lms-text-secondary)]">
+                Lớp học của bạn ({courses.length})
+              </h2>
+              <button
+                type="button"
+                onClick={() => void fetchCourses()}
+                aria-label="Làm mới danh sách lớp"
+                className="p-1 rounded text-[var(--lms-text-secondary)] hover:text-[var(--lms-text)] cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingCourses ? 'animate-spin' : ''}`} />
+              </button>
             </div>
 
-            {/* Courses List */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
-              <div className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Khóa học của bạn ({filteredCourses.length})
-              </div>
-
-              {loading ? (
-                <div className="text-center py-8 text-xs text-slate-500">Đang tải danh sách lớp...</div>
-              ) : filteredCourses.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500">Không tìm thấy khóa học</div>
-              ) : (
-                filteredCourses.map((course) => {
-                  const isSelected = selectedCourse?.courseId === course.courseId;
-                  const hasActiveMeeting = activeMeetings.some((m) => m.courseId === course.courseId);
-
+            {loadingCourses ? (
+              <p className="py-6 text-center text-xs text-[var(--lms-text-secondary)]">
+                Đang tải danh sách lớp...
+              </p>
+            ) : courses.length === 0 ? (
+              <EmptyState compact title="Chưa có lớp học" description="Bạn chưa được ghi danh vào lớp nào." />
+            ) : (
+              <nav className="space-y-1.5" aria-label="Chọn lớp học trực tuyến">
+                {courses.map((course) => {
+                  const cid = String(course.courseId || course.id);
+                  const active = cid === selectedCourseId;
                   return (
                     <button
-                      key={course.courseId}
-                      onClick={() => handleSelectCourse(course)}
-                      className={`w-full p-2.5 rounded-xl text-left flex items-start gap-2.5 transition-all ${
-                        isSelected
-                          ? 'bg-blue-600/20 border border-blue-500/50 text-white shadow-sm'
-                          : 'bg-slate-900/40 hover:bg-slate-800/60 border border-slate-800/40 text-slate-300'
+                      key={cid}
+                      type="button"
+                      onClick={() => handleSelectCourse(cid)}
+                      className={`w-full text-left rounded-lg px-3 py-2.5 transition-colors border cursor-pointer ${
+                        active
+                          ? 'border-[var(--lms-primary)] bg-[var(--lms-primary)]/10 text-[var(--lms-text)]'
+                          : 'border-transparent hover:bg-[var(--lms-surface-muted)] text-[var(--lms-text)]'
                       }`}
                     >
-                      <div className={`p-2 rounded-lg mt-0.5 ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                        <BookOpen className="w-4 h-4" />
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-[var(--lms-primary)]">
+                          {course.courseCode || course.code}
+                        </span>
+                        <BookOpen className="w-3.5 h-3.5 text-[var(--lms-text-secondary)]" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-[10px] font-bold text-blue-400">{course.courseCode}</span>
-                          {hasActiveMeeting && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse">
-                              TRỰC TIẾP
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs font-semibold truncate text-slate-200 mt-0.5">
-                          {course.title}
-                        </div>
-                        <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                          {course.credits} Tín chỉ
-                        </div>
-                      </div>
+                      <p className="mt-0.5 text-sm font-medium truncate">{course.title}</p>
                     </button>
                   );
-                })
-              )}
-
-              {/* Previous Meetings Accordion */}
-              {selectedCourse && courseMeetings.length > 0 && (
-                <div className="pt-4 border-t border-slate-800/80 mt-4 px-1">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
-                    <span>Lịch sử buổi học</span>
-                    <span className="text-[10px] text-slate-400">{courseMeetings.length}</span>
-                  </div>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                    {courseMeetings.map((m) => (
-                      <button
-                        key={m.meetingId}
-                        onClick={() => {
-                          setCurrentMeeting(m);
-                          setActiveTab('video');
-                        }}
-                        className={`w-full p-2 rounded-lg text-left text-xs transition flex items-center justify-between ${
-                          currentMeeting?.meetingId === m.meetingId
-                            ? 'bg-slate-800 text-white border border-slate-700'
-                            : 'hover:bg-slate-900 text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        <div className="truncate pr-2">
-                          <div className="font-medium truncate">{m.title}</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            {formatDateTimeVi(m.startedAt)}
-                          </div>
-                        </div>
-                        <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
-                          m.status === 'LIVE'
-                            ? 'bg-emerald-900/60 text-emerald-300'
-                            : 'bg-slate-800 text-slate-400'
-                        }`}>
-                          {formatMeetingStatus(m.status)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                })}
+              </nav>
+            )}
           </aside>
         )}
 
-        {/* ==================================================================== */}
-        {/* EXPANSIVE INTERACTIVE STAGE: Full-Screen Workspace for Learning     */}
-        {/* ==================================================================== */}
-        <main className="flex-1 flex flex-col bg-slate-900 overflow-hidden">
-          {/* Workspace Tabs Navigation Bar */}
-          <div className="h-12 bg-slate-950/70 border-b border-slate-800 px-4 flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setActiveTab('video')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
-                  activeTab === 'video'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
+        <main className="flex-1 min-w-0 w-full space-y-4">
+          {!selectedCourse ? (
+            <EmptyState
+              title="Chọn một lớp học"
+              description="Chọn lớp học từ danh sách bên trái để tham gia phòng học trực tuyến, vẽ bảng chung hoặc thảo luận."
+            />
+          ) : (
+            <>
+              {/* Tab Bar */}
+              <div
+                className="flex flex-wrap items-center gap-1.5 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-1.5 shadow-sm"
+                role="tablist"
+                aria-label="Khu vực lớp học trực tuyến"
               >
-                <Video className="w-3.5 h-3.5" />
-                <span>Phòng Học Video</span>
-                {activeMeetingInSelectedCourse && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveTab('whiteboard')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
-                  activeTab === 'whiteboard'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Bảng Vẽ Thông Minh</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('chat')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
-                  activeTab === 'chat'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>Kênh Thảo Luận</span>
-              </button>
-
-              {isLecturerOrAdmin && (
-                <button
-                  onClick={() => setActiveTab('logs')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
-                    activeTab === 'logs'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Điểm Danh & Báo Cáo</span>
-                </button>
-              )}
-            </div>
-
-            {selectedCourse && (
-              <div className="text-xs text-slate-400 hidden sm:block">
-                Khóa học: <span className="text-slate-200 font-semibold">{selectedCourse.title}</span>
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs md:text-sm font-medium transition-colors cursor-pointer ${
+                      activeTab === tab.id
+                        ? 'bg-[var(--lms-primary)] text-white shadow-sm'
+                        : 'text-[var(--lms-text-secondary)] hover:text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]'
+                    }`}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
 
-          {/* Active Tab View Container */}
-          <div className="flex-1 overflow-hidden p-2 sm:p-3 relative">
-            {/* ---------------------------------------------------------------- */}
-            {/* TAB 1: VIDEO CLASSROOM                                          */}
-            {/* ---------------------------------------------------------------- */}
-            {activeTab === 'video' && (
-              <div className="h-full w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-800/80 flex flex-col">
-                {currentMeeting && currentMeeting.status === 'LIVE' ? (
+              {/* Stage Tab (kept MOUNTED when joinedMeeting exists so tab switches never kill WebRTC/WS) */}
+              <div className={activeTab === 'stage' ? 'block space-y-4' : 'hidden'}>
+                {joinedMeeting ? (
                   <MeetingRoom
-                    meeting={currentMeeting}
-                    currentUser={user}
+                    meeting={joinedMeeting}
+                    courseId={selectedCourseId}
+                    isVisible={activeTab === 'stage'}
+                    onWhiteboardOp={setWbOpEvent}
+                    onWhiteboardSnapshot={setWbSnapshotJson}
+                    onRegisterSendWhiteboardOp={registerWbSender}
+                    onLeaveRoom={() => {
+                      setJoinedMeeting(null);
+                      void fetchCourseMeetings(selectedCourseId);
+                    }}
                     onMeetingEnded={() => {
-                      setCurrentMeeting(null);
-                      if (selectedCourse) handleSelectCourse(selectedCourse);
-                    }}
-                    onLeave={() => {
-                      setCurrentMeeting(null);
+                      setJoinedMeeting(null);
+                      void fetchCourseMeetings(selectedCourseId);
                     }}
                   />
-                ) : (
-                  <div className="h-full w-full flex flex-col items-center justify-center p-6 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mb-4">
-                      <Video className="w-8 h-8" />
-                    </div>
-
-                    <h2 className="text-lg font-bold text-white mb-1">
-                      {selectedCourse ? selectedCourse.title : 'Chưa chọn khóa học'}
-                    </h2>
-                    <p className="text-xs text-slate-400 max-w-md mb-6">
-                      Không gian phòng học trực tuyến độ trễ thấp, hỗ trợ chia sẻ màn hình, bảng vẽ tương tác và ghi nhận chuyên cần thời gian thực.
-                    </p>
-
-                    {isLecturerOrAdmin ? (
-                      <form onSubmit={handleStartMeeting} className="w-full max-w-md space-y-3">
-                        <div className="text-left text-xs font-semibold text-slate-300">
-                          Bắt đầu phòng học mới:
-                        </div>
-                        <input
-                          type="text"
-                          value={meetingTitle}
-                          onChange={(e) => setMeetingTitle(e.target.value)}
-                          placeholder="Ví dụ: Buổi 4 - Kiến trúc Microservices và REST API"
-                          className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                        <button
-                          type="submit"
-                          disabled={creating || !meetingTitle.trim()}
-                          className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2"
-                        >
-                          <Play className="w-4 h-4 fill-white" />
-                          <span>{creating ? 'Đang khởi tạo phòng...' : 'Mở phòng học ngay'}</span>
-                        </button>
-                      </form>
-                    ) : (
-                      <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 text-xs text-slate-400 max-w-md">
-                        Hiện chưa có buổi học trực tuyến nào đang diễn ra cho môn học này. Khi giảng viên mở phòng học, bạn sẽ có thể tham gia ngay tại đây.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ---------------------------------------------------------------- */}
-            {/* TAB 2: WHITEBOARD CANVAS                                        */}
-            {/* ---------------------------------------------------------------- */}
-            {activeTab === 'whiteboard' && (
-              <div className="h-full w-full rounded-xl overflow-hidden shadow-lg border border-slate-800">
-                <WhiteboardCanvas courseTitle={selectedCourse?.title} />
-              </div>
-            )}
-
-            {/* ---------------------------------------------------------------- */}
-            {/* TAB 3: COURSE CHANNEL CHAT                                      */}
-            {/* ---------------------------------------------------------------- */}
-            {activeTab === 'chat' && (
-              <div className="h-full w-full rounded-xl overflow-hidden bg-white text-slate-900 shadow-lg border border-slate-800">
-                {selectedCourse ? (
-                  <ChannelChat
-                    courseId={selectedCourse.courseId}
-                    courseTitle={selectedCourse.title}
-                  />
-                ) : (
-                  <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                    Vui lòng chọn môn học để xem kênh trao đổi
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ---------------------------------------------------------------- */}
-            {/* TAB 4: AUDIT LOGS & ATTENDANCE                                  */}
-            {/* ---------------------------------------------------------------- */}
-            {activeTab === 'logs' && isLecturerOrAdmin && (
-              <div className="h-full w-full rounded-xl overflow-y-auto bg-slate-950 border border-slate-800 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-base font-bold text-white flex items-center gap-2">
-                      <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                      <span>Báo cáo chuyên cần & Giám sát lớp học</span>
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Ghi nhận tự động thời gian tham gia, thời lượng dự học và mức độ tương tác của sinh viên.
-                    </p>
-                  </div>
-                  <span className="px-3 py-1 bg-slate-800 rounded-lg text-xs font-semibold text-slate-300">
-                    Môn: {selectedCourse?.courseCode}
-                  </span>
-                </div>
-
-                {courseMeetings.length === 0 ? (
-                  <div className="text-center py-12 text-xs text-slate-500">
-                    Chưa có buổi học nào được ghi nhận cho môn học này.
-                  </div>
                 ) : (
                   <div className="space-y-4">
-                    {courseMeetings.map((m) => (
-                      <div key={m.meetingId} className="bg-slate-900 rounded-xl border border-slate-800 p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="font-semibold text-sm text-slate-200">{m.title}</div>
-                          <span className={`px-2 py-0.5 text-xs font-bold rounded ${
-                            m.status === 'LIVE' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-slate-400'
-                          }`}>
-                            {formatMeetingStatus(m.status)}
-                          </span>
+                    {/* Live room banner / Join card */}
+                    {liveMeetingForCourse ? (
+                      <section className="rounded-xl border border-[var(--lms-primary)]/40 bg-[var(--lms-surface)] p-5 shadow-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="danger" dot>
+                                Đang phát trực tiếp
+                              </Badge>
+                              <span className="text-xs font-mono text-[var(--lms-text-secondary)]">
+                                {liveMeetingForCourse.roomCode}
+                              </span>
+                            </div>
+                            <h2 className="text-lg font-bold text-[var(--lms-text)]">
+                              {liveMeetingForCourse.title}
+                            </h2>
+                            <p className="text-sm text-[var(--lms-text-secondary)]">
+                              Chủ trì: {liveMeetingForCourse.hostName || 'Giảng viên'} | Thành viên hiện diện: {liveMeetingForCourse.participantCount}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setJoinedMeeting(liveMeetingForCourse)}
+                            className="inline-flex items-center gap-2 rounded-lg bg-[var(--lms-primary)] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 cursor-pointer"
+                          >
+                            <Play className="w-4 h-4" />
+                            Vào lớp học trực tuyến
+                          </button>
                         </div>
-                        <div className="flex items-center gap-4 text-xs text-slate-400">
-                          <div>Bắt đầu: {formatDateTimeVi(m.startedAt)}</div>
-                          <div>Mã phòng: <code className="text-blue-400">{m.roomCode}</code></div>
-                        </div>
+                      </section>
+                    ) : (
+                      <div className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-5 shadow-sm">
+                        <EmptyState
+                          compact
+                          title="Hiện chưa có phòng học nào đang phát sóng"
+                          description={
+                            canManageMeetings
+                              ? 'Giảng viên có thể tạo buổi học trực tuyến mới ngay bên dưới.'
+                              : 'Khi giảng viên bắt đầu buổi học, nút tham gia sẽ xuất hiện tại đây.'
+                          }
+                        />
                       </div>
-                    ))}
+                    )}
+
+                    {/* Lecturer / Admin Start New Room Form */}
+                    {canManageMeetings && (
+                      <form
+                        onSubmit={(e) => void handleStartMeeting(e)}
+                        className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-4 shadow-sm space-y-3"
+                      >
+                        <h3 className="text-sm font-semibold text-[var(--lms-text)]">
+                          Mở buổi học trực tuyến mới cho {selectedCourse.courseCode || selectedCourse.code}
+                        </h3>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <div className="flex-1">
+                            <label htmlFor={titleInputId} className="sr-only">
+                              Tiêu đề buổi học trực tuyến
+                            </label>
+                            <input
+                              id={titleInputId}
+                              type="text"
+                              value={newMeetingTitle}
+                              onChange={(e) => setNewMeetingTitle(e.target.value)}
+                              placeholder="Ví dụ: Chương 5 - Cây nhị phân tìm kiếm"
+                              className="w-full rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface-muted)] px-3 py-2 text-sm text-[var(--lms-text)] placeholder:text-[var(--lms-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--lms-primary)]"
+                            />
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={startingMeeting || !newMeetingTitle.trim()}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--lms-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" />
+                            {startingMeeting ? 'Đang khởi tạo...' : 'Bắt đầu buổi học'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* Meeting History */}
+                    <section className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-4 shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-[var(--lms-text)]">
+                          Lịch sử các buổi học ({courseMeetings.length})
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={() => void fetchCourseMeetings(selectedCourseId)}
+                          className="text-xs text-[var(--lms-primary)] hover:underline cursor-pointer"
+                        >
+                          Làm mới
+                        </button>
+                      </div>
+
+                      {loadingMeetings ? (
+                        <p className="text-xs text-[var(--lms-text-secondary)]">Đang tải lịch sử...</p>
+                      ) : courseMeetings.length === 0 ? (
+                        <p className="text-xs text-[var(--lms-text-secondary)]">
+                          Lớp học chưa có buổi học trực tuyến nào.
+                        </p>
+                      ) : (
+                        <div className="divide-y divide-[var(--lms-border)]">
+                          {courseMeetings.map((item) => (
+                            <div
+                              key={item.meetingId}
+                              className="py-2.5 flex flex-wrap items-center justify-between gap-2 text-sm"
+                            >
+                              <div className="min-w-0">
+                                <p className="font-medium text-[var(--lms-text)] truncate">
+                                  {item.title}
+                                </p>
+                                <p className="text-xs text-[var(--lms-text-secondary)]">
+                                  Bắt đầu: {formatDateTimeVi(item.startedAt)}
+                                  {item.endedAt ? ` | Kết thúc: ${formatDateTimeVi(item.endedAt)}` : ''}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={item.status === 'LIVE' ? 'danger' : 'neutral'}>
+                                  {formatMeetingStatus(item.status)}
+                                </Badge>
+                                {item.status === 'LIVE' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setJoinedMeeting(item)}
+                                    className="rounded-lg bg-[var(--lms-primary)] px-2.5 py-1 text-xs font-medium text-white cursor-pointer"
+                                  >
+                                    Tham gia
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
                   </div>
                 )}
               </div>
-            )}
-          </div>
+
+              {/* Whiteboard Tab */}
+              <div className={activeTab === 'whiteboard' ? 'block' : 'hidden'}>
+                <WhiteboardCanvas
+                  courseId={selectedCourseId}
+                  meetingId={joinedMeeting?.meetingId}
+                  isVisible={activeTab === 'whiteboard'}
+                  externalOpEvent={wbOpEvent}
+                  externalSnapshotJson={wbSnapshotJson}
+                  onSendOp={(op) =>
+                    meetingWbSenderRef.current ? meetingWbSenderRef.current(op) : false
+                  }
+                />
+              </div>
+
+              {/* Channel Chat Tab */}
+              <div className={activeTab === 'chat' ? 'block' : 'hidden'}>
+                <ChannelChat
+                  courseId={selectedCourseId}
+                  courseTitle={`${selectedCourse.courseCode || selectedCourse.code} - ${selectedCourse.title}`}
+                />
+              </div>
+
+              {/* Real Attendance Audit Logs Tab (Lecturer / Admin only) */}
+              {canManageMeetings && activeTab === 'logs' && (
+                <section className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-4 shadow-sm space-y-4">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div className="min-w-[240px] flex-1">
+                      <label
+                        htmlFor={logMeetingSelectId}
+                        className="block text-xs font-medium text-[var(--lms-text-secondary)] mb-1"
+                      >
+                        Chọn buổi học cần xem điểm danh
+                      </label>
+                      <select
+                        id={logMeetingSelectId}
+                        value={selectedLogMeetingId}
+                        onChange={(e) => setSelectedLogMeetingId(e.target.value)}
+                        className="w-full rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface-muted)] px-3 py-2 text-sm text-[var(--lms-text)] focus:outline-none focus:ring-2 focus:ring-[var(--lms-primary)]"
+                      >
+                        {courseMeetings.length === 0 ? (
+                          <option value="">Chưa có buổi học nào</option>
+                        ) : (
+                          courseMeetings.map((m) => (
+                            <option key={m.meetingId} value={m.meetingId}>
+                              [{formatMeetingStatus(m.status)}] {m.title} ({formatDateTimeVi(m.startedAt)})
+                            </option>
+                          ))
+                        )}
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleExportLogsCsv}
+                      disabled={auditLogs.length === 0}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface-muted)] px-3.5 py-2 text-xs font-semibold text-[var(--lms-text)] hover:opacity-90 disabled:opacity-45 cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      Xuất CSV điểm danh
+                    </button>
+                  </div>
+
+                  {loadingLogs ? (
+                    <p className="py-8 text-center text-sm text-[var(--lms-text-secondary)]">
+                      Đang tải dữ liệu điểm danh thực tế từ máy chủ...
+                    </p>
+                  ) : auditLogs.length === 0 ? (
+                    <EmptyState
+                      compact
+                      title="Chưa có dữ liệu điểm danh"
+                      description="Hệ thống tự động ghi nhận khi giảng viên hoặc sinh viên tham gia phòng học trực tuyến."
+                    />
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-sm">
+                        <caption className="sr-only">
+                          Nhật ký điểm danh và tương tác phòng học
+                        </caption>
+                        <thead>
+                          <tr className="border-b border-[var(--lms-border)] text-xs text-[var(--lms-text-secondary)]">
+                            <th className="py-2.5 pr-3 font-semibold">Thành viên</th>
+                            <th className="py-2.5 px-3 font-semibold">Vai trò</th>
+                            <th className="py-2.5 px-3 font-semibold">Vào phòng</th>
+                            <th className="py-2.5 px-3 font-semibold">Rời phòng</th>
+                            <th className="py-2.5 px-3 font-semibold">Thời lượng</th>
+                            <th className="py-2.5 px-3 font-semibold text-right">Tin nhắn</th>
+                            <th className="py-2.5 pl-3 font-semibold text-right">Giơ tay</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--lms-border)]">
+                          {auditLogs.map((log) => (
+                            <tr key={log.logId} className="hover:bg-[var(--lms-surface-muted)]/60">
+                              <td className="py-2.5 pr-3">
+                                <div className="font-medium text-[var(--lms-text)]">
+                                  {log.userName || 'Thành viên'}
+                                </div>
+                                <div className="text-xs text-[var(--lms-text-secondary)]">
+                                  {log.studentCode ? `${log.studentCode} · ` : ''}
+                                  {log.userEmail}
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <Badge variant={log.userRole === 'STUDENT' ? 'neutral' : 'primary'}>
+                                  {formatRole(log.userRole)}
+                                </Badge>
+                              </td>
+                              <td className="py-2.5 px-3 text-xs text-[var(--lms-text)]">
+                                {formatDateTimeVi(log.joinedAt)}
+                              </td>
+                              <td className="py-2.5 px-3 text-xs text-[var(--lms-text-secondary)]">
+                                {log.leftAt ? formatDateTimeVi(log.leftAt) : 'Đang trực tuyến'}
+                              </td>
+                              <td className="py-2.5 px-3 text-xs text-[var(--lms-text)]">
+                                {formatDurationSeconds(log.durationSeconds)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono text-xs text-[var(--lms-text)]">
+                                {log.chatCount}
+                              </td>
+                              <td className="py-2.5 pl-3 text-right font-mono text-xs text-[var(--lms-text)]">
+                                {log.handRaisesCount}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              )}
+            </>
+          )}
         </main>
       </div>
     </div>
   );
-};
+}
+
+export default VirtualClassroomPage;
