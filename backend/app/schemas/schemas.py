@@ -136,15 +136,83 @@ class UserResponse(UserBase):
 
 
 # ==========================================
-# COURSE & ENROLLMENT SCHEMAS
+# SEMESTER & COURSE & ENROLLMENT SCHEMAS
 # ==========================================
+
+
+class AcademicSemesterBase(BaseModel):
+    code: str = Field(..., min_length=1, max_length=30)
+    name: str = Field(..., min_length=1, max_length=100)
+    semester: str = Field(..., min_length=1, max_length=20)
+    academicYear: str = Field(..., min_length=1, max_length=20)
+    startDate: UtcDateTime
+    endDate: UtcDateTime
+    graceDays: int = Field(default=14, ge=0, le=90)
+    status: Literal["UPCOMING", "ACTIVE", "ARCHIVED"] = "ACTIVE"
+    isCurrent: bool = False
+    autoArchiveOnExpire: bool = True
+
+    @field_validator("code", "name", "semester", "academicYear")
+    @classmethod
+    def strip_required_semester_fields(cls, value: str) -> str:
+        return _strip_required_text(value, "Semester field")
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_semester_status(cls, value: str) -> str:
+        return _strip_optional_upper(value) or value
+
+
+class AcademicSemesterCreate(AcademicSemesterBase):
+    pass
+
+
+class AcademicSemesterUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    semester: Optional[str] = Field(default=None, min_length=1, max_length=20)
+    academicYear: Optional[str] = Field(default=None, min_length=1, max_length=20)
+    startDate: Optional[UtcDateTime] = None
+    endDate: Optional[UtcDateTime] = None
+    graceDays: Optional[int] = Field(default=None, ge=0, le=90)
+    status: Optional[Literal["UPCOMING", "ACTIVE", "ARCHIVED"]] = None
+    isCurrent: Optional[bool] = None
+    autoArchiveOnExpire: Optional[bool] = None
+
+    @field_validator("name", "semester", "academicYear")
+    @classmethod
+    def strip_optional_semester_fields(cls, value: Optional[str]) -> Optional[str]:
+        return _strip_optional_text(value, "Semester field")
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_optional_semester_status(cls, value: Optional[str]) -> Optional[str]:
+        return _strip_optional_upper(value)
+
+
+class AcademicSemesterResponse(AcademicSemesterBase):
+    semesterId: uuid.UUID
+    createdAt: UtcDateTime
+    archiveAfterDate: UtcDateTime
+    courseCount: int = 0
+    activeCourseCount: int = 0
+    archivedCourseCount: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SemesterSyncResponse(BaseModel):
+    archivedSemesters: int = 0
+    archivedCourses: int = 0
+    activatedSemesters: int = 0
 
 
 class CourseBase(BaseModel):
     courseCode: str = Field(..., min_length=1, max_length=30)
+    sectionCode: str = Field(default="", max_length=20)
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(default=None, max_length=1000)
     lecturerId: uuid.UUID
+    semesterId: Optional[uuid.UUID] = None
     semester: str = Field(..., min_length=1, max_length=20)
     academicYear: str = Field(..., min_length=1, max_length=20)
     credits: int = Field(..., ge=1, le=10)
@@ -158,6 +226,13 @@ class CourseBase(BaseModel):
     @classmethod
     def strip_required_course_fields(cls, value: str) -> str:
         return _strip_required_text(value, "Course field")
+
+    @field_validator("sectionCode", mode="before")
+    @classmethod
+    def normalize_section_code(cls, value: Optional[str]) -> str:
+        if value is None:
+            return ""
+        return str(value).strip().upper()
 
     @field_validator("status", mode="before")
     @classmethod
@@ -178,9 +253,11 @@ class CourseCreate(CourseBase):
 
 
 class CourseUpdate(BaseModel):
+    sectionCode: Optional[str] = Field(default=None, max_length=20)
     title: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = Field(default=None, max_length=1000)
     lecturerId: Optional[uuid.UUID] = None
+    semesterId: Optional[uuid.UUID] = None
     semester: Optional[str] = Field(default=None, min_length=1, max_length=20)
     academicYear: Optional[str] = Field(default=None, min_length=1, max_length=20)
     credits: Optional[int] = Field(default=None, ge=1, le=10)
@@ -194,6 +271,13 @@ class CourseUpdate(BaseModel):
     @classmethod
     def strip_optional_course_fields(cls, value: Optional[str]) -> Optional[str]:
         return _strip_optional_text(value, "Course field")
+
+    @field_validator("sectionCode", mode="before")
+    @classmethod
+    def normalize_optional_section_code(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return str(value).strip().upper()
 
     @field_validator("status", mode="before")
     @classmethod
@@ -222,8 +306,50 @@ class CourseResponse(CourseBase):
     courseId: uuid.UUID
     createdAt: UtcDateTime
     lecturerName: Optional[str] = None
+    semesterName: Optional[str] = None
+    semesterStatus: Optional[str] = None
+    semesterEndDate: Optional[UtcDateTime] = None
+    archiveAfterDate: Optional[UtcDateTime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CourseBulkImportRow(BaseModel):
+    courseCode: str = Field(..., min_length=1, max_length=30)
+    sectionCode: str = Field(default="", max_length=20)
+    title: str = Field(..., min_length=1, max_length=200)
+    credits: int = Field(default=3, ge=1, le=10)
+    lecturerIdentifier: str = Field(..., min_length=1, max_length=150)
+    description: Optional[str] = Field(default=None, max_length=1000)
+    status: Literal["DRAFT", "ACTIVE", "ARCHIVED"] = "ACTIVE"
+    allowSelfEnroll: bool = True
+    joinCode: Optional[str] = Field(default=None, max_length=20)
+    maxStudents: Optional[int] = Field(default=None, ge=1)
+    category: Optional[str] = Field(default=None, max_length=100)
+
+
+class CourseBulkImportRequest(BaseModel):
+    semesterId: uuid.UUID
+    rows: List[CourseBulkImportRow] = Field(..., min_length=1, max_length=500)
+
+
+class CourseBulkImportError(BaseModel):
+    row: int
+    courseCode: str
+    message: str
+
+
+class CourseBulkImportResponse(BaseModel):
+    createdCount: int
+    createdCourses: List[CourseResponse]
+    errors: List[CourseBulkImportError]
+
+
+class CourseCloneRequest(BaseModel):
+    sourceCourseIds: List[uuid.UUID] = Field(..., min_length=1, max_length=200)
+    targetSemesterId: uuid.UUID
+    copyModulesAndLessons: bool = True
+    defaultStatus: Literal["DRAFT", "ACTIVE"] = "DRAFT"
 
 
 class CourseCatalogItemResponse(CourseResponse):
@@ -851,13 +977,138 @@ class CalendarEventItem(BaseModel):
     id: uuid.UUID
     courseId: uuid.UUID
     courseCode: str
+    sectionCode: str = ""
     courseTitle: str
-    kind: Literal["ASSIGNMENT", "QUIZ", "MEETING"]
+    kind: Literal["ASSIGNMENT", "QUIZ", "MEETING", "SESSION"]
     title: str
     startAt: Optional[UtcDateTime] = None
     endAt: UtcDateTime
     status: str
     relatedUrl: str
+    room: Optional[str] = None
+    deliveryMode: Optional[Literal["IN_PERSON", "ONLINE"]] = None
+    lecturerId: Optional[uuid.UUID] = None
+    lecturerName: Optional[str] = None
+
+
+# ==========================================
+# TIMETABLE / COURSE SESSIONS & CONFLICTS
+# ==========================================
+
+
+class CourseSessionCreate(BaseModel):
+    courseId: uuid.UUID
+    title: str = Field(..., min_length=1, max_length=200)
+    sessionType: Literal["REGULAR", "MAKEUP", "EXAM", "ONLINE"] = "REGULAR"
+    deliveryMode: Literal["IN_PERSON", "ONLINE"] = "IN_PERSON"
+    room: Optional[str] = Field(default=None, max_length=100)
+    startAt: UtcDateTime
+    endAt: UtcDateTime
+    notes: Optional[str] = Field(default=None, max_length=500)
+    allowStudentConflicts: bool = False
+
+    @field_validator("title")
+    @classmethod
+    def strip_session_title(cls, value: str) -> str:
+        return _strip_required_text(value, "Session title")
+
+
+class CourseSessionUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    sessionType: Optional[Literal["REGULAR", "MAKEUP", "EXAM", "ONLINE"]] = None
+    deliveryMode: Optional[Literal["IN_PERSON", "ONLINE"]] = None
+    room: Optional[str] = Field(default=None, max_length=100)
+    startAt: Optional[UtcDateTime] = None
+    endAt: Optional[UtcDateTime] = None
+    status: Optional[Literal["SCHEDULED", "CANCELLED", "COMPLETED"]] = None
+    notes: Optional[str] = Field(default=None, max_length=500)
+    allowStudentConflicts: bool = False
+
+
+class CourseSessionResponse(BaseModel):
+    sessionId: uuid.UUID
+    courseId: uuid.UUID
+    courseCode: str
+    sectionCode: str = ""
+    courseTitle: str
+    lecturerId: uuid.UUID
+    lecturerName: Optional[str] = None
+    title: str
+    sessionType: Literal["REGULAR", "MAKEUP", "EXAM", "ONLINE"]
+    deliveryMode: Literal["IN_PERSON", "ONLINE"]
+    room: Optional[str] = None
+    startAt: UtcDateTime
+    endAt: UtcDateTime
+    status: Literal["SCHEDULED", "CANCELLED", "COMPLETED"]
+    notes: Optional[str] = None
+    createdAt: UtcDateTime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConflictCheckSlot(BaseModel):
+    startAt: UtcDateTime
+    endAt: UtcDateTime
+    deliveryMode: Literal["IN_PERSON", "ONLINE"] = "IN_PERSON"
+    room: Optional[str] = Field(default=None, max_length=100)
+
+
+class ConflictCheckRequest(BaseModel):
+    courseId: uuid.UUID
+    slots: List[ConflictCheckSlot] = Field(..., min_length=1, max_length=200)
+    excludeSessionId: Optional[uuid.UUID] = None
+    timezoneOffsetMinutes: int = Field(default=0, ge=-720, le=840)
+
+
+class StudentConflictSample(BaseModel):
+    studentId: uuid.UUID
+    studentName: str
+    studentCode: Optional[str] = None
+    conflictingCourseCode: str
+    conflictingTitle: str
+    conflictingStartAt: UtcDateTime
+    conflictingEndAt: UtcDateTime
+
+
+class SlotConflictDetail(BaseModel):
+    startAt: UtcDateTime
+    endAt: UtcDateTime
+    lecturerConflict: bool = False
+    lecturerConflictDetail: Optional[str] = None
+    roomConflict: bool = False
+    roomConflictDetail: Optional[str] = None
+    studentConflictCount: int = 0
+    studentConflicts: List[StudentConflictSample] = []
+    reasons: List[str] = []
+
+
+class ConflictCheckResponse(BaseModel):
+    hasConflicts: bool
+    conflicts: List[SlotConflictDetail]
+
+
+class QuickScheduleGenerateRequest(BaseModel):
+    courseId: uuid.UUID
+    titlePrefix: str = Field(default="Buổi học", min_length=1, max_length=120)
+    weekdays: List[int] = Field(..., min_length=1, max_length=7)  # 0=Mon .. 6=Sun
+    startTime: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    endTime: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    startDate: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    endDate: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    timezoneOffsetMinutes: int = Field(default=0, ge=-720, le=840)
+    sessionType: Literal["REGULAR", "MAKEUP", "EXAM", "ONLINE"] = "REGULAR"
+    deliveryMode: Literal["IN_PERSON", "ONLINE"] = "IN_PERSON"
+    room: Optional[str] = Field(default=None, max_length=100)
+    notes: Optional[str] = Field(default=None, max_length=500)
+    skipConflicts: bool = False
+    allowStudentConflicts: bool = False
+
+
+class QuickScheduleGenerateResponse(BaseModel):
+    createdCount: int
+    skippedCount: int
+    sessions: List[CourseSessionResponse]
+    conflicts: List[SlotConflictDetail]
 
 
 # ==========================================

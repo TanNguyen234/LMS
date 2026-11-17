@@ -35,6 +35,7 @@ class RealtimeHub:
         self._user_channels: Dict[uuid.UUID, Dict[str, ConnectionInfo]] = {}
         self._course_channels: Dict[uuid.UUID, Dict[str, ConnectionInfo]] = {}
         self._meeting_channels: Dict[uuid.UUID, Dict[str, ConnectionInfo]] = {}
+        self._meeting_polls: Dict[uuid.UUID, Dict[str, Any]] = {}
 
     def bind_loop(self, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
         try:
@@ -43,6 +44,10 @@ class RealtimeHub:
             return
         with self._lock:
             self._loop = active_loop
+
+    def get_loop(self) -> Optional[asyncio.AbstractEventLoop]:
+        with self._lock:
+            return self._loop
 
     def _channel_map(self, channel_type: str) -> Dict[uuid.UUID, Dict[str, ConnectionInfo]]:
         if channel_type == "user":
@@ -71,6 +76,8 @@ class RealtimeHub:
                 bucket.pop(conn.connection_id, None)
                 if not bucket:
                     channel_map.pop(conn.channel_id, None)
+                    if conn.channel_type == "meeting":
+                        self._meeting_polls.pop(conn.channel_id, None)
                 else:
                     remaining_for_user = sum(
                         1 for item in bucket.values() if item.user_id == conn.user_id
@@ -133,6 +140,110 @@ class RealtimeHub:
                 dead.append(conn)
         for conn in dead:
             self.unregister(conn)
+
+    def lower_all_meeting_hands(self, meeting_id: uuid.UUID) -> int:
+        with self._lock:
+            bucket = self._meeting_channels.get(meeting_id)
+            if not bucket:
+                return 0
+            changed = 0
+            for conn in bucket.values():
+                if conn.hand_raised:
+                    conn.hand_raised = False
+                    changed += 1
+            return changed
+
+    def mute_meeting_peers(
+        self,
+        meeting_id: uuid.UUID,
+        *,
+        sender_connection_id: str,
+        target_peer_id: Optional[str] = None,
+    ) -> List[ConnectionInfo]:
+        with self._lock:
+            bucket = self._meeting_channels.get(meeting_id)
+            if not bucket:
+                return []
+            targets: List[ConnectionInfo] = []
+            for conn_id, conn in bucket.items():
+                if target_peer_id:
+                    if conn_id == target_peer_id:
+                        conn.media_state["audio"] = False
+                        targets.append(conn)
+                elif conn_id != sender_connection_id:
+                    conn.media_state["audio"] = False
+                    targets.append(conn)
+            return targets
+
+    def _serialize_poll(self, poll: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not poll:
+            return None
+        votes: Dict[str, int] = poll["votes"]
+        options: List[str] = poll["options"]
+        counts = [0] * len(options)
+        for idx in votes.values():
+            if 0 <= idx < len(counts):
+                counts[idx] += 1
+        return {
+            "pollId": poll["pollId"],
+            "question": poll["question"],
+            "options": list(options),
+            "counts": counts,
+            "totalVotes": sum(counts),
+            "isOpen": poll["isOpen"],
+            "createdByName": poll["createdByName"],
+        }
+
+    def get_meeting_poll(self, meeting_id: uuid.UUID) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            return self._serialize_poll(self._meeting_polls.get(meeting_id))
+
+    def create_meeting_poll(
+        self,
+        meeting_id: uuid.UUID,
+        *,
+        question: str,
+        options: List[str],
+        created_by_name: str,
+    ) -> Dict[str, Any]:
+        poll = {
+            "pollId": uuid.uuid4().hex[:12],
+            "question": question,
+            "options": list(options),
+            "votes": {},
+            "isOpen": True,
+            "createdByName": created_by_name,
+        }
+        with self._lock:
+            self._meeting_polls[meeting_id] = poll
+            serialized = self._serialize_poll(poll)
+            assert serialized is not None
+            return serialized
+
+    def vote_meeting_poll(
+        self,
+        meeting_id: uuid.UUID,
+        *,
+        poll_id: str,
+        user_id: uuid.UUID,
+        option_index: int,
+    ) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            poll = self._meeting_polls.get(meeting_id)
+            if not poll or poll["pollId"] != poll_id or not poll["isOpen"]:
+                return None
+            if option_index < 0 or option_index >= len(poll["options"]):
+                return None
+            poll["votes"][str(user_id)] = option_index
+            return self._serialize_poll(poll)
+
+    def close_meeting_poll(self, meeting_id: uuid.UUID, poll_id: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            poll = self._meeting_polls.get(meeting_id)
+            if not poll or poll["pollId"] != poll_id:
+                return None
+            poll["isOpen"] = False
+            return self._serialize_poll(poll)
 
     async def send_to_connection(self, conn: ConnectionInfo, payload: Dict[str, Any]) -> bool:
         try:

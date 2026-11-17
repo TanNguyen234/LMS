@@ -166,11 +166,11 @@ INSERT INTO dbo.Notifications (NotificationId, UserId, Title, Message, Type, IsR
 
 -- MEETINGS, MEETING LOGS, COURSE MESSAGES, LESSON PROGRESS, WHITEBOARD
 INSERT INTO dbo.Meetings (MeetingId, CourseId, HostId, Title, RoomCode, Status, StartedAt, EndedAt, CreatedAt) VALUES
-('c0000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000002',N'CS101 - Giờ học trực tuyến Tuần 1','unilms-cs101-demo','LIVE',DATEADD(hour,-1,@Now),NULL,DATEADD(hour,-1,@Now)),
+('c0000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000002',N'CS101 - Giờ học trực tuyến Tuần 1','unilms-cs101-demo','ENDED',DATEADD(hour,-2,@Now),DATEADD(minute,-30,@Now),DATEADD(hour,-2,@Now)),
 ('c0000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000007','00000000-0000-0000-0000-000000000002',N'WEB220 - Ôn tập REST API','unilms-web220-ended','ENDED',DATEADD(day,-2,@Now),DATEADD(hour,1,DATEADD(day,-2,@Now)),DATEADD(day,-2,@Now));
 
 INSERT INTO dbo.MeetingLogs (LogId, MeetingId, UserId, JoinedAt, LeftAt, DurationSeconds, ChatCount, HandRaisesCount, ActivitySummary) VALUES
-('d0000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000005',DATEADD(minute,-45,@Now),NULL,2700,2,1,N'Đang tham dự buổi học trực tuyến.'),
+('d0000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000005',DATEADD(hour,-2,@Now),DATEADD(minute,-30,@Now),5400,2,1,N'Đã tham dự buổi học trực tuyến.'),
 ('d0000000-0000-0000-0000-000000000002','c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000006',DATEADD(day,-2,@Now),DATEADD(minute,50,DATEADD(day,-2,@Now)),3000,3,2,N'Tham gia đầy đủ và đặt câu hỏi.');
 
 INSERT INTO dbo.CourseMessages (MessageId, CourseId, MeetingId, SenderId, MessageType, Content, AttachmentUrl, AttachmentFileId, CreatedAt) VALUES

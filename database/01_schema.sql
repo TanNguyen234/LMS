@@ -16,12 +16,34 @@ CREATE TABLE dbo.Users (
 );
 GO
 
+CREATE TABLE dbo.AcademicSemesters (
+    SemesterId UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_AcademicSemesters PRIMARY KEY,
+    Code VARCHAR(30) NOT NULL,
+    Name NVARCHAR(100) NOT NULL,
+    Semester VARCHAR(20) NOT NULL,
+    AcademicYear VARCHAR(20) NOT NULL,
+    StartDate DATETIME2(0) NOT NULL,
+    EndDate DATETIME2(0) NOT NULL,
+    GraceDays INT NOT NULL CONSTRAINT DF_AcademicSemesters_GraceDays DEFAULT 14,
+    Status VARCHAR(20) NOT NULL CONSTRAINT DF_AcademicSemesters_Status DEFAULT 'ACTIVE',
+    IsCurrent BIT NOT NULL CONSTRAINT DF_AcademicSemesters_IsCurrent DEFAULT 0,
+    AutoArchiveOnExpire BIT NOT NULL CONSTRAINT DF_AcademicSemesters_AutoArchive DEFAULT 1,
+    CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_AcademicSemesters_CreatedAt DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT UQ_AcademicSemesters_Code UNIQUE (Code),
+    CONSTRAINT CK_AcademicSemesters_Status CHECK (Status IN ('UPCOMING','ACTIVE','ARCHIVED')),
+    CONSTRAINT CK_AcademicSemesters_GraceDays CHECK (GraceDays BETWEEN 0 AND 90),
+    CONSTRAINT CK_AcademicSemesters_Dates CHECK (EndDate > StartDate)
+);
+GO
+
 CREATE TABLE dbo.Courses (
     CourseId UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Courses PRIMARY KEY,
     CourseCode VARCHAR(30) NOT NULL,
+    SectionCode VARCHAR(20) NOT NULL CONSTRAINT DF_Courses_SectionCode DEFAULT '',
     Title NVARCHAR(200) NOT NULL,
     Description NVARCHAR(1000) NULL,
     LecturerId UNIQUEIDENTIFIER NOT NULL,
+    SemesterId UNIQUEIDENTIFIER NULL,
     Semester VARCHAR(20) NOT NULL,
     AcademicYear VARCHAR(20) NOT NULL,
     Credits TINYINT NOT NULL,
@@ -31,11 +53,12 @@ CREATE TABLE dbo.Courses (
     MaxStudents INT NULL,
     Category NVARCHAR(100) NULL,
     CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Courses_CreatedAt DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT UQ_Courses_CourseCode UNIQUE (CourseCode),
+    CONSTRAINT UQ_Courses_Code_Section_Term UNIQUE (CourseCode, Semester, AcademicYear, SectionCode),
     CONSTRAINT CK_Courses_Credits CHECK (Credits BETWEEN 1 AND 10),
     CONSTRAINT CK_Courses_Status CHECK (Status IN ('DRAFT','ACTIVE','ARCHIVED')),
     CONSTRAINT CK_Courses_MaxStudents CHECK (MaxStudents IS NULL OR MaxStudents > 0),
-    CONSTRAINT FK_Courses_Lecturer FOREIGN KEY (LecturerId) REFERENCES dbo.Users(UserId)
+    CONSTRAINT FK_Courses_Lecturer FOREIGN KEY (LecturerId) REFERENCES dbo.Users(UserId),
+    CONSTRAINT FK_Courses_AcademicSemester FOREIGN KEY (SemesterId) REFERENCES dbo.AcademicSemesters(SemesterId)
 );
 GO
 
@@ -339,6 +362,28 @@ CREATE TABLE dbo.AiInteractionLogs (
 );
 GO
 
+CREATE TABLE dbo.CourseSessions (
+    SessionId UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CourseSessions PRIMARY KEY,
+    CourseId UNIQUEIDENTIFIER NOT NULL,
+    Title NVARCHAR(200) NOT NULL,
+    SessionType VARCHAR(20) NOT NULL CONSTRAINT DF_CourseSessions_Type DEFAULT 'REGULAR',
+    DeliveryMode VARCHAR(20) NOT NULL CONSTRAINT DF_CourseSessions_Delivery DEFAULT 'IN_PERSON',
+    Room NVARCHAR(100) NULL,
+    StartAt DATETIME2(0) NOT NULL,
+    EndAt DATETIME2(0) NOT NULL,
+    Status VARCHAR(20) NOT NULL CONSTRAINT DF_CourseSessions_Status DEFAULT 'SCHEDULED',
+    Notes NVARCHAR(500) NULL,
+    CreatedBy UNIQUEIDENTIFIER NOT NULL,
+    CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_CourseSessions_CreatedAt DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT CK_CourseSessions_Type CHECK (SessionType IN ('REGULAR','MAKEUP','EXAM','ONLINE')),
+    CONSTRAINT CK_CourseSessions_Delivery CHECK (DeliveryMode IN ('IN_PERSON','ONLINE')),
+    CONSTRAINT CK_CourseSessions_Status CHECK (Status IN ('SCHEDULED','CANCELLED','COMPLETED')),
+    CONSTRAINT CK_CourseSessions_Window CHECK (EndAt > StartAt),
+    CONSTRAINT FK_CourseSessions_Course FOREIGN KEY (CourseId) REFERENCES dbo.Courses(CourseId),
+    CONSTRAINT FK_CourseSessions_Creator FOREIGN KEY (CreatedBy) REFERENCES dbo.Users(UserId)
+);
+GO
+
 CREATE INDEX IX_Courses_LecturerId ON dbo.Courses(LecturerId);
 CREATE UNIQUE INDEX UQ_Courses_JoinCode ON dbo.Courses(JoinCode) WHERE JoinCode IS NOT NULL;
 CREATE INDEX IX_Enrollments_StudentId ON dbo.Enrollments(StudentId);
@@ -370,4 +415,6 @@ CREATE INDEX IX_LessonProgress_LessonId ON dbo.LessonProgress(LessonId);
 CREATE INDEX IX_LessonProgress_StudentId ON dbo.LessonProgress(StudentId);
 CREATE INDEX IX_AiInteractionLogs_UserId ON dbo.AiInteractionLogs(UserId);
 CREATE INDEX IX_AiInteractionLogs_CourseId ON dbo.AiInteractionLogs(CourseId);
+CREATE INDEX IX_CourseSessions_CourseId ON dbo.CourseSessions(CourseId);
+CREATE INDEX IX_CourseSessions_StartAt ON dbo.CourseSessions(StartAt);
 GO

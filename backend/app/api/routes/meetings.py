@@ -16,6 +16,11 @@ from backend.app.core.dependencies import (
 from backend.app.db.session import get_db
 from backend.app.models.models import Course, Enrollment, Meeting, MeetingLog, Notification, User
 from backend.app.realtime import realtime_hub
+from backend.app.realtime.meeting_lifecycle import (
+    cancel_empty_meeting_cleanup,
+    close_open_logs_for_meeting,
+    schedule_empty_meeting_cleanup,
+)
 from backend.app.schemas.common import as_utc_datetime, to_utc_iso
 from backend.app.schemas.schemas import MeetingCreate, MeetingLogCreate, MeetingLogResponse, MeetingResponse
 from backend.app.services.notification_push import push_notification
@@ -87,17 +92,7 @@ def format_meeting_response(meeting: Meeting, viewer_role: str) -> MeetingRespon
 
 
 def _close_open_logs_for_meeting(meeting_id: uuid.UUID, db: Session, now: datetime) -> None:
-    now_utc = as_utc_datetime(now)
-    open_logs = (
-        db.query(MeetingLog)
-        .filter(MeetingLog.MeetingId == meeting_id, MeetingLog.LeftAt.is_(None))
-        .all()
-    )
-    for log in open_logs:
-        log.LeftAt = now
-        joined_utc = as_utc_datetime(log.JoinedAt)
-        if joined_utc and now_utc:
-            log.DurationSeconds = max(0, int((now_utc - joined_utc).total_seconds()))
+    close_open_logs_for_meeting(meeting_id, db, now)
 
 
 @router.post("", response_model=MeetingResponse)
@@ -130,6 +125,7 @@ def create_or_start_meeting(
                 detail="Lớp học này đang có phòng trực tuyến hoạt động. Chọn replaceActive=true để thay thế phòng cũ.",
             )
         for old_meeting in active_meetings:
+            cancel_empty_meeting_cleanup(old_meeting.MeetingId)
             old_meeting.Status = "ENDED"
             old_meeting.EndedAt = now
             _close_open_logs_for_meeting(old_meeting.MeetingId, db, now)
@@ -219,6 +215,8 @@ def create_or_start_meeting(
         .filter(Meeting.MeetingId == new_meeting.MeetingId)
         .first()
     )
+    # Schedule auto-close if host closes tab before connecting to WebSocket
+    schedule_empty_meeting_cleanup(new_meeting.MeetingId)
     return format_meeting_response(loaded, current_user.Role)
 
 
@@ -231,7 +229,7 @@ def get_active_meetings(
     query = _meeting_query_with_relations(db).filter(Meeting.Status == "LIVE")
 
     if current_user.Role == "LECTURER":
-        query = query.filter(Meeting.Course.has(Course.LecturerId == current_user.UserId))
+        query = query.filter(Meeting.course.has(Course.LecturerId == current_user.UserId))
     elif current_user.Role == "STUDENT":
         enrolled_course_ids = (
             db.query(Enrollment.CourseId)
@@ -361,6 +359,15 @@ def leave_meeting(
         open_log.ActivitySummary = payload.activitySummary
 
     db.commit()
+
+    remaining_open = (
+        db.query(MeetingLog.LogId)
+        .filter(MeetingLog.MeetingId == meeting_id, MeetingLog.LeftAt.is_(None))
+        .count()
+    )
+    if remaining_open == 0 and len(realtime_hub.get_meeting_presence(meeting_id)) == 0:
+        schedule_empty_meeting_cleanup(meeting_id)
+
     return {"status": "left", "durationSeconds": open_log.DurationSeconds}
 
 
@@ -385,6 +392,7 @@ def end_meeting(
         raise HTTPException(status_code=403, detail="Only Admin, meeting host, or course lecturer can end this meeting")
 
     now = _utcnow()
+    cancel_empty_meeting_cleanup(meeting.MeetingId)
     meeting.Status = "ENDED"
     meeting.EndedAt = now
     _close_open_logs_for_meeting(meeting.MeetingId, db, now)

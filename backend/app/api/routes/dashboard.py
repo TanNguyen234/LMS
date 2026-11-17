@@ -18,6 +18,7 @@ from backend.app.db.session import get_db
 from backend.app.models.models import (
     Assignment,
     Course,
+    CourseSession,
     Enrollment,
     Lesson,
     LessonProgress,
@@ -307,23 +308,32 @@ def get_dashboard_calendar(
     from_dt: Optional[UtcDateTime] = Query(None, alias="from"),
     to_dt: Optional[UtcDateTime] = Query(None, alias="to"),
     course_id: Optional[uuid.UUID] = Query(None, alias="courseId"),
+    lecturer_id: Optional[uuid.UUID] = Query(None, alias="lecturerId"),
+    semester_id: Optional[uuid.UUID] = Query(None, alias="semesterId"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Unified calendar feed merging Assignment deadlines, Quiz windows, and Classroom Meetings."""
+    """Unified calendar feed merging CourseSessions (timetable), Assignment deadlines, Quiz windows, and Classroom Meetings."""
     if course_id is not None:
         course = verify_course_read_access(course_id, current_user, db)
         courses = [course]
     elif current_user.Role == "ADMIN":
-        courses = db.query(Course).filter(Course.Status == "ACTIVE").all()
+        c_query = db.query(Course).filter(Course.Status == "ACTIVE")
+        if lecturer_id is not None:
+            c_query = c_query.filter(Course.LecturerId == lecturer_id)
+        if semester_id is not None:
+            c_query = c_query.filter(Course.SemesterId == semester_id)
+        courses = c_query.all()
     elif current_user.Role == "LECTURER":
-        courses = (
-            db.query(Course)
-            .filter(Course.LecturerId == current_user.UserId, Course.Status == "ACTIVE")
-            .all()
+        c_query = db.query(Course).filter(
+            Course.LecturerId == current_user.UserId,
+            Course.Status == "ACTIVE",
         )
+        if semester_id is not None:
+            c_query = c_query.filter(Course.SemesterId == semester_id)
+        courses = c_query.all()
     elif current_user.Role == "STUDENT":
-        courses = (
+        c_query = (
             db.query(Course)
             .join(Enrollment, Enrollment.CourseId == Course.CourseId)
             .filter(
@@ -331,8 +341,10 @@ def get_dashboard_calendar(
                 Enrollment.Status.in_(["ACTIVE", "COMPLETED"]),
                 Course.Status.in_(["ACTIVE", "ARCHIVED"]),
             )
-            .all()
         )
+        if semester_id is not None:
+            c_query = c_query.filter(Course.SemesterId == semester_id)
+        courses = c_query.all()
     else:
         return []
 
@@ -341,10 +353,41 @@ def get_dashboard_calendar(
 
     course_map = {c.CourseId: c for c in courses}
     course_ids = list(course_map.keys())
+    lecturer_map = _load_lecturer_names(courses, db)
     from_naive = _to_naive_utc(from_dt) if from_dt is not None else None
     to_naive = _to_naive_utc(to_dt) if to_dt is not None else None
 
     events: List[CalendarEventItem] = []
+
+    s_query = db.query(CourseSession).filter(
+        CourseSession.CourseId.in_(course_ids),
+        CourseSession.Status != "CANCELLED",
+    )
+    if from_naive is not None:
+        s_query = s_query.filter(CourseSession.EndAt >= from_naive)
+    if to_naive is not None:
+        s_query = s_query.filter(CourseSession.StartAt <= to_naive)
+    for s in s_query.all():
+        c = course_map[s.CourseId]
+        events.append(
+            CalendarEventItem(
+                id=s.SessionId,
+                courseId=c.CourseId,
+                courseCode=c.CourseCode,
+                sectionCode=c.SectionCode or "",
+                courseTitle=c.Title,
+                kind="SESSION",
+                title=s.Title,
+                startAt=s.StartAt,
+                endAt=s.EndAt,
+                status=s.Status,
+                relatedUrl=f"/courses/{c.CourseId}?tab=classroom" if s.DeliveryMode == "ONLINE" else f"/courses/{c.CourseId}",
+                room=s.Room,
+                deliveryMode=s.DeliveryMode,
+                lecturerId=c.LecturerId,
+                lecturerName=lecturer_map.get(c.LecturerId),
+            )
+        )
 
     a_query = db.query(Assignment).filter(Assignment.CourseId.in_(course_ids))
     if current_user.Role == "STUDENT":
@@ -360,6 +403,7 @@ def get_dashboard_calendar(
                 id=a.AssignmentId,
                 courseId=c.CourseId,
                 courseCode=c.CourseCode,
+                sectionCode=c.SectionCode or "",
                 courseTitle=c.Title,
                 kind="ASSIGNMENT",
                 title=a.Title,
@@ -367,6 +411,8 @@ def get_dashboard_calendar(
                 endAt=a.DueAt,
                 status=a.Status,
                 relatedUrl=f"/courses/{c.CourseId}/assignments/{a.AssignmentId}",
+                lecturerId=c.LecturerId,
+                lecturerName=lecturer_map.get(c.LecturerId),
             )
         )
 
@@ -384,6 +430,7 @@ def get_dashboard_calendar(
                 id=q.QuizId,
                 courseId=c.CourseId,
                 courseCode=c.CourseCode,
+                sectionCode=c.SectionCode or "",
                 courseTitle=c.Title,
                 kind="QUIZ",
                 title=q.Title,
@@ -391,6 +438,8 @@ def get_dashboard_calendar(
                 endAt=q.EndAt,
                 status="PUBLISHED" if q.IsPublished else "DRAFT",
                 relatedUrl=f"/courses/{c.CourseId}/quizzes/{q.QuizId}",
+                lecturerId=c.LecturerId,
+                lecturerName=lecturer_map.get(c.LecturerId),
             )
         )
 
@@ -407,6 +456,7 @@ def get_dashboard_calendar(
                 id=m.MeetingId,
                 courseId=c.CourseId,
                 courseCode=c.CourseCode,
+                sectionCode=c.SectionCode or "",
                 courseTitle=c.Title,
                 kind="MEETING",
                 title=m.Title,
@@ -414,8 +464,10 @@ def get_dashboard_calendar(
                 endAt=m_end,
                 status=m.Status,
                 relatedUrl=f"/courses/{c.CourseId}/classroom",
+                lecturerId=c.LecturerId,
+                lecturerName=lecturer_map.get(c.LecturerId),
             )
         )
 
-    events.sort(key=lambda ev: _to_naive_utc(ev.endAt))
+    events.sort(key=lambda ev: _to_naive_utc(ev.startAt or ev.endAt))
     return events

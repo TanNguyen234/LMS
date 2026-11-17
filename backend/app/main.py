@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -10,9 +11,17 @@ from sqlalchemy import text
 from backend.app.core.config import settings, validate_jwt_secret
 from backend.app.db.session import engine, SessionLocal
 from backend.app.db.init_db import init_development_passwords
+from backend.app.realtime.manager import realtime_hub
+from backend.app.realtime.meeting_lifecycle import (
+    cancel_all_pending_cleanups,
+    cleanup_stale_live_meetings,
+)
 from backend.app.api.routes.auth import router as auth_router
 from backend.app.api.routes.users import router as users_router
+from backend.app.api.routes.semesters import router as semesters_router
 from backend.app.api.routes.courses import router as courses_router
+from backend.app.api.routes.schedules import router as schedules_router
+from backend.app.services.semester_lifecycle import sync_expired_semesters_and_courses
 from backend.app.api.routes.content import router as content_router
 from backend.app.api.routes.assignments import router as assignments_router
 from backend.app.api.routes.quizzes import router as quizzes_router
@@ -33,12 +42,15 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_jwt_secret(settings.APP_ENV, settings.JWT_SECRET)
+    realtime_hub.bind_loop(asyncio.get_running_loop())
 
-    # Initialize demo passwords if in development; tolerate transient DB unavailability at startup
+    # Initialize demo passwords & close orphaned LIVE meetings from previous server runs
     db = None
     try:
         db = SessionLocal()
         init_development_passwords(db)
+        cleanup_stale_live_meetings(db)
+        sync_expired_semesters_and_courses(db)
     except Exception as exc:
         logger.warning("Skipping development password warmup during startup: %s", exc)
     finally:
@@ -48,7 +60,10 @@ async def lifespan(app: FastAPI):
             except Exception as exc:
                 logger.warning("Failed closing startup warmup DB session: %s", exc)
 
-    yield
+    try:
+        yield
+    finally:
+        cancel_all_pending_cleanups()
 
 
 app = FastAPI(
@@ -98,7 +113,9 @@ def health_check():
 api_prefix = settings.API_V1_STR
 app.include_router(auth_router, prefix=api_prefix)
 app.include_router(users_router, prefix=api_prefix)
+app.include_router(semesters_router, prefix=api_prefix)
 app.include_router(courses_router, prefix=api_prefix)
+app.include_router(schedules_router, prefix=api_prefix)
 app.include_router(content_router, prefix=api_prefix)
 app.include_router(assignments_router, prefix=api_prefix)
 app.include_router(quizzes_router, prefix=api_prefix)

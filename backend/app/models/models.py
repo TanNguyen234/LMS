@@ -93,9 +93,34 @@ class User(Base):
     lesson_progress = relationship("LessonProgress", back_populates="student", foreign_keys="LessonProgress.StudentId")
 
 
+class AcademicSemester(Base):
+    __tablename__ = "AcademicSemesters"
+    __table_args__ = (
+        CheckConstraint("Status IN ('UPCOMING', 'ACTIVE', 'ARCHIVED')", name="CK_AcademicSemesters_Status"),
+        CheckConstraint("GraceDays >= 0 AND GraceDays <= 90", name="CK_AcademicSemesters_GraceDays"),
+        CheckConstraint("EndDate > StartDate", name="CK_AcademicSemesters_Dates"),
+    )
+
+    SemesterId = Column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
+    Code = Column(String(30), unique=True, nullable=False, index=True)
+    Name = Column(Unicode(100), nullable=False)
+    Semester = Column(String(20), nullable=False)
+    AcademicYear = Column(String(20), nullable=False)
+    StartDate = Column(UtcDateTimeColumn, nullable=False)
+    EndDate = Column(UtcDateTimeColumn, nullable=False)
+    GraceDays = Column(Integer, nullable=False, default=14, server_default=text("14"))
+    Status = Column(String(20), nullable=False, default="ACTIVE", server_default=text("'ACTIVE'"))
+    IsCurrent = Column(Boolean, nullable=False, default=False, server_default=text("0"))
+    AutoArchiveOnExpire = Column(Boolean, nullable=False, default=True, server_default=text("1"))
+    CreatedAt = Column(UtcDateTimeColumn, nullable=False, default=utcnow, server_default=text("SYSUTCDATETIME()"))
+
+    courses = relationship("Course", back_populates="academic_semester", foreign_keys="Course.SemesterId")
+
+
 class Course(Base):
     __tablename__ = "Courses"
     __table_args__ = (
+        UniqueConstraint("CourseCode", "Semester", "AcademicYear", "SectionCode", name="UQ_Courses_Code_Section_Term"),
         CheckConstraint("Credits BETWEEN 1 AND 10", name="CK_Courses_Credits"),
         CheckConstraint("Status IN ('DRAFT', 'ACTIVE', 'ARCHIVED')", name="CK_Courses_Status"),
         CheckConstraint("MaxStudents IS NULL OR MaxStudents > 0", name="CK_Courses_MaxStudents"),
@@ -108,10 +133,12 @@ class Course(Base):
     )
 
     CourseId = Column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
-    CourseCode = Column(String(30), unique=True, nullable=False, index=True)
+    CourseCode = Column(String(30), nullable=False, index=True)
+    SectionCode = Column(String(20), nullable=False, default="", server_default=text("''"))
     Title = Column(Unicode(200), nullable=False)
     Description = Column(Unicode(1000), nullable=True)
     LecturerId = Column(UNIQUEIDENTIFIER, ForeignKey("Users.UserId"), nullable=False, index=True)
+    SemesterId = Column(UNIQUEIDENTIFIER, ForeignKey("AcademicSemesters.SemesterId"), nullable=True, index=True)
     Semester = Column(String(20), nullable=False)
     AcademicYear = Column(String(20), nullable=False)
     Credits = Column(SmallInteger, nullable=False)
@@ -124,6 +151,7 @@ class Course(Base):
 
     # Relationships
     lecturer = relationship("User", back_populates="taught_courses", foreign_keys=[LecturerId])
+    academic_semester = relationship("AcademicSemester", back_populates="courses", foreign_keys=[SemesterId])
     enrollments = relationship("Enrollment", back_populates="course", cascade="all, delete-orphan")
     modules = relationship("Module", back_populates="course", cascade="all, delete-orphan", order_by="Module.SortOrder")
     assignments = relationship("Assignment", back_populates="course", cascade="all, delete-orphan")
@@ -529,3 +557,29 @@ class AiInteractionLog(Base):
     # Relationships
     user = relationship("User", foreign_keys=[UserId])
     course = relationship("Course", foreign_keys=[CourseId])
+
+
+class CourseSession(Base):
+    __tablename__ = "CourseSessions"
+    __table_args__ = (
+        CheckConstraint("SessionType IN ('REGULAR', 'MAKEUP', 'EXAM', 'ONLINE')", name="CK_CourseSessions_Type"),
+        CheckConstraint("DeliveryMode IN ('IN_PERSON', 'ONLINE')", name="CK_CourseSessions_Delivery"),
+        CheckConstraint("Status IN ('SCHEDULED', 'CANCELLED', 'COMPLETED')", name="CK_CourseSessions_Status"),
+        CheckConstraint("EndAt > StartAt", name="CK_CourseSessions_Window"),
+    )
+
+    SessionId = Column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
+    CourseId = Column(UNIQUEIDENTIFIER, ForeignKey("Courses.CourseId"), nullable=False, index=True)
+    Title = Column(Unicode(200), nullable=False)
+    SessionType = Column(String(20), nullable=False, default="REGULAR", server_default=text("'REGULAR'"))
+    DeliveryMode = Column(String(20), nullable=False, default="IN_PERSON", server_default=text("'IN_PERSON'"))
+    Room = Column(Unicode(100), nullable=True)
+    StartAt = Column(UtcDateTimeColumn, nullable=False, index=True)
+    EndAt = Column(UtcDateTimeColumn, nullable=False)
+    Status = Column(String(20), nullable=False, default="SCHEDULED", server_default=text("'SCHEDULED'"))
+    Notes = Column(Unicode(500), nullable=True)
+    CreatedBy = Column(UNIQUEIDENTIFIER, ForeignKey("Users.UserId"), nullable=False)
+    CreatedAt = Column(UtcDateTimeColumn, nullable=False, default=utcnow, server_default=text("SYSUTCDATETIME()"))
+
+    course = relationship("Course", foreign_keys=[CourseId])
+    creator = relationship("User", foreign_keys=[CreatedBy])

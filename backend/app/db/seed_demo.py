@@ -14,10 +14,12 @@ import pypdf
 from sqlalchemy.orm import Session
 
 from backend.app.core.config import settings
+from backend.app.services.semester_lifecycle import ensure_seed_semesters
 from backend.app.models.models import (
     Assignment,
     Course,
     CourseMessage,
+    CourseSession,
     Lesson,
     LessonProgress,
     Meeting,
@@ -175,6 +177,7 @@ def ensure_demo_seed(db: Session, vault_dir: Optional[str] = None) -> Dict[str, 
     course join codes, weights, real vault sample files, meetings, and progress rows.
     """
     now = _utcnow_naive()
+    ensure_seed_semesters(db, now=now)
     meta = ensure_sample_vault_files(vault_dir)
     updated_counts: Dict[str, int] = {
         "storedFiles": 0,
@@ -186,6 +189,7 @@ def ensure_demo_seed(db: Session, vault_dir: Optional[str] = None) -> Dict[str, 
         "messages": 0,
         "lessonProgress": 0,
         "whiteboard": 0,
+        "sessions": 0,
     }
 
     # 1. StoredFiles (only if Course & Lecturer exist)
@@ -324,7 +328,7 @@ def ensure_demo_seed(db: Session, vault_dir: Optional[str] = None) -> Dict[str, 
             quiz.ScoreVisibility = "AFTER_CLOSE"
         updated_counts["quizzes"] += 1
 
-    # 6. Seed Meetings, Logs, CourseMessages, LessonProgress, WhiteboardSnapshot for CS101
+    # 6. Seed Meetings (ENDED history so no empty LIVE room greets users on login), Logs, CourseMessages, LessonProgress, WhiteboardSnapshot for CS101
     if cs101:
         meeting1 = db.query(Meeting).filter(Meeting.MeetingId == MEETING_CS101_ID).first()
         if meeting1 is None:
@@ -334,28 +338,40 @@ def ensure_demo_seed(db: Session, vault_dir: Optional[str] = None) -> Dict[str, 
                 HostId=cs101.LecturerId,
                 Title="CS101 - Giờ học trực tuyến Tuần 1",
                 RoomCode="unilms-cs101-demo",
-                Status="LIVE",
-                StartedAt=now - timedelta(hours=1),
-                EndedAt=None,
-                CreatedAt=now - timedelta(hours=1),
+                Status="ENDED",
+                StartedAt=now - timedelta(hours=2),
+                EndedAt=now - timedelta(minutes=30),
+                CreatedAt=now - timedelta(hours=2),
             )
             db.add(meeting1)
             db.flush()
             updated_counts["meetings"] += 1
+        elif meeting1.Status == "LIVE" and meeting1.RoomCode == "unilms-cs101-demo":
+            from backend.app.realtime.manager import realtime_hub
 
-        if not db.query(MeetingLog).filter(MeetingLog.MeetingId == MEETING_CS101_ID).first():
+            if len(realtime_hub.get_meeting_presence(MEETING_CS101_ID)) == 0:
+                meeting1.Status = "ENDED"
+                meeting1.EndedAt = meeting1.EndedAt or now
+                updated_counts["meetings"] += 1
+
+        demo_log = db.query(MeetingLog).filter(MeetingLog.MeetingId == MEETING_CS101_ID).first()
+        if not demo_log:
             db.add(
                 MeetingLog(
                     LogId=uuid.UUID("d0000000-0000-0000-0000-000000000001"),
                     MeetingId=MEETING_CS101_ID,
                     UserId=STUDENT1_ID,
-                    JoinedAt=now - timedelta(minutes=45),
-                    DurationSeconds=2700,
+                    JoinedAt=now - timedelta(hours=2),
+                    LeftAt=now - timedelta(minutes=30),
+                    DurationSeconds=5400,
                     ChatCount=2,
                     HandRaisesCount=1,
-                    ActivitySummary="Đang tham dự buổi học trực tuyến.",
+                    ActivitySummary="Đã tham dự buổi học trực tuyến.",
                 )
             )
+        elif demo_log.LeftAt is None and meeting1.Status == "ENDED":
+            demo_log.LeftAt = meeting1.EndedAt or now
+            demo_log.ActivitySummary = "Đã tham dự buổi học trực tuyến."
 
         if not db.query(CourseMessage).filter(CourseMessage.CourseId == cs101.CourseId).first():
             db.add(
@@ -408,6 +424,40 @@ def ensure_demo_seed(db: Session, vault_dir: Optional[str] = None) -> Dict[str, 
                 )
             )
             updated_counts["lessonProgress"] += 1
+
+    # 7. Seed non-overlapping weekly CourseSessions for demo timetable visibility
+    week_monday = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    seed_session_specs = [
+        (uuid.UUID("d1000000-0000-0000-0000-000000000001"), COURSE_CS101_ID, "CS101 - Lý thuyết Nhập môn Lập trình", "IN_PERSON", "B203", 0, 0, 30, 2, 30),
+        (uuid.UUID("d1000000-0000-0000-0000-000000000002"), COURSE_CS202_ID, "CS202 - Cấu trúc dữ liệu & Giải thuật", "IN_PERSON", "B205", 2, 0, 30, 2, 30),
+        (uuid.UUID("d1000000-0000-0000-0000-000000000003"), COURSE_WEB220_ID, "WEB220 - Thực hành REST API (Trực tuyến)", "ONLINE", "Trực tuyến", 4, 2, 45, 4, 45),
+        (uuid.UUID("d1000000-0000-0000-0000-000000000004"), COURSE_AI310_ID, "AI310 - Nhập môn Trí tuệ nhân tạo", "IN_PERSON", "A301", 2, 6, 0, 8, 0),
+        (uuid.UUID("d1000000-0000-0000-0000-000000000005"), COURSE_CS101_ID, "CS101 - Thực hành Vòng lặp & Hàm", "IN_PERSON", "B203", 7, 0, 30, 2, 30),
+        (uuid.UUID("d1000000-0000-0000-0000-000000000006"), COURSE_WEB220_ID, "WEB220 - Triển khai Frontend & API", "ONLINE", "Trực tuyến", 11, 2, 45, 4, 45),
+    ]
+    for sess_id, cid, title, mode, room, day_off, sh, sm, eh, em in seed_session_specs:
+        target_course = db.query(Course).filter(Course.CourseId == cid).first()
+        if not target_course:
+            continue
+        start_at = week_monday + timedelta(days=day_off, hours=sh, minutes=sm)
+        end_at = week_monday + timedelta(days=day_off, hours=eh, minutes=em)
+        existing_sess = db.query(CourseSession).filter(CourseSession.SessionId == sess_id).first()
+        if existing_sess is None:
+            db.add(
+                CourseSession(
+                    SessionId=sess_id,
+                    CourseId=target_course.CourseId,
+                    Title=title,
+                    SessionType="ONLINE" if mode == "ONLINE" else "REGULAR",
+                    DeliveryMode=mode,
+                    Room=room,
+                    StartAt=start_at,
+                    EndAt=end_at,
+                    Status="SCHEDULED",
+                    CreatedBy=target_course.LecturerId,
+                )
+            )
+            updated_counts["sessions"] += 1
 
     db.commit()
     return updated_counts

@@ -28,6 +28,10 @@ from backend.app.models.models import (
     WhiteboardSnapshot,
 )
 from backend.app.realtime import ConnectionInfo, realtime_hub
+from backend.app.realtime.meeting_lifecycle import (
+    cancel_empty_meeting_cleanup,
+    schedule_empty_meeting_cleanup,
+)
 from backend.app.schemas.common import as_utc_datetime, to_utc_iso
 from backend.app.schemas.schemas import (
     WhiteboardSnapshotResponse,
@@ -759,10 +763,17 @@ async def meeting_ws(
         channel_id=meeting_uuid,
     )
     realtime_hub.register(conn)
+    cancel_empty_meeting_cleanup(meeting_uuid)
     _open_meeting_session_log(meeting_uuid, ws_user.user_id)
 
     try:
         await realtime_hub.broadcast_meeting_presence(meeting_uuid)
+        active_poll = realtime_hub.get_meeting_poll(meeting_uuid)
+        if active_poll is not None:
+            await realtime_hub.send_to_connection(
+                conn,
+                {"type": "poll.state", "meetingId": str(meeting_uuid), "poll": active_poll},
+            )
         while True:
             raw = await websocket.receive_text()
             try:
@@ -863,6 +874,132 @@ async def meeting_ws(
                 }
                 await realtime_hub.broadcast_meeting(meeting_uuid, wb_event)
                 await realtime_hub.broadcast_course(course_uuid, wb_event)
+            elif msg_type == "reaction.send":
+                emoji = str(data.get("emoji") or "").strip()
+                if not emoji or len(emoji) > 16:
+                    continue
+                await realtime_hub.broadcast_meeting(
+                    meeting_uuid,
+                    {
+                        "type": "reaction.event",
+                        "meetingId": str(meeting_uuid),
+                        "peerId": conn.connection_id,
+                        "userId": str(ws_user.user_id),
+                        "userName": ws_user.full_name,
+                        "emoji": emoji,
+                    },
+                )
+            elif msg_type == "caption.send":
+                text_val = str(data.get("text") or "").strip()
+                if not text_val or len(text_val) > 500:
+                    continue
+                await realtime_hub.broadcast_meeting(
+                    meeting_uuid,
+                    {
+                        "type": "caption.event",
+                        "meetingId": str(meeting_uuid),
+                        "peerId": conn.connection_id,
+                        "userId": str(ws_user.user_id),
+                        "userName": ws_user.full_name,
+                        "text": text_val,
+                        "isFinal": bool(data.get("isFinal", True)),
+                    },
+                )
+            elif msg_type in ("moderation.mute_peer", "moderation.mute_all", "moderation.lower_all_hands"):
+                if ws_user.role not in ("ADMIN", "LECTURER"):
+                    await realtime_hub.send_to_connection(
+                        conn,
+                        {"type": "error", "detail": "Chỉ giảng viên hoặc quản trị viên mới có quyền điều phối phòng học."},
+                    )
+                    continue
+                if msg_type == "moderation.lower_all_hands":
+                    realtime_hub.lower_all_meeting_hands(meeting_uuid)
+                    await realtime_hub.broadcast_meeting_presence(meeting_uuid)
+                else:
+                    target_peer_id = str(data.get("targetPeerId") or "").strip() or None if msg_type == "moderation.mute_peer" else None
+                    if msg_type == "moderation.mute_peer" and not target_peer_id:
+                        continue
+                    affected = realtime_hub.mute_meeting_peers(
+                        meeting_uuid,
+                        sender_connection_id=conn.connection_id,
+                        target_peer_id=target_peer_id,
+                    )
+                    for target_conn in affected:
+                        await realtime_hub.send_to_connection(
+                            target_conn,
+                            {
+                                "type": "moderation.force_mute",
+                                "meetingId": str(meeting_uuid),
+                                "byUserName": ws_user.full_name,
+                            },
+                        )
+                        await realtime_hub.broadcast_meeting(
+                            meeting_uuid,
+                            {
+                                "type": "media.state",
+                                "meetingId": str(meeting_uuid),
+                                "peerId": target_conn.connection_id,
+                                "userId": str(target_conn.user_id),
+                                "mediaState": dict(target_conn.media_state),
+                            },
+                        )
+            elif msg_type == "poll.create":
+                if ws_user.role not in ("ADMIN", "LECTURER"):
+                    await realtime_hub.send_to_connection(
+                        conn,
+                        {"type": "error", "detail": "Chỉ giảng viên hoặc quản trị viên mới có quyền tạo bình chọn."},
+                    )
+                    continue
+                question = str(data.get("question") or "").strip()
+                raw_options = data.get("options")
+                options = [str(opt).strip() for opt in raw_options if str(opt).strip()] if isinstance(raw_options, list) else []
+                if not question or len(options) < 2:
+                    await realtime_hub.send_to_connection(
+                        conn,
+                        {"type": "error", "detail": "Bình chọn cần câu hỏi và ít nhất 2 lựa chọn."},
+                    )
+                    continue
+                poll = realtime_hub.create_meeting_poll(
+                    meeting_uuid,
+                    question=question[:200],
+                    options=[opt[:120] for opt in options[:6]],
+                    created_by_name=ws_user.full_name,
+                )
+                await realtime_hub.broadcast_meeting(
+                    meeting_uuid,
+                    {"type": "poll.state", "meetingId": str(meeting_uuid), "poll": poll},
+                )
+            elif msg_type == "poll.vote":
+                poll_id = str(data.get("pollId") or "").strip()
+                try:
+                    option_index = int(data.get("optionIndex"))
+                except (TypeError, ValueError):
+                    continue
+                poll = realtime_hub.vote_meeting_poll(
+                    meeting_uuid,
+                    poll_id=poll_id,
+                    user_id=ws_user.user_id,
+                    option_index=option_index,
+                )
+                if poll:
+                    await realtime_hub.broadcast_meeting(
+                        meeting_uuid,
+                        {"type": "poll.state", "meetingId": str(meeting_uuid), "poll": poll},
+                    )
+            elif msg_type == "poll.close":
+                if ws_user.role not in ("ADMIN", "LECTURER"):
+                    await realtime_hub.send_to_connection(
+                        conn,
+                        {"type": "error", "detail": "Chỉ giảng viên hoặc quản trị viên mới có quyền đóng bình chọn."},
+                    )
+                    continue
+                poll_id = str(data.get("pollId") or "").strip()
+                poll = realtime_hub.close_meeting_poll(meeting_uuid, poll_id)
+                if poll:
+                    await realtime_hub.broadcast_meeting(
+                        meeting_uuid,
+                        {"type": "poll.state", "meetingId": str(meeting_uuid), "poll": poll},
+                    )
             elif msg_type in ("rtc.offer", "rtc.answer", "rtc.ice"):
                 targets = realtime_hub.find_meeting_targets(
                     meeting_uuid,
@@ -897,4 +1034,6 @@ async def meeting_ws(
         remaining = realtime_hub.unregister(conn)
         if remaining == 0:
             _close_meeting_session_log(meeting_uuid, ws_user.user_id)
+        if len(realtime_hub.get_meeting_presence(meeting_uuid)) == 0:
+            schedule_empty_meeting_cleanup(meeting_uuid)
         await realtime_hub.broadcast_meeting_presence(meeting_uuid)
