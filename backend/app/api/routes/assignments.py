@@ -80,7 +80,7 @@ def _validate_safe_url(url: Optional[str]) -> Optional[str]:
     if not cleaned:
         return None
     lowered = cleaned.lower()
-    if lowered.startswith(("javascript:", "data:", "vbscript:")):
+    if lowered.startswith(("javascript:", "data:", "vbscript:")) or cleaned.startswith("//"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsafe URL scheme is not allowed",

@@ -42,7 +42,7 @@ STREAM_CHUNK_SIZE = 64 * 1024
 
 
 def _to_stored_file_response(sf: StoredFile) -> StoredFileResponse:
-    preview = sf.ExtractedText[:500] if sf.ExtractedText else None
+    preview = sf.ExtractedText[:8000] if sf.ExtractedText else None
     return StoredFileResponse(
         fileId=sf.FileId,
         ownerId=sf.OwnerId,
@@ -303,7 +303,13 @@ def delete_stored_file(
             detail="Tệp đang được tham chiếu trong hệ thống nên không thể xóa.",
         )
 
-    if sf.Scope != "SEED":
+    still_referenced_path = (
+        db.query(StoredFile.FileId)
+        .filter(StoredFile.StoredPath == stored_path)
+        .first()
+        is not None
+    )
+    if sf.Scope != "SEED" and not still_referenced_path:
         delete_vault_file_quietly(stored_path)
 
     return MessageResponse(message="File deleted successfully", detail=str(file_id))

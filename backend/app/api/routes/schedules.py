@@ -123,7 +123,10 @@ def list_schedules(
                 Enrollment.Status.in_(["ACTIVE", "COMPLETED"]),
             )
         )
-        query = query.filter(CourseSession.CourseId.in_(enrolled_cids))
+        query = query.filter(
+            CourseSession.CourseId.in_(enrolled_cids),
+            Course.Status.in_(["ACTIVE", "ARCHIVED"]),
+        )
         if semester_id is not None:
             query = query.filter(Course.SemesterId == semester_id)
     else:
@@ -174,8 +177,11 @@ def quick_generate_schedules(
     """Quickly generate recurring timetable sessions across a date range with smart conflict detection."""
     course = _authorize_course_schedule_write(payload.courseId, current_user, db)
 
-    start_d = datetime.strptime(payload.startDate, "%Y-%m-%d").date()
-    end_d = datetime.strptime(payload.endDate, "%Y-%m-%d").date()
+    try:
+        start_d = datetime.strptime(payload.startDate, "%Y-%m-%d").date()
+        end_d = datetime.strptime(payload.endDate, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid startDate or endDate calendar value")
     if end_d < start_d:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="endDate must be >= startDate")
     if (end_d - start_d).days > 366:
@@ -183,6 +189,8 @@ def quick_generate_schedules(
 
     sh, sm = map(int, payload.startTime.split(":"))
     eh, em = map(int, payload.endTime.split(":"))
+    if not (0 <= sh <= 23 and 0 <= sm <= 59 and 0 <= eh <= 23 and 0 <= em <= 59):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="startTime and endTime must be within 00:00..23:59")
     start_minutes = sh * 60 + sm
     end_minutes = eh * 60 + em
     if end_minutes <= start_minutes:

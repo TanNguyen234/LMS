@@ -725,10 +725,25 @@ def get_quiz_detail(
     if current_user.Role == "STUDENT":
         if not q.IsPublished:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz is unpublished")
+        now_aware = datetime.now(timezone.utc)
+        has_student_attempt = (
+            db.query(QuizAttempt.AttemptId)
+            .filter(
+                QuizAttempt.QuizId == quiz_id,
+                QuizAttempt.StudentId == current_user.UserId,
+            )
+            .first()
+            is not None
+        )
+        visible_questions = (
+            quiz_question_payload(questions)
+            if has_student_attempt and now_aware >= parse_datetime(q.StartAt)
+            else []
+        )
         return _format_quiz_student_response(
             q,
             sum_question_scores(questions),
-            quiz_question_payload(questions),
+            visible_questions,
         )
 
     return _format_quiz_response(
@@ -762,7 +777,21 @@ def update_quiz(
     course = verify_lecturer_course_owner(q.CourseId, current_user, db)
     fields = quiz_in.model_fields_set
 
-    if any(value is not None for value in (quiz_in.startAt, quiz_in.endAt, quiz_in.timeLimitMinutes, quiz_in.maxAttempts)):
+    schedule_or_limit_changed = (
+        (
+            quiz_in.startAt is not None
+            and parse_datetime(quiz_in.startAt).replace(microsecond=0)
+            != parse_datetime(q.StartAt).replace(microsecond=0)
+        )
+        or (
+            quiz_in.endAt is not None
+            and parse_datetime(quiz_in.endAt).replace(microsecond=0)
+            != parse_datetime(q.EndAt).replace(microsecond=0)
+        )
+        or (quiz_in.timeLimitMinutes is not None and int(quiz_in.timeLimitMinutes) != int(q.TimeLimitMinutes))
+        or (quiz_in.maxAttempts is not None and int(quiz_in.maxAttempts) != int(q.MaxAttempts))
+    )
+    if schedule_or_limit_changed:
         has_attempt = db.query(QuizAttempt.AttemptId).filter(QuizAttempt.QuizId == quiz_id).first()
         if has_attempt:
             raise HTTPException(
@@ -1245,6 +1274,13 @@ def submit_quiz_attempt(
     now_utc = utcnow()
     now_aware = parse_datetime(now_utc)
 
+    course = db.query(Course).filter(Course.CourseId == q.CourseId).first()
+    if not course or course.Status != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Course is not active for student participation",
+        )
+
     enrollment = (
         db.query(Enrollment.EnrollmentId)
         .filter(
@@ -1394,19 +1430,40 @@ def manual_grade_quiz_attempt(
     attempt.Status = "SUBMITTED"
     if attempt.SubmittedAt is None:
         attempt.SubmittedAt = now_utc
+    db.flush()
 
-    feedback_text = (
+    finalized_scores = [
+        float(sc)
+        for (sc,) in (
+            db.query(QuizAttempt.Score)
+            .filter(
+                QuizAttempt.QuizId == q.QuizId,
+                QuizAttempt.StudentId == attempt.StudentId,
+                QuizAttempt.Status.in_(["SUBMITTED", "EXPIRED"]),
+                QuizAttempt.Score.isnot(None),
+            )
+            .all()
+        )
+    ]
+    best_attempt_score = max(finalized_scores) if finalized_scores else float(attempt.Score)
+
+    attempt_feedback = (
         grade_in.feedback.strip()
         if grade_in.feedback and grade_in.feedback.strip()
         else f"Da cham xong bai thi: {attempt.Score}/{max_possible_score}"
+    )
+    grade_feedback = (
+        grade_in.feedback.strip()
+        if grade_in.feedback and grade_in.feedback.strip()
+        else f"Da cham xong bai thi: {best_attempt_score}/{max_possible_score}"
     )
     _upsert_quiz_grade_best_or_override(
         db,
         q,
         attempt.StudentId,
-        float(attempt.Score),
+        best_attempt_score,
         max_possible_score,
-        feedback_text,
+        grade_feedback,
         current_user.UserId,
         now_utc,
         allow_lower_override=True,
@@ -1415,7 +1472,7 @@ def manual_grade_quiz_attempt(
     notif_id = uuid.uuid4()
     related_url = f"/courses/{q.CourseId}/quizzes/{q.QuizId}"
     notif_title = f"Bai kiem tra '{q.Title}' da duoc cham diem"
-    notif_msg = f"Tong diem cua ban: {attempt.Score}/{max_possible_score}. Nhan xet: {feedback_text}"
+    notif_msg = f"Tong diem cua ban: {attempt.Score}/{max_possible_score}. Nhan xet: {attempt_feedback}"
     db.add(
         Notification(
             NotificationId=notif_id,

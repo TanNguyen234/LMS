@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from backend.app.api.routes.courses import format_course_response
+from backend.app.api.routes.courses import _load_semester_map, format_course_response
 from backend.app.core.dependencies import (
     get_current_user,
     require_admin,
@@ -165,7 +165,11 @@ def get_lecturer_dashboard(
 
     recent_slice = active_courses[:5]
     lecturer_map = _load_lecturer_names(recent_slice, db)
-    recent_courses = [format_course_response(c, db, lecturer_map=lecturer_map) for c in recent_slice]
+    semester_map = _load_semester_map(recent_slice, db)
+    recent_courses = [
+        format_course_response(c, db, lecturer_map=lecturer_map, semester_map=semester_map)
+        for c in recent_slice
+    ]
 
     return LecturerDashboardResponse(
         totalCourses=len(active_courses),
@@ -286,6 +290,7 @@ def get_student_dashboard(
 
     transcript = build_student_transcript(db, student.UserId)
     lecturer_map = _load_lecturer_names(enrolled_courses, db)
+    semester_map = _load_semester_map(enrolled_courses, db)
 
     return StudentDashboardResponse(
         totalEnrolledCourses=len(enrolled_courses),
@@ -297,7 +302,13 @@ def get_student_dashboard(
         completedLessons=completed_lessons,
         totalLessons=total_lessons,
         enrolledCourses=[
-            format_course_response(c, db, lecturer_map=lecturer_map, mask_join_code=True)
+            format_course_response(
+                c,
+                db,
+                lecturer_map=lecturer_map,
+                semester_map=semester_map,
+                mask_join_code=True,
+            )
             for c in enrolled_courses
         ],
     )
@@ -318,16 +329,18 @@ def get_dashboard_calendar(
         course = verify_course_read_access(course_id, current_user, db)
         courses = [course]
     elif current_user.Role == "ADMIN":
-        c_query = db.query(Course).filter(Course.Status == "ACTIVE")
+        allowed_statuses = ["ACTIVE", "ARCHIVED"] if semester_id is not None else ["ACTIVE"]
+        c_query = db.query(Course).filter(Course.Status.in_(allowed_statuses))
         if lecturer_id is not None:
             c_query = c_query.filter(Course.LecturerId == lecturer_id)
         if semester_id is not None:
             c_query = c_query.filter(Course.SemesterId == semester_id)
         courses = c_query.all()
     elif current_user.Role == "LECTURER":
+        allowed_statuses = ["ACTIVE", "ARCHIVED"] if semester_id is not None else ["ACTIVE"]
         c_query = db.query(Course).filter(
             Course.LecturerId == current_user.UserId,
-            Course.Status == "ACTIVE",
+            Course.Status.in_(allowed_statuses),
         )
         if semester_id is not None:
             c_query = c_query.filter(Course.SemesterId == semester_id)
@@ -463,7 +476,7 @@ def get_dashboard_calendar(
                 startAt=m.StartedAt,
                 endAt=m_end,
                 status=m.Status,
-                relatedUrl=f"/courses/{c.CourseId}/classroom",
+                relatedUrl=f"/courses/{c.CourseId}?tab=classroom",
                 lecturerId=c.LecturerId,
                 lecturerName=lecturer_map.get(c.LecturerId),
             )

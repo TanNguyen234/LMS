@@ -330,7 +330,28 @@ def _read_zip_member_capped(zf: zipfile.ZipFile, member: str) -> bytes:
     return raw
 
 
+def _assert_safe_ooxml_xml_bytes(xml_bytes: bytes) -> None:
+    from xml.parsers import expat
+
+    def _forbid_dtd_or_entity(*_args) -> None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tệp Office XML chứa khai báo thực thể (DOCTYPE/ENTITY) bị chặn vì lý do bảo mật.",
+        )
+
+    parser = expat.ParserCreate()
+    parser.StartDoctypeDeclHandler = _forbid_dtd_or_entity
+    parser.EntityDeclHandler = _forbid_dtd_or_entity
+    try:
+        parser.Parse(xml_bytes, True)
+    except HTTPException:
+        raise
+    except expat.ExpatError as exc:
+        raise ValueError("Invalid OOXML XML structure") from exc
+
+
 def _extract_xml_paragraphs(xml_bytes: bytes, paragraph_local_name: str, text_local_name: str) -> str:
+    _assert_safe_ooxml_xml_bytes(xml_bytes)
     root = ET.fromstring(xml_bytes)
     paragraphs: list[str] = []
 
@@ -398,6 +419,8 @@ def extract_text_from_bytes(data: bytes, ext: str) -> Optional[str]:
                 text = "\n".join(parts)
         elif ext in TEXT_EXTENSIONS:
             text = data.decode("utf-8-sig")
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.warning("Text extraction skipped for .%s upload: %s", ext, exc)
         return None

@@ -1,3 +1,4 @@
+import re
 import uuid
 from typing import Dict, List, Optional
 
@@ -26,6 +27,7 @@ from backend.app.models.models import (
     Module,
     Quiz,
     QuizAttempt,
+    StoredFile,
     Submission,
     User,
     utcnow,
@@ -191,8 +193,8 @@ def _self_enroll_student(course: Course, student: User, db: Session) -> Enrollme
     # Lock course row while inspecting capacity to prevent concurrent over-enrollment.
     locked_course = (
         db.query(Course)
+        .with_hint(Course, "WITH (UPDLOCK, ROWLOCK)", dialect_name="mssql")
         .filter(Course.CourseId == course.CourseId)
-        .with_for_update()
         .first()
     )
     if not locked_course:
@@ -239,7 +241,7 @@ def _self_enroll_student(course: Course, student: User, db: Session) -> Enrollme
         if existing:
             existing.Status = "ACTIVE"
             existing.EnrolledAt = utcnow()
-            existing.FinalScore = None
+            sync_enrollment_final_score(db, locked_course.CourseId, student.UserId)
             target = existing
         else:
             target = Enrollment(
@@ -435,6 +437,11 @@ def create_course(
     sem_obj, sem_str, year_str = _resolve_course_semester(
         db, course_in.semesterId, course_in.semester, course_in.academicYear
     )
+    if sem_obj is not None and sem_obj.Status == "ARCHIVED" and course_in.status.upper() != "ARCHIVED":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot create an active or draft course in an ARCHIVED semester",
+        )
 
     existing = (
         db.query(Course)
@@ -520,6 +527,11 @@ def bulk_import_courses(
     )
     if not sem_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target semester not found")
+    if sem_obj.Status == "ARCHIVED":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot bulk-import courses into an ARCHIVED semester",
+        )
 
     lecturers = (
         db.query(User)
@@ -604,7 +616,14 @@ def bulk_import_courses(
             existing_join_codes.add(join_clean)
 
     if created:
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Bulk course import conflicted with concurrent changes",
+            )
         for c in created:
             db.refresh(c)
 
@@ -618,6 +637,67 @@ def bulk_import_courses(
         ],
         errors=errors,
     )
+
+
+_FILE_URL_ID_RE = re.compile(r"/api/files/([0-9a-fA-F-]{36})(?=/content\b|$)")
+
+
+def _clone_file_for_course(
+    file_id: uuid.UUID,
+    target_course_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    file_memo: Dict[uuid.UUID, uuid.UUID],
+    db: Session,
+) -> Optional[uuid.UUID]:
+    if file_id in file_memo:
+        return file_memo[file_id]
+    sf = db.query(StoredFile).filter(StoredFile.FileId == file_id).first()
+    if sf is None:
+        return None
+    if sf.Scope == "SEED" or sf.CourseId == target_course_id:
+        file_memo[file_id] = sf.FileId
+        return sf.FileId
+
+    cloned_sf = StoredFile(
+        FileId=uuid.uuid4(),
+        OwnerId=owner_id,
+        CourseId=target_course_id,
+        Scope=sf.Scope,
+        OriginalName=sf.OriginalName,
+        StoredPath=sf.StoredPath,
+        MimeType=sf.MimeType,
+        SizeBytes=sf.SizeBytes,
+        Sha256=sf.Sha256,
+        ExtractedText=sf.ExtractedText,
+    )
+    db.add(cloned_sf)
+    db.flush()
+    file_memo[file_id] = cloned_sf.FileId
+    return cloned_sf.FileId
+
+
+def _remap_cloned_file_links(
+    text_value: Optional[str],
+    target_course_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    file_memo: Dict[uuid.UUID, uuid.UUID],
+    db: Session,
+) -> Optional[str]:
+    if not text_value:
+        return text_value
+
+    def _replace(match: re.Match) -> str:
+        raw_id = match.group(1)
+        try:
+            old_uuid = uuid.UUID(raw_id)
+        except ValueError:
+            return match.group(0)
+        mapped = _clone_file_for_course(old_uuid, target_course_id, owner_id, file_memo, db)
+        if mapped is None or mapped == old_uuid:
+            return match.group(0)
+        return f"/api/files/{mapped}"
+
+    return _FILE_URL_ID_RE.sub(_replace, text_value)
 
 
 @router.post("/clone-to-semester", response_model=CourseBulkImportResponse)
@@ -634,6 +714,11 @@ def clone_courses_to_semester(
     )
     if not target_sem:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target semester not found")
+    if target_sem.Status == "ARCHIVED":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot clone courses into an ARCHIVED semester",
+        )
 
     sources = db.query(Course).filter(Course.CourseId.in_(payload.sourceCourseIds)).all()
     if not sources:
@@ -683,6 +768,7 @@ def clone_courses_to_semester(
         db.flush()
 
         if payload.copyModulesAndLessons:
+            file_memo: Dict[uuid.UUID, uuid.UUID] = {}
             src_modules = (
                 db.query(Module)
                 .filter(Module.CourseId == src.CourseId)
@@ -708,15 +794,42 @@ def clone_courses_to_semester(
                     .all()
                 )
                 for les in src_lessons:
+                    new_att_id = (
+                        _clone_file_for_course(
+                            les.AttachmentFileId,
+                            cloned.CourseId,
+                            cloned.LecturerId,
+                            file_memo,
+                            db,
+                        )
+                        if les.AttachmentFileId is not None
+                        else None
+                    )
+                    new_material_url = _remap_cloned_file_links(
+                        les.MaterialUrl,
+                        cloned.CourseId,
+                        cloned.LecturerId,
+                        file_memo,
+                        db,
+                    )
+                    if new_att_id is not None and not new_material_url:
+                        new_material_url = f"/api/files/{new_att_id}/content"
+                    new_content_html = _remap_cloned_file_links(
+                        les.ContentHtml,
+                        cloned.CourseId,
+                        cloned.LecturerId,
+                        file_memo,
+                        db,
+                    )
                     db.add(
                         Lesson(
                             LessonId=uuid.uuid4(),
                             ModuleId=cloned_mod.ModuleId,
                             Title=les.Title,
-                            ContentHtml=les.ContentHtml,
-                            MaterialUrl=les.MaterialUrl,
+                            ContentHtml=new_content_html,
+                            MaterialUrl=new_material_url,
                             ContentType=les.ContentType,
-                            AttachmentFileId=les.AttachmentFileId,
+                            AttachmentFileId=new_att_id,
                             SortOrder=les.SortOrder,
                             IsPublished=les.IsPublished,
                             EstimatedMinutes=les.EstimatedMinutes,
@@ -727,7 +840,14 @@ def clone_courses_to_semester(
         existing_keys.add((code_clean, section_clean))
 
     if created:
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Course clone conflicted with concurrent changes",
+            )
         for c in created:
             db.refresh(c)
 
@@ -793,6 +913,14 @@ def update_course(
         if course_in.status not in ["DRAFT", "ACTIVE", "ARCHIVED"]:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
         c.Status = course_in.status.upper()
+
+    if c.Status != "ARCHIVED" and c.SemesterId is not None:
+        linked_sem = db.query(AcademicSemester).filter(AcademicSemester.SemesterId == c.SemesterId).first()
+        if linked_sem and linked_sem.Status == "ARCHIVED":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Courses belonging to an ARCHIVED semester must remain ARCHIVED",
+            )
     if course_in.lecturerId is not None:
         lecturer = db.query(User).filter(User.UserId == course_in.lecturerId).first()
         if not lecturer or lecturer.Role != "LECTURER" or not lecturer.IsActive:
@@ -842,7 +970,15 @@ def toggle_course_status(
     c = get_course_or_404(course_id, db)
     if status_in.status not in ["DRAFT", "ACTIVE", "ARCHIVED"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
-    c.Status = status_in.status.upper()
+    next_status = status_in.status.upper()
+    if next_status != "ARCHIVED" and c.SemesterId is not None:
+        linked_sem = db.query(AcademicSemester).filter(AcademicSemester.SemesterId == c.SemesterId).first()
+        if linked_sem and linked_sem.Status == "ARCHIVED":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot activate a course belonging to an ARCHIVED semester",
+            )
+    c.Status = next_status
     db.commit()
     return MessageResponse(message=f"Course {c.CourseCode} status updated to {c.Status}")
 
@@ -916,6 +1052,12 @@ def self_drop_course(
     db: Session = Depends(get_db),
 ):
     """Allow student to withdraw from an ACTIVE course only before any submission, quiz attempt, or grade."""
+    course = get_course_or_404(course_id, db)
+    if course.Status != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot withdraw from a non-ACTIVE or ARCHIVED course",
+        )
     enrollment = (
         db.query(Enrollment)
         .filter(
@@ -1042,7 +1184,7 @@ def enroll_student(
         if existing:
             existing.Status = "ACTIVE"
             existing.EnrolledAt = utcnow()
-            existing.FinalScore = None
+            sync_enrollment_final_score(db, course_id, enroll_in.studentId)
             target = existing
         else:
             target = Enrollment(

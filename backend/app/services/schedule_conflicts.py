@@ -5,7 +5,7 @@ import uuid
 
 from sqlalchemy.orm import Session, joinedload
 
-from backend.app.models.models import Course, CourseSession, Enrollment, User
+from backend.app.models.models import Course, CourseSession, Enrollment, User, utcnow
 from backend.app.schemas.schemas import (
     ConflictCheckSlot,
     SlotConflictDetail,
@@ -204,14 +204,16 @@ def find_student_enrollment_schedule_conflicts(
     target_course_id: uuid.UUID,
 ) -> Optional[str]:
     """
-    Check whether target_course_id's scheduled sessions collide with any session
-    of the student's existing ACTIVE enrolled courses. Returns a clear detail string or None.
+    Check whether target_course_id's upcoming scheduled sessions collide with any upcoming
+    scheduled session of the student's existing ACTIVE enrolled courses.
     """
+    now = _naive_utc(utcnow())
     target_sessions = (
         db.query(CourseSession)
         .filter(
             CourseSession.CourseId == target_course_id,
-            CourseSession.Status != "CANCELLED",
+            CourseSession.Status == "SCHEDULED",
+            CourseSession.EndAt > now,
         )
         .all()
     )
@@ -231,7 +233,8 @@ def find_student_enrollment_schedule_conflicts(
             Enrollment.Status == "ACTIVE",
             Course.Status == "ACTIVE",
             Course.CourseId != target_course_id,
-            CourseSession.Status != "CANCELLED",
+            CourseSession.Status == "SCHEDULED",
+            CourseSession.EndAt > now,
             CourseSession.StartAt < max_end,
             CourseSession.EndAt > min_start,
         )

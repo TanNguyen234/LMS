@@ -1,3 +1,4 @@
+from datetime import date
 import uuid
 from typing import Any, Dict, List, Literal, Optional
 
@@ -1102,6 +1103,20 @@ class QuickScheduleGenerateRequest(BaseModel):
     notes: Optional[str] = Field(default=None, max_length=500)
     skipConflicts: bool = False
     allowStudentConflicts: bool = False
+
+    @field_validator("startDate", "endDate")
+    @classmethod
+    def validate_calendar_date(cls, value: str) -> str:
+        date.fromisoformat(value)
+        return value
+
+    @field_validator("startTime", "endTime")
+    @classmethod
+    def validate_clock_time(cls, value: str) -> str:
+        hh, mm = map(int, value.split(":"))
+        if not (0 <= hh <= 23 and 0 <= mm <= 59):
+            raise ValueError("Time must be between 00:00 and 23:59")
+        return value
 
 
 class QuickScheduleGenerateResponse(BaseModel):

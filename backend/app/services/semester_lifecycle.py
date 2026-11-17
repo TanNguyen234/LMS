@@ -23,11 +23,11 @@ def compute_archive_after_date(semester: AcademicSemester) -> datetime:
 
 
 def archive_semester_courses(db: Session, semester: AcademicSemester) -> int:
-    """Move all ACTIVE courses belonging to the given semester into ARCHIVED (read-only) without deleting data."""
+    """Move all ACTIVE and DRAFT courses belonging to the given semester into ARCHIVED (read-only) without deleting data."""
     courses = (
         db.query(Course)
         .filter(
-            Course.Status == "ACTIVE",
+            Course.Status.in_(["ACTIVE", "DRAFT"]),
             or_(
                 Course.SemesterId == semester.SemesterId,
                 (Course.SemesterId.is_(None))
