@@ -1,4 +1,5 @@
 import json
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -7,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.app.core.dependencies import (
@@ -1456,34 +1457,58 @@ def get_my_quiz_attempts(
     List student's own attempts for a quiz.
     Auto-finalizes expired abandoned attempts and respects ScoreVisibility on CorrectAnswer.
     """
-    q = get_quiz_or_404(quiz_id, db)
-    verify_course_read_access(q.CourseId, current_user, db)
-    if not q.IsPublished:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+    for retry_idx in range(4):
+        try:
+            q = get_quiz_or_404(quiz_id, db)
+            verify_course_read_access(q.CourseId, current_user, db)
+            if not q.IsPublished:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
 
-    now_aware = datetime.now(timezone.utc)
-    questions = (
-        db.query(QuizQuestion)
-        .filter(QuizQuestion.QuizId == quiz_id)
-        .order_by(QuizQuestion.SortOrder.asc())
-        .all()
-    )
-    finalized_count, push_items = _finalize_abandoned_attempts(db, q, current_user.UserId, questions, now_aware)
-    if finalized_count > 0:
-        db.commit()
-        for sid, payload in push_items:
-            push_notification(sid, payload)
+            now_aware = datetime.now(timezone.utc)
+            attempts = (
+                db.query(QuizAttempt)
+                .filter(QuizAttempt.QuizId == quiz_id, QuizAttempt.StudentId == current_user.UserId)
+                .order_by(QuizAttempt.AttemptNo.asc())
+                .all()
+            )
+            has_expired_pending = any(
+                att.Status == "IN_PROGRESS"
+                and now_aware > submission_grace_deadline(att.StartedAt, q.TimeLimitMinutes, q.EndAt)
+                for att in attempts
+            )
+            if has_expired_pending:
+                questions = (
+                    db.query(QuizQuestion)
+                    .filter(QuizQuestion.QuizId == quiz_id)
+                    .order_by(QuizQuestion.SortOrder.asc())
+                    .all()
+                )
+                finalized_count, push_items = _finalize_abandoned_attempts(
+                    db, q, current_user.UserId, questions, now_aware
+                )
+                if finalized_count > 0:
+                    db.commit()
+                    for sid, payload in push_items:
+                        push_notification(sid, payload)
+                    attempts = (
+                        db.query(QuizAttempt)
+                        .filter(QuizAttempt.QuizId == quiz_id, QuizAttempt.StudentId == current_user.UserId)
+                        .order_by(QuizAttempt.AttemptNo.asc())
+                        .all()
+                    )
 
-    attempts = (
-        db.query(QuizAttempt)
-        .filter(QuizAttempt.QuizId == quiz_id, QuizAttempt.StudentId == current_user.UserId)
-        .order_by(QuizAttempt.AttemptNo.asc())
-        .all()
-    )
-    return [
-        _format_attempt_response(att, current_user, for_student=True, quiz=q, now_aware=now_aware)
-        for att in attempts
-    ]
+            return [
+                _format_attempt_response(att, current_user, for_student=True, quiz=q, now_aware=now_aware)
+                for att in attempts
+            ]
+        except DBAPIError as exc:
+            db.rollback()
+            err_msg = str(exc)
+            is_deadlock = "1205" in err_msg or "40001" in err_msg or "deadlocked" in err_msg.lower()
+            if is_deadlock and retry_idx < 3:
+                time.sleep(0.05 * (retry_idx + 1))
+                continue
+            raise
 
 
 @router.get("/quizzes/{quiz_id}/analytics", response_model=QuizAnalyticsResponse)

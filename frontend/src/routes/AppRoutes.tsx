@@ -64,15 +64,6 @@ export const AppRoutes: React.FC = () => {
         <Route path="/login" element={<LoginPage />} />
 
         <Route
-          path="/classroom"
-          element={
-            <ProtectedRoute>
-              <VirtualClassroomPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
           path="/"
           element={
             <ProtectedRoute>
@@ -105,6 +96,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="schedule" element={<SchedulePage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="classroom" element={<VirtualClassroomPage />} />
           <Route path="teams" element={<Navigate to="/classroom" replace />} />
         </Route>
 

@@ -1,7 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { Suspense, useCallback, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { OnboardingGuideModal } from '../common/OnboardingGuideModal';
+import { Skeleton, SkeletonCard } from '../ui/Skeleton';
 import { SidebarNav } from './SidebarNav';
 import { TopHeader } from './TopHeader';
 
@@ -59,7 +60,16 @@ export const AppLayout: React.FC = () => {
 
         <div className="flex-1 min-w-0 flex flex-col">
           <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <Outlet />
+            <Suspense
+              fallback={
+                <div className="space-y-4" aria-busy="true" aria-live="polite">
+                  <Skeleton className="w-56 h-7" />
+                  <SkeletonCard />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
           </main>
 
           <footer className="border-t border-[var(--lms-border)] px-6 py-4 text-xs text-[var(--lms-text-muted)] text-center no-print">
