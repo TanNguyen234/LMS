@@ -233,6 +233,7 @@ export function VirtualClassroomPage() {
       });
       setNewMeetingTitle('');
       setJoinedMeeting(created);
+      setSidebarOpen(false);
       setActiveTab('stage');
       toast.success('Đã mở phòng học trực tuyến.');
       void fetchCourseMeetings(selectedCourseId);
@@ -255,6 +256,7 @@ export function VirtualClassroomPage() {
             });
             setNewMeetingTitle('');
             setJoinedMeeting(replaced);
+            setSidebarOpen(false);
             setActiveTab('stage');
             toast.success('Đã mở phòng học mới thay thế phòng cũ.');
             void fetchCourseMeetings(selectedCourseId);
@@ -484,7 +486,10 @@ export function VirtualClassroomPage() {
 
                           <button
                             type="button"
-                            onClick={() => setJoinedMeeting(liveMeetingForCourse)}
+                            onClick={() => {
+                              setJoinedMeeting(liveMeetingForCourse);
+                              setSidebarOpen(false);
+                            }}
                             className="inline-flex items-center gap-2 rounded-lg bg-[var(--lms-primary)] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 cursor-pointer"
                           >
                             <Play className="w-4 h-4" />
@@ -585,7 +590,10 @@ export function VirtualClassroomPage() {
                                 {item.status === 'LIVE' && (
                                   <button
                                     type="button"
-                                    onClick={() => setJoinedMeeting(item)}
+                                    onClick={() => {
+                                      setJoinedMeeting(item);
+                                      setSidebarOpen(false);
+                                    }}
                                     className="rounded-lg bg-[var(--lms-primary)] px-2.5 py-1 text-xs font-medium text-white cursor-pointer"
                                   >
                                     Tham gia
@@ -620,6 +628,12 @@ export function VirtualClassroomPage() {
                 <ChannelChat
                   courseId={selectedCourseId}
                   courseTitle={`${selectedCourse.courseCode || selectedCourse.code} - ${selectedCourse.title}`}
+                  onMeetingLifecycleEvent={(ev) => {
+                    if (ev.type === 'meeting.ended' && joinedMeeting && ev.meetingId === joinedMeeting.meetingId) {
+                      setJoinedMeeting(null);
+                    }
+                    void fetchCourseMeetings(selectedCourseId);
+                  }}
                 />
               </div>
 

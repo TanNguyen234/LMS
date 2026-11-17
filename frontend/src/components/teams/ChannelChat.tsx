@@ -27,6 +27,8 @@ export interface ChannelChatProps {
   courseTitle?: string;
   meetingId?: string;
   compact?: boolean;
+  fillParent?: boolean;
+  hideHeader?: boolean;
   enableOwnWebSocket?: boolean;
   incomingMessages?: CourseMessage[];
   onSendViaMeetingWs?: (payload: {
@@ -37,6 +39,11 @@ export interface ChannelChatProps {
   }) => boolean;
   onTypingViaMeetingWs?: (isTyping: boolean) => void;
   typingUsersFromMeeting?: string[];
+  onMeetingLifecycleEvent?: (event: {
+    type: 'meeting.started' | 'meeting.ended';
+    courseId?: string;
+    meetingId?: string;
+  }) => void;
 }
 
 function mergeMessages(prev: CourseMessage[], incoming: CourseMessage[]): CourseMessage[] {
@@ -69,11 +76,14 @@ export function ChannelChat({
   courseTitle,
   meetingId,
   compact = false,
+  fillParent = false,
+  hideHeader = false,
   enableOwnWebSocket = true,
   incomingMessages = [],
   onSendViaMeetingWs,
   onTypingViaMeetingWs,
   typingUsersFromMeeting,
+  onMeetingLifecycleEvent,
 }: ChannelChatProps) {
   const { user } = useAuth();
   const toast = useToast();
@@ -167,11 +177,17 @@ export function ChannelChat({
             return copy;
           });
         }
+      } else if (event.type === 'meeting.started' || event.type === 'meeting.ended') {
+        onMeetingLifecycleEvent?.({
+          type: event.type,
+          courseId: event.courseId ? String(event.courseId) : undefined,
+          meetingId: event.meetingId ? String(event.meetingId) : undefined,
+        });
       } else if (event.type === 'error' && event.detail) {
         toast.error(String(event.detail));
       }
     },
-    [currentUserId, meetingId, toast]
+    [currentUserId, meetingId, onMeetingLifecycleEvent, toast]
   );
 
   const ownWsPath = enableOwnWebSocket && courseId ? `/ws/courses/${courseId}` : null;
@@ -274,35 +290,41 @@ export function ChannelChat({
     }
   };
 
-  const containerHeight = compact ? 'h-[420px]' : 'h-[540px] md:h-[600px]';
+  const containerHeight = fillParent
+    ? 'h-full min-h-0 flex-1 border-0 rounded-none shadow-none'
+    : compact
+      ? 'h-[420px] rounded-xl border border-[var(--lms-border)] shadow-sm'
+      : 'h-[540px] md:h-[600px] rounded-xl border border-[var(--lms-border)] shadow-sm';
 
   return (
     <section
-      className={`flex flex-col rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] shadow-sm overflow-hidden ${containerHeight}`}
+      className={`flex flex-col bg-[var(--lms-surface)] overflow-hidden ${containerHeight}`}
       aria-label="Kênh thảo luận lớp học"
     >
-      <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--lms-border)] bg-[var(--lms-surface-muted)]">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-[var(--lms-text)] truncate">
-            {meetingId ? 'Trò chuyện phòng học' : courseTitle ? `Kênh lớp: ${courseTitle}` : 'Thảo luận kênh lớp'}
-          </h3>
-          <p className="text-xs text-[var(--lms-text-secondary)]">
-            Trao đổi bài giảng, đặt câu hỏi và chia sẻ tài liệu
-          </p>
-        </div>
+      {!hideHeader && (
+        <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--lms-border)] bg-[var(--lms-surface-muted)]">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-[var(--lms-text)] truncate">
+              {meetingId ? 'Trò chuyện phòng học' : courseTitle ? `Kênh lớp: ${courseTitle}` : 'Thảo luận kênh lớp'}
+            </h3>
+            <p className="text-xs text-[var(--lms-text-secondary)]">
+              Trao đổi bài giảng, đặt câu hỏi và chia sẻ tài liệu
+            </p>
+          </div>
 
-        {enableOwnWebSocket && (
-          <Badge
-            variant={wsStatus === 'open' ? 'success' : wsStatus === 'connecting' ? 'warning' : 'neutral'}
-            dot
-          >
-            <span className="inline-flex items-center gap-1">
-              {wsStatus === 'open' ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-              {wsStatus === 'open' ? 'Trực tuyến' : wsStatus === 'connecting' ? 'Đang nối' : 'Dự phòng REST'}
-            </span>
-          </Badge>
-        )}
-      </header>
+          {enableOwnWebSocket && (
+            <Badge
+              variant={wsStatus === 'open' ? 'success' : wsStatus === 'connecting' ? 'warning' : 'neutral'}
+              dot
+            >
+              <span className="inline-flex items-center gap-1">
+                {wsStatus === 'open' ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                {wsStatus === 'open' ? 'Trực tuyến' : wsStatus === 'connecting' ? 'Đang nối' : 'Dự phòng REST'}
+              </span>
+            </Badge>
+          )}
+        </header>
+      )}
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[var(--lms-surface)]">
         {loadError && (

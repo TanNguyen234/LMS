@@ -1,17 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ExternalLink,
+  Activity,
+  BarChart2,
+  Captions,
+  Check,
+  Circle,
+  Copy,
+  Grid,
   Hand,
+  HelpCircle,
+  Info,
+  LayoutPanelLeft,
   LogOut,
   MessageSquare,
   Mic,
   MicOff,
   MonitorUp,
+  PanelRightClose,
+  PanelRightOpen,
+  PenTool,
   PhoneOff,
   Radio,
+  Search,
+  Settings,
+  Smile,
+  Square,
   Users,
   Video,
   VideoOff,
+  VolumeX,
   Wifi,
   WifiOff,
 } from 'lucide-react';
@@ -24,14 +41,26 @@ import {
   type WhiteboardOp,
 } from '../../api/realtime';
 import { useAuth } from '../../auth/AuthContext';
+import { useExpandableView } from '../../hooks/useExpandableView';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import type { CourseMessage, Meeting } from '../../types';
+import {
+  createBackgroundEffectTrack,
+  formatElapsedSeconds,
+  VIDEO_QUALITY_PRESETS,
+  type BackgroundEffectMode,
+  type ProcessedTrackHandle,
+  type VideoQualityPreset,
+} from '../../utils/classroomMedia';
 import { formatRole } from '../../utils/formatters';
 import { Badge } from '../ui/Badge';
-import { useConfirm } from '../ui/ConfirmDialog';
+import { ExpandFullscreenControls } from '../ui/ExpandFullscreenControls';
 import { useToast } from '../ui/Toast';
 import { ChannelChat } from './ChannelChat';
-import type { WhiteboardOpEvent } from './WhiteboardCanvas';
+import { DeviceSettingsModal } from './DeviceSettingsModal';
+import { RoomPollsPanel, type RoomPoll } from './RoomPollsPanel';
+import { StageVideoTile } from './StageVideoTile';
+import { WhiteboardCanvas, type WhiteboardOpEvent } from './WhiteboardCanvas';
 
 export interface MeetingRoomProps {
   meeting: Meeting;
@@ -44,88 +73,60 @@ export interface MeetingRoomProps {
   onRegisterSendWhiteboardOp?: (sender: ((op: WhiteboardOp) => boolean) | null) => void;
 }
 
+type StageLayout = 'gallery' | 'spotlight' | 'whiteboard';
+type DrawerTab = 'participants' | 'chat' | 'polls' | 'info' | null;
+
+interface FloatingReaction {
+  id: string;
+  emoji: string;
+  userName: string;
+  peerId: string;
+}
+
+interface CaptionLine {
+  id: string;
+  userName: string;
+  text: string;
+}
+
+interface PeerStatsInfo {
+  peerId: string;
+  userName: string;
+  connectionState: string;
+  rttMs: number | null;
+  packetsLost: number;
+}
+
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  0: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
 const RTC_ICE_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 };
 
-interface StageTileProps {
-  participant: MeetingPresenceParticipant;
-  stream: MediaStream | null;
-  isSelf: boolean;
-}
-
-function StageVideoTile({ participant, stream, isSelf }: StageTileProps) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    if (el.srcObject !== stream) {
-      el.srcObject = stream;
-    }
-  }, [stream]);
-
-  const hasVideoTrack = Boolean(
-    stream &&
-      stream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled)
-  );
-  const showVideo = hasVideoTrack || participant.mediaState.video || participant.mediaState.screen;
-
-  return (
-    <div className="relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-700 bg-slate-900 aspect-video text-white shadow-sm">
-      {stream && (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted={isSelf}
-          className={`absolute inset-0 h-full w-full object-cover ${showVideo ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        />
-      )}
-
-      {!showVideo && (
-        <div className="flex flex-1 items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600/25 border border-blue-400/40 text-lg font-bold text-blue-200">
-            {participant.userName.charAt(0).toUpperCase()}
-          </div>
-        </div>
-      )}
-
-      <div className="relative z-10 flex items-start justify-between p-2.5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {participant.handRaised && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-slate-950 shadow">
-              <Hand className="w-3 h-3" />
-              Giơ tay
-            </span>
-          )}
-          {participant.mediaState.screen && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-medium text-white shadow">
-              Chia sẻ màn hình
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1 rounded-full bg-slate-950/70 px-2 py-1 text-xs">
-          {participant.mediaState.audio ? (
-            <Mic className="w-3.5 h-3.5 text-emerald-400" />
-          ) : (
-            <MicOff className="w-3.5 h-3.5 text-slate-400" />
-          )}
-        </div>
-      </div>
-
-      <div className="relative z-10 flex items-center justify-between gap-2 bg-slate-950/75 px-3 py-1.5 text-xs">
-        <span className="truncate font-medium">
-          {participant.userName} {isSelf ? '(Bạn)' : ''}
-        </span>
-        <span className="shrink-0 text-[11px] text-slate-300">
-          {formatRole(participant.userRole)}
-        </span>
-      </div>
-    </div>
-  );
-}
+const REACTION_EMOJIS = ['👍', '❤️', '👏', '😂', '😮', '🔥'];
 
 export function MeetingRoom({
   meeting,
@@ -138,13 +139,23 @@ export function MeetingRoom({
   onRegisterSendWhiteboardOp,
 }: MeetingRoomProps) {
   const { user } = useAuth();
-  const confirm = useConfirm();
   const toast = useToast();
 
   const currentUserId = String(user?.userId ?? user?.id ?? '');
-  const canEndMeeting =
+  const canModerate =
     user?.role === 'ADMIN' || user?.role === 'LECTURER' || meeting.hostId === currentUserId;
 
+  const {
+    containerRef: meetingRootRef,
+    isExpanded,
+    isFullscreen,
+    isWide,
+    toggleExpand,
+    toggleFullscreen,
+    exitExpand,
+  } = useExpandableView<HTMLDivElement>();
+
+  // Presence & Room state
   const [selfPeerId, setSelfPeerId] = useState<string | null>(null);
   const [participants, setParticipants] = useState<MeetingPresenceParticipant[]>([]);
   const [handRaised, setHandRaised] = useState(false);
@@ -155,40 +166,166 @@ export function MeetingRoom({
   });
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
-  const [deviceNotice, setDeviceNotice] = useState<string>(
-    'Đang tham gia ở chế độ điểm danh không cần camera/micro. Bạn có thể bật micro, camera hoặc chia sẻ màn hình bất kỳ lúc nào.'
+  const [speakingPeerIds, setSpeakingPeerIds] = useState<Set<string>>(() => new Set());
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(() => {
+    const startMs = meeting.startedAt ? new Date(meeting.startedAt).getTime() : Date.now();
+    return Number.isFinite(startMs) ? Math.max(0, Math.floor((Date.now() - startMs) / 1000)) : 0;
+  });
+
+  // Layout & Panels (MS Teams Workspace)
+  const [stageLayout, setStageLayout] = useState<StageLayout>('gallery');
+  const [showFilmstrip, setShowFilmstrip] = useState(true);
+  const [drawerTab, setDrawerTab] = useState<DrawerTab>(() =>
+    typeof window !== 'undefined' && window.innerWidth >= 1024 ? 'participants' : null
   );
-  const [sidePanel, setSidePanel] = useState<'chat' | 'participants'>('participants');
-  const [showJitsiBackup, setShowJitsiBackup] = useState(false);
+  const [spotlightPeerId, setSpotlightPeerId] = useState<string | null>(null);
+  const [participantSearch, setParticipantSearch] = useState('');
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  // Interactive Jitsi-grade Self-Built Features
   const [meetingChatMessages, setMeetingChatMessages] = useState<CourseMessage[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [reactions, setReactions] = useState<FloatingReaction[]>([]);
+  const [tileEmojis, setTileEmojis] = useState<Record<string, string>>({});
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [activePoll, setActivePoll] = useState<RoomPoll | null>(null);
+  const [myPollVote, setMyPollVote] = useState<{ pollId: string; optionIndex: number } | null>(null);
+  const [captionsEnabled, setCaptionsEnabled] = useState(false);
+  const [captionLines, setCaptionLines] = useState<CaptionLine[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [copiedInvite, setCopiedInvite] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false);
+  const [pushToTalkActive, setPushToTalkActive] = useState(false);
 
+  // Device / Media Settings
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [audioInputId, setAudioInputId] = useState('');
+  const [videoInputId, setVideoInputId] = useState('');
+  const [audioOutputId, setAudioOutputId] = useState('');
+  const [videoQuality, setVideoQuality] = useState<VideoQualityPreset>('720p');
+  const [backgroundMode, setBackgroundMode] = useState<BackgroundEffectMode>('none');
+  const [mirrorSelfVideo, setMirrorSelfVideo] = useState(true);
+  const [soundAlertsEnabled, setSoundAlertsEnabled] = useState(true);
+  const [peerStats, setPeerStats] = useState<PeerStatsInfo[]>([]);
+
+  // Whiteboard coordination when opened inside MeetingRoom
+  const [inlineWbOpEvent, setInlineWbOpEvent] = useState<WhiteboardOpEvent | null>(null);
+  const [inlineWbSnapshotJson, setInlineWbSnapshotJson] = useState<string | null>(null);
+
+  // Refs
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
+  const cameraTrackHandleRef = useRef<ProcessedTrackHandle | null>(null);
   const selfPeerIdRef = useRef<string | null>(null);
   const wbSeqRef = useRef(0);
+  const drawerTabRef = useRef<DrawerTab>(drawerTab);
+  const mediaStateRef = useRef<MeetingMediaState>(mediaState);
+  const soundAlertsRef = useRef(soundAlertsEnabled);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recorderChunksRef = useRef<Blob[]>([]);
+  const speechRecRef = useRef<SpeechRecognitionLike | null>(null);
   const sendJsonRef = useRef<(payload: unknown) => boolean>(() => false);
+  const participantsRef = useRef<MeetingPresenceParticipant[]>([]);
+  const pttHoldRef = useRef(false);
 
   useEffect(() => {
     selfPeerIdRef.current = selfPeerId;
   }, [selfPeerId]);
+
+  useEffect(() => {
+    drawerTabRef.current = drawerTab;
+  }, [drawerTab]);
+
+  useEffect(() => {
+    mediaStateRef.current = mediaState;
+  }, [mediaState]);
+
+  useEffect(() => {
+    soundAlertsRef.current = soundAlertsEnabled;
+  }, [soundAlertsEnabled]);
+
+  useEffect(() => {
+    participantsRef.current = participants;
+  }, [participants]);
+
+  // Call elapsed timer + recording timer
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+      if (isRecording) {
+        setRecordingSeconds((prev) => prev + 1);
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [isRecording]);
+
+  const playSubtleTone = useCallback((freq = 660) => {
+    if (!soundAlertsRef.current || typeof window === 'undefined') return;
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.03, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.16);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.17);
+      window.setTimeout(() => void ctx.close().catch(() => {}), 250);
+    } catch {
+      // ignore autoplay blocks
+    }
+  }, []);
+
+  const stopCameraTrackOnly = useCallback(() => {
+    if (cameraTrackHandleRef.current) {
+      const activeCamTrack = cameraTrackHandleRef.current.track;
+      if (localStreamRef.current) {
+        localStreamRef.current.removeTrack(activeCamTrack);
+      }
+      cameraTrackHandleRef.current.cleanup();
+      cameraTrackHandleRef.current = null;
+    }
+  }, []);
 
   const stopAllLocalMedia = useCallback(() => {
     if (screenTrackRef.current) {
       screenTrackRef.current.stop();
       screenTrackRef.current = null;
     }
+    stopCameraTrackOnly();
     if (localStreamRef.current) {
       for (const track of localStreamRef.current.getTracks()) {
         track.stop();
       }
       localStreamRef.current = null;
     }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {
+        // ignore stop failure
+      }
+    }
+    if (speechRecRef.current) {
+      try {
+        speechRecRef.current.stop();
+      } catch {
+        // ignore speech stop
+      }
+      speechRecRef.current = null;
+    }
     setLocalStream(null);
     setMediaState({ audio: false, video: false, screen: false });
-  }, []);
+  }, [stopCameraTrackOnly]);
 
   const closeAllPeerConnections = useCallback(() => {
     for (const pc of peersRef.current.values()) {
@@ -202,60 +339,68 @@ export function MeetingRoom({
     setRemoteStreams({});
   }, []);
 
-  const ensurePeerConnection = useCallback(
-    (remotePeerId: string): RTCPeerConnection => {
-      const existing = peersRef.current.get(remotePeerId);
-      if (existing) return existing;
+  const ensurePeerConnection = useCallback((remotePeerId: string): RTCPeerConnection => {
+    const existing = peersRef.current.get(remotePeerId);
+    if (existing) return existing;
 
-      const pc = new RTCPeerConnection(RTC_ICE_CONFIG);
-      peersRef.current.set(remotePeerId, pc);
+    const pc = new RTCPeerConnection(RTC_ICE_CONFIG);
+    peersRef.current.set(remotePeerId, pc);
 
-      if (localStreamRef.current) {
-        for (const track of localStreamRef.current.getTracks()) {
-          pc.addTrack(track, localStreamRef.current);
-        }
+    if (localStreamRef.current) {
+      for (const track of localStreamRef.current.getTracks()) {
+        pc.addTrack(track, localStreamRef.current);
       }
+    }
 
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          sendJsonRef.current({
-            type: 'rtc.ice',
-            targetPeerId: remotePeerId,
-            candidate: event.candidate.toJSON(),
-          });
-        }
-      };
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        sendJsonRef.current({
+          type: 'rtc.ice',
+          targetPeerId: remotePeerId,
+          candidate: event.candidate.toJSON(),
+        });
+      }
+    };
 
-      pc.ontrack = (event) => {
-        const stream = event.streams[0];
-        if (!stream) return;
-        setRemoteStreams((prev) => ({
-          ...prev,
-          [remotePeerId]: stream,
-        }));
-      };
+    pc.ontrack = (event) => {
+      const stream = event.streams[0];
+      if (!stream) return;
+      setRemoteStreams((prev) => ({
+        ...prev,
+        [remotePeerId]: stream,
+      }));
+    };
 
-      pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-          setRemoteStreams((prev) => {
-            if (!prev[remotePeerId]) return prev;
-            const copy = { ...prev };
-            delete copy[remotePeerId];
-            return copy;
-          });
-        }
-      };
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+        setRemoteStreams((prev) => {
+          if (!prev[remotePeerId]) return prev;
+          const copy = { ...prev };
+          delete copy[remotePeerId];
+          return copy;
+        });
+      }
+    };
 
-      return pc;
-    },
-    []
-  );
+    return pc;
+  }, []);
 
   const renegotiateWithPeers = useCallback(async () => {
     const myPeer = selfPeerIdRef.current;
     if (!myPeer) return;
+    const maxBitrate = VIDEO_QUALITY_PRESETS[videoQuality].maxBitrate;
+
     for (const [remotePeerId, pc] of peersRef.current.entries()) {
       try {
+        for (const sender of pc.getSenders()) {
+          if (sender.track?.kind === 'video') {
+            const params = sender.getParameters();
+            if (params.encodings && params.encodings.length > 0) {
+              params.encodings[0].maxBitrate = maxBitrate;
+              void sender.setParameters(params).catch(() => {});
+            }
+          }
+        }
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         sendJsonRef.current({
@@ -267,7 +412,7 @@ export function MeetingRoom({
         // ignore transient negotiation errors
       }
     }
-  }, []);
+  }, [videoQuality]);
 
   const syncLocalStreamToPeers = useCallback(
     async (stream: MediaStream | null) => {
@@ -302,9 +447,45 @@ export function MeetingRoom({
     [renegotiateWithPeers]
   );
 
+  const emitMediaState = useCallback((next: MeetingMediaState) => {
+    setMediaState(next);
+    sendJsonRef.current({ type: 'media.state', ...next });
+  }, []);
+
+  const forceMuteLocalMic = useCallback(async () => {
+    if (localStreamRef.current) {
+      for (const track of localStreamRef.current.getAudioTracks()) {
+        track.stop();
+        localStreamRef.current.removeTrack(track);
+      }
+      const rest = localStreamRef.current.getTracks();
+      setLocalStream(rest.length > 0 ? new MediaStream(rest) : null);
+    }
+    setMediaState((prev) => ({ ...prev, audio: false }));
+    await syncLocalStreamToPeers(localStreamRef.current);
+  }, [syncLocalStreamToPeers]);
+
+  const triggerReactionVisual = useCallback((peerId: string, userName: string, emoji: string) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setReactions((prev) => [...prev.slice(-14), { id, emoji, userName, peerId }]);
+    setTileEmojis((prev) => ({ ...prev, [peerId]: emoji }));
+    window.setTimeout(() => {
+      setReactions((prev) => prev.filter((item) => item.id !== id));
+    }, 3200);
+    window.setTimeout(() => {
+      setTileEmojis((prev) => {
+        if (prev[peerId] !== emoji) return prev;
+        const copy = { ...prev };
+        delete copy[peerId];
+        return copy;
+      });
+    }, 3000);
+  }, []);
+
   const handleWsEvent = useCallback(
-    async (data: any) => {
-      if (!data || typeof data !== 'object') return;
+    async (rawPayload: unknown) => {
+      if (!rawPayload || typeof rawPayload !== 'object') return;
+      const data = rawPayload as Record<string, unknown>;
 
       if (data.type === 'presence.state') {
         const myPeer = String(data.selfPeerId || '');
@@ -313,6 +494,9 @@ export function MeetingRoom({
           : [];
         setSelfPeerId(myPeer);
         setParticipants(list);
+
+        const me = list.find((p) => p.peerId === myPeer);
+        if (me) setHandRaised(me.handRaised);
 
         const activePeerIds = new Set(list.map((p) => p.peerId));
         for (const [peerId, pc] of Array.from(peersRef.current.entries())) {
@@ -331,7 +515,6 @@ export function MeetingRoom({
           if (p.peerId === myPeer) continue;
           const isNewPeer = !peersRef.current.has(p.peerId);
           const pc = ensurePeerConnection(p.peerId);
-          // Smaller peerId initiates offer deterministically to prevent WebRTC glare
           if (isNewPeer && myPeer && myPeer < p.peerId) {
             try {
               const offer = await pc.createOffer();
@@ -342,7 +525,7 @@ export function MeetingRoom({
                 sdp: pc.localDescription,
               });
             } catch {
-              // fallback silently; user can still use audio-less classroom tools
+              // ignore signaling retry
             }
           }
         }
@@ -351,23 +534,60 @@ export function MeetingRoom({
         const raised = Boolean(data.raised);
         if (peerId && peerId === selfPeerIdRef.current) {
           setHandRaised(raised);
+        } else if (raised) {
+          playSubtleTone(740);
         }
         setParticipants((prev) =>
           prev.map((p) => (p.peerId === peerId ? { ...p, handRaised: raised } : p))
         );
       } else if (data.type === 'media.state') {
         const peerId = String(data.peerId || '');
-        const state = data.mediaState as MeetingMediaState;
+        const state = data.mediaState as MeetingMediaState | undefined;
         if (peerId && state) {
           setParticipants((prev) =>
             prev.map((p) => (p.peerId === peerId ? { ...p, mediaState: state } : p))
           );
+          if (state.screen && peerId !== selfPeerIdRef.current) {
+            setSpotlightPeerId(peerId);
+            setStageLayout((cur) => (cur === 'gallery' ? 'spotlight' : cur));
+          }
+        }
+      } else if (data.type === 'moderation.force_mute') {
+        const byName = String(data.byUserName || 'Giảng viên');
+        void forceMuteLocalMic();
+        toast.info(`${byName} đã tắt micro của bạn.`);
+      } else if (data.type === 'reaction.event') {
+        triggerReactionVisual(
+          String(data.peerId || ''),
+          String(data.userName || 'Thành viên'),
+          String(data.emoji || '👍')
+        );
+      } else if (data.type === 'caption.event') {
+        const line: CaptionLine = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          userName: String(data.userName || 'Thành viên'),
+          text: String(data.text || ''),
+        };
+        if (line.text) {
+          setCaptionLines((prev) => [...prev.slice(-2), line]);
+          window.setTimeout(() => {
+            setCaptionLines((prev) => prev.filter((item) => item.id !== line.id));
+          }, 6000);
+        }
+      } else if (data.type === 'poll.state' && data.poll) {
+        setActivePoll(data.poll as RoomPoll);
+        if (drawerTabRef.current !== 'polls') {
+          playSubtleTone(587);
         }
       } else if (data.type === 'chat.message' && data.message) {
         const incoming = data.message as CourseMessage;
         setMeetingChatMessages((prev) =>
           prev.some((m) => m.messageId === incoming.messageId) ? prev : [...prev, incoming]
         );
+        if (drawerTabRef.current !== 'chat' && incoming.senderId !== currentUserId) {
+          setUnreadChatCount((n) => n + 1);
+          playSubtleTone(523);
+        }
       } else if (data.type === 'typing' && data.peerId !== selfPeerIdRef.current) {
         const name = String(data.userName || 'Thành viên');
         setTypingUsers((prev) => (prev.includes(name) ? prev : [...prev, name]));
@@ -376,19 +596,22 @@ export function MeetingRoom({
         }, 3000);
       } else if (data.type === 'whiteboard.op' && data.op) {
         wbSeqRef.current += 1;
-        onWhiteboardOp?.({
+        const ev: WhiteboardOpEvent = {
           seq: wbSeqRef.current,
           op: data.op as WhiteboardOp,
-          userId: data.userId,
-          userName: data.userName,
-        });
+          userId: typeof data.userId === 'string' ? data.userId : undefined,
+          userName: typeof data.userName === 'string' ? data.userName : undefined,
+        };
+        setInlineWbOpEvent(ev);
+        onWhiteboardOp?.(ev);
       } else if (data.type === 'whiteboard.snapshot' && typeof data.strokesJson === 'string') {
+        setInlineWbSnapshotJson(data.strokesJson);
         onWhiteboardSnapshot?.(data.strokesJson);
       } else if (data.type === 'rtc.offer' && data.fromPeerId && data.sdp) {
         const fromPeerId = String(data.fromPeerId);
         const pc = ensurePeerConnection(fromPeerId);
         try {
-          await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+          await pc.setRemoteDescription(new RTCSessionDescription(data.sdp as RTCSessionDescriptionInit));
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           sendJsonRef.current({
@@ -397,30 +620,31 @@ export function MeetingRoom({
             sdp: pc.localDescription,
           });
         } catch {
-          // ignore invalid/stale SDP offer
+          // ignore stale offer
         }
       } else if (data.type === 'rtc.answer' && data.fromPeerId && data.sdp) {
         const fromPeerId = String(data.fromPeerId);
         const pc = peersRef.current.get(fromPeerId);
         if (pc) {
           try {
-            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp as RTCSessionDescriptionInit));
           } catch {
-            // ignore stale SDP answer
+            // ignore stale answer
           }
         }
       } else if (data.type === 'rtc.ice' && data.fromPeerId && data.candidate) {
         const fromPeerId = String(data.fromPeerId);
         const pc = ensurePeerConnection(fromPeerId);
         try {
-          await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+          await pc.addIceCandidate(new RTCIceCandidate(data.candidate as RTCIceCandidateInit));
         } catch {
-          // ignore ICE timing errors before remote description
+          // ignore ICE timing errors
         }
       } else if (data.type === 'meeting.ended') {
         toast.info('Buổi học trực tuyến đã kết thúc.');
         stopAllLocalMedia();
         closeAllPeerConnections();
+        exitExpand();
         onMeetingEnded?.();
       } else if (data.type === 'error' && data.detail) {
         toast.error(String(data.detail));
@@ -428,12 +652,17 @@ export function MeetingRoom({
     },
     [
       closeAllPeerConnections,
+      currentUserId,
       ensurePeerConnection,
+      exitExpand,
+      forceMuteLocalMic,
       onMeetingEnded,
       onWhiteboardOp,
       onWhiteboardSnapshot,
+      playSubtleTone,
       stopAllLocalMedia,
       toast,
+      triggerReactionVisual,
     ]
   );
 
@@ -468,106 +697,254 @@ export function MeetingRoom({
     };
   }, [closeAllPeerConnections, stopAllLocalMedia]);
 
-  const emitMediaState = (next: MeetingMediaState) => {
-    setMediaState(next);
-    sendJson({ type: 'media.state', ...next });
-  };
+  // Active speaker volume detection (Web Audio API)
+  useEffect(() => {
+    const entries: Array<{ peerId: string; stream: MediaStream }> = [];
+    if (selfPeerId && localStream && localStream.getAudioTracks().length > 0) {
+      entries.push({ peerId: selfPeerId, stream: localStream });
+    }
+    for (const [peerId, stream] of Object.entries(remoteStreams)) {
+      if (stream.getAudioTracks().length > 0) {
+        entries.push({ peerId, stream });
+      }
+    }
+    if (entries.length === 0) return undefined;
 
-  const toggleMicrophone = async () => {
-    if (mediaState.audio && localStreamRef.current) {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return undefined;
+
+    const ctx = new AudioCtx();
+    const analysers: Array<{ peerId: string; analyser: AnalyserNode; data: Uint8Array<ArrayBuffer> }> = [];
+    const sources: MediaStreamAudioSourceNode[] = [];
+
+    for (const item of entries) {
+      try {
+        const src = ctx.createMediaStreamSource(item.stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        src.connect(analyser);
+        sources.push(src);
+        analysers.push({ peerId: item.peerId, analyser, data: new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount)) });
+      } catch {
+        // ignore unreadable audio stream
+      }
+    }
+
+    const interval = window.setInterval(() => {
+      const nextSpeaking = new Set<string>();
+      for (const a of analysers) {
+        a.analyser.getByteFrequencyData(a.data);
+        let sum = 0;
+        for (let i = 0; i < a.data.length; i += 1) sum += a.data[i];
+        const avg = a.data.length > 0 ? sum / a.data.length : 0;
+        if (avg > 18) nextSpeaking.add(a.peerId);
+      }
+      setSpeakingPeerIds(nextSpeaking);
+    }, 300);
+
+    return () => {
+      window.clearInterval(interval);
+      for (const s of sources) {
+        try {
+          s.disconnect();
+        } catch {
+          // ignore
+        }
+      }
+      void ctx.close().catch(() => {});
+      setSpeakingPeerIds(new Set());
+    };
+  }, [localStream, remoteStreams, selfPeerId]);
+
+  // WebRTC stats polling when Info/Stats tab is open
+  useEffect(() => {
+    if (drawerTab !== 'info') return undefined;
+    const pollStats = async () => {
+      const results: PeerStatsInfo[] = [];
+      for (const [peerId, pc] of peersRef.current.entries()) {
+        let rttMs: number | null = null;
+        let packetsLost = 0;
+        try {
+          const stats = await pc.getStats();
+          stats.forEach((report) => {
+            if (report.type === 'candidate-pair' && report.state === 'succeeded' && typeof report.currentRoundTripTime === 'number') {
+              rttMs = Math.round(report.currentRoundTripTime * 1000);
+            }
+            if (report.type === 'inbound-rtp' && typeof report.packetsLost === 'number') {
+              packetsLost += report.packetsLost;
+            }
+          });
+        } catch {
+          // ignore
+        }
+        const matched = participantsRef.current.find((p) => p.peerId === peerId);
+        results.push({
+          peerId,
+          userName: matched?.userName || peerId.slice(0, 8),
+          connectionState: pc.connectionState,
+          rttMs,
+          packetsLost,
+        });
+      }
+      setPeerStats(results);
+    };
+    void pollStats();
+    const timer = window.setInterval(() => void pollStats(), 2500);
+    return () => window.clearInterval(timer);
+  }, [drawerTab]);
+
+  // Media Controls
+  const startMicrophone = useCallback(
+    async (deviceIdOverride?: string) => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast.warning('Trình duyệt không hỗ trợ micro.');
+        return false;
+      }
+      try {
+        const chosenAudio = deviceIdOverride ?? audioInputId;
+        const audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: chosenAudio ? { deviceId: { exact: chosenAudio } } : true,
+        });
+        const combined = localStreamRef.current ?? new MediaStream();
+        for (const oldTrack of combined.getAudioTracks()) {
+          oldTrack.stop();
+          combined.removeTrack(oldTrack);
+        }
+        for (const track of audioStream.getAudioTracks()) {
+          combined.addTrack(track);
+        }
+        localStreamRef.current = combined;
+        setLocalStream(new MediaStream(combined.getTracks()));
+        emitMediaState({ ...mediaStateRef.current, audio: true });
+        await syncLocalStreamToPeers(combined);
+        return true;
+      } catch {
+        toast.info('Không tìm thấy hoặc bị từ chối quyền micro.');
+        return false;
+      }
+    },
+    [audioInputId, emitMediaState, syncLocalStreamToPeers, toast]
+  );
+
+  const stopMicrophone = useCallback(async () => {
+    if (localStreamRef.current) {
       for (const track of localStreamRef.current.getAudioTracks()) {
         track.stop();
         localStreamRef.current.removeTrack(track);
       }
-      const next = { ...mediaState, audio: false };
-      emitMediaState(next);
-      setLocalStream(
-        localStreamRef.current.getTracks().length > 0 ? new MediaStream(localStreamRef.current.getTracks()) : null
-      );
-      await syncLocalStreamToPeers(localStreamRef.current);
-      return;
+      const rest = localStreamRef.current.getTracks();
+      setLocalStream(rest.length > 0 ? new MediaStream(rest) : null);
     }
+    emitMediaState({ ...mediaStateRef.current, audio: false });
+    await syncLocalStreamToPeers(localStreamRef.current);
+  }, [emitMediaState, syncLocalStreamToPeers]);
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setDeviceNotice('Trình duyệt không hỗ trợ truy cập micro; bạn vẫn điểm danh và tương tác bình thường.');
-      toast.warning('Thiết bị hoặc trình duyệt không hỗ trợ micro.');
-      return;
+  const toggleMicrophone = useCallback(async () => {
+    if (mediaStateRef.current.audio) {
+      await stopMicrophone();
+    } else {
+      await startMicrophone();
     }
+  }, [startMicrophone, stopMicrophone]);
 
-    try {
-      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const combined = localStreamRef.current ?? new MediaStream();
-      for (const track of audioStream.getAudioTracks()) {
-        combined.addTrack(track);
+  const startCamera = useCallback(
+    async (
+      overrides: {
+        deviceId?: string;
+        quality?: VideoQualityPreset;
+        bgMode?: BackgroundEffectMode;
+        mirror?: boolean;
+      } = {}
+    ) => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast.warning('Thiết bị không hỗ trợ camera.');
+        return false;
       }
-      localStreamRef.current = combined;
-      setLocalStream(new MediaStream(combined.getTracks()));
-      setDeviceNotice('Đã kết nối micro. Đang truyền âm thanh trực tiếp qua WebRTC.');
-      emitMediaState({ ...mediaState, audio: true });
-      await syncLocalStreamToPeers(combined);
-    } catch {
-      setDeviceNotice('Không tìm thấy hoặc bị từ chối quyền micro. Bạn vẫn điểm danh và chat bình thường.');
-      toast.info('Đang tiếp tục ở chế độ không micro.');
-    }
-  };
+      const chosenVideo = overrides.deviceId ?? videoInputId;
+      const qualityKey = overrides.quality ?? videoQuality;
+      const spec = VIDEO_QUALITY_PRESETS[qualityKey];
+      const bg = overrides.bgMode ?? backgroundMode;
+      const mirror = overrides.mirror ?? mirrorSelfVideo;
 
-  const toggleCamera = async () => {
-    if (mediaState.video && localStreamRef.current) {
+      try {
+        const videoStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            ...(chosenVideo ? { deviceId: { exact: chosenVideo } } : {}),
+            width: { ideal: spec.width },
+            height: { ideal: spec.height },
+            frameRate: { ideal: spec.frameRate },
+          },
+        });
+        const rawTrack = videoStream.getVideoTracks()[0];
+        if (!rawTrack) return false;
+
+        stopCameraTrackOnly();
+        const handle = createBackgroundEffectTrack(rawTrack, bg, { mirror });
+        cameraTrackHandleRef.current = handle;
+
+        const combined = localStreamRef.current ?? new MediaStream();
+        combined.addTrack(handle.track);
+        localStreamRef.current = combined;
+        setLocalStream(new MediaStream(combined.getTracks()));
+        emitMediaState({ ...mediaStateRef.current, video: true });
+        await syncLocalStreamToPeers(combined);
+        return true;
+      } catch {
+        toast.info('Không tìm thấy hoặc bị từ chối quyền camera.');
+        return false;
+      }
+    },
+    [
+      backgroundMode,
+      emitMediaState,
+      mirrorSelfVideo,
+      stopCameraTrackOnly,
+      syncLocalStreamToPeers,
+      toast,
+      videoInputId,
+      videoQuality,
+    ]
+  );
+
+  const toggleCamera = useCallback(async () => {
+    if (mediaStateRef.current.video && localStreamRef.current) {
+      stopCameraTrackOnly();
       for (const track of localStreamRef.current.getVideoTracks()) {
         if (screenTrackRef.current && track.id === screenTrackRef.current.id) continue;
         track.stop();
         localStreamRef.current.removeTrack(track);
       }
-      const next = { ...mediaState, video: false };
-      emitMediaState(next);
       const remaining = localStreamRef.current.getTracks();
       setLocalStream(remaining.length > 0 ? new MediaStream(remaining) : null);
+      emitMediaState({ ...mediaStateRef.current, video: false });
       await syncLocalStreamToPeers(localStreamRef.current);
       return;
     }
+    await startCamera();
+  }, [emitMediaState, startCamera, stopCameraTrackOnly, syncLocalStreamToPeers]);
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setDeviceNotice('Trình duyệt không hỗ trợ camera; bạn vẫn có thể theo dõi bài giảng và chia sẻ bảng vẽ.');
-      toast.warning('Thiết bị không hỗ trợ camera.');
-      return;
-    }
-
-    try {
-      const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      const combined = localStreamRef.current ?? new MediaStream();
-      for (const track of videoStream.getVideoTracks()) {
-        combined.addTrack(track);
-      }
-      localStreamRef.current = combined;
-      setLocalStream(new MediaStream(combined.getTracks()));
-      setDeviceNotice('Camera đang phát trực tiếp trong phòng học.');
-      emitMediaState({ ...mediaState, video: true });
-      await syncLocalStreamToPeers(combined);
-    } catch {
-      setDeviceNotice('Không tìm thấy hoặc bị từ chối quyền camera. Bạn vẫn đang tham gia lớp học bình thường.');
-      toast.info('Đang tiếp tục ở chế độ không camera.');
-    }
-  };
-
-  const toggleScreenShare = async () => {
-    if (mediaState.screen && screenTrackRef.current && localStreamRef.current) {
+  const toggleScreenShare = useCallback(async () => {
+    if (mediaStateRef.current.screen && screenTrackRef.current && localStreamRef.current) {
       screenTrackRef.current.stop();
       localStreamRef.current.removeTrack(screenTrackRef.current);
       screenTrackRef.current = null;
       const remaining = localStreamRef.current.getTracks();
       setLocalStream(remaining.length > 0 ? new MediaStream(remaining) : null);
-      emitMediaState({ ...mediaState, screen: false });
+      emitMediaState({ ...mediaStateRef.current, screen: false });
       await syncLocalStreamToPeers(localStreamRef.current);
       return;
     }
 
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      toast.warning('Trình duyệt hiện tại không hỗ trợ chia sẻ màn hình.');
+      toast.warning('Trình duyệt không hỗ trợ chia sẻ màn hình.');
       return;
     }
 
     try {
-      const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+      });
       const screenTrack = displayStream.getVideoTracks()[0];
       if (!screenTrack) return;
 
@@ -576,7 +953,11 @@ export function MeetingRoom({
       combined.addTrack(screenTrack);
       localStreamRef.current = combined;
       setLocalStream(new MediaStream(combined.getTracks()));
-      emitMediaState({ ...mediaState, screen: true });
+      emitMediaState({ ...mediaStateRef.current, screen: true });
+      if (selfPeerIdRef.current) {
+        setSpotlightPeerId(selfPeerIdRef.current);
+        setStageLayout('spotlight');
+      }
       await syncLocalStreamToPeers(combined);
 
       screenTrack.onended = () => {
@@ -585,16 +966,16 @@ export function MeetingRoom({
           screenTrackRef.current = null;
           const rest = localStreamRef.current.getTracks();
           setLocalStream(rest.length > 0 ? new MediaStream(rest) : null);
-          emitMediaState({ ...mediaState, screen: false });
+          emitMediaState({ ...mediaStateRef.current, screen: false });
           void syncLocalStreamToPeers(localStreamRef.current);
         }
       };
     } catch {
       toast.info('Đã hủy thao tác chia sẻ màn hình.');
     }
-  };
+  }, [emitMediaState, syncLocalStreamToPeers, toast]);
 
-  const toggleRaiseHand = () => {
+  const toggleRaiseHand = useCallback(() => {
     const nextRaised = !handRaised;
     const sent = sendJson({ type: nextRaised ? 'hand.raise' : 'hand.lower' });
     if (sent) {
@@ -602,7 +983,247 @@ export function MeetingRoom({
     } else {
       toast.error('Kết nối phòng học chưa sẵn sàng.');
     }
-  };
+  }, [handRaised, sendJson, toast]);
+
+  const sendReaction = useCallback(
+    (emoji: string) => {
+      sendJson({ type: 'reaction.send', emoji });
+      setShowReactionPicker(false);
+    },
+    [sendJson]
+  );
+
+  // Live Captions (Web Speech API)
+  const toggleLiveCaptions = useCallback(() => {
+    if (captionsEnabled) {
+      if (speechRecRef.current) {
+        try {
+          speechRecRef.current.stop();
+        } catch {
+          // ignore
+        }
+        speechRecRef.current = null;
+      }
+      setCaptionsEnabled(false);
+      return;
+    }
+
+    const win = window as unknown as {
+      SpeechRecognition?: new () => SpeechRecognitionLike;
+      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+    };
+    const SpeechRecCtor = win.SpeechRecognition || win.webkitSpeechRecognition;
+    if (!SpeechRecCtor) {
+      toast.warning('Trình duyệt hiện tại không hỗ trợ nhận diện giọng nói tạo phụ đề.');
+      return;
+    }
+
+    try {
+      const rec = new SpeechRecCtor();
+      rec.lang = 'vi-VN';
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const res = event.results[i];
+          if (res?.isFinal && res[0]?.transcript) {
+            const text = res[0].transcript.trim();
+            if (text) {
+              sendJsonRef.current({ type: 'caption.send', text, isFinal: true });
+            }
+          }
+        }
+      };
+      rec.onerror = () => {
+        toast.info('Tạm dừng phụ đề do không nhận được tín hiệu giọng nói.');
+        setCaptionsEnabled(false);
+      };
+      rec.onend = () => {
+        setCaptionsEnabled(false);
+      };
+      rec.start();
+      speechRecRef.current = rec;
+      setCaptionsEnabled(true);
+      toast.success('Đã bật phụ đề trực tiếp (vi-VN).');
+    } catch {
+      toast.error('Không thể khởi động trình tạo phụ đề.');
+    }
+  }, [captionsEnabled, toast]);
+
+  // Local Session Recording (MediaRecorder -> .webm download)
+  const toggleLocalRecording = useCallback(async () => {
+    if (isRecording && mediaRecorderRef.current) {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getDisplayMedia || typeof MediaRecorder === 'undefined') {
+      toast.warning('Trình duyệt không hỗ trợ ghi hình MediaRecorder.');
+      return;
+    }
+
+    try {
+      const capture = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+      });
+      if (localStreamRef.current) {
+        for (const aTrack of localStreamRef.current.getAudioTracks()) {
+          capture.addTrack(aTrack.clone());
+        }
+      }
+
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : 'video/webm';
+      const recorder = new MediaRecorder(capture, { mimeType });
+      recorderChunksRef.current = [];
+      recorder.ondataavailable = (ev) => {
+        if (ev.data.size > 0) recorderChunksRef.current.push(ev.data);
+      };
+      recorder.onstop = () => {
+        for (const t of capture.getTracks()) t.stop();
+        const blob = new Blob(recorderChunksRef.current, { type: mimeType });
+        if (blob.size > 0) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `buoi-hoc-${meeting.roomCode || 'lms'}-${new Date().toISOString().slice(0, 16)}.webm`;
+          a.click();
+          URL.revokeObjectURL(url);
+          toast.success('Đã lưu video ghi hình buổi học (.webm).');
+        }
+        setIsRecording(false);
+        setRecordingSeconds(0);
+        mediaRecorderRef.current = null;
+      };
+      capture.getVideoTracks()[0].onended = () => {
+        if (recorder.state !== 'inactive') recorder.stop();
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start(1000);
+      setRecordingSeconds(0);
+      setIsRecording(true);
+      toast.info('Đang ghi hình buổi học trực tiếp.');
+    } catch {
+      toast.info('Đã hủy ghi hình.');
+    }
+  }, [isRecording, meeting.roomCode, toast]);
+
+  const handleApplyDeviceSettings = useCallback(
+    async (next: {
+      audioInputId: string;
+      videoInputId: string;
+      audioOutputId: string;
+      videoQuality: VideoQualityPreset;
+      backgroundMode: BackgroundEffectMode;
+      mirrorSelfVideo: boolean;
+      soundAlertsEnabled: boolean;
+    }) => {
+      setAudioInputId(next.audioInputId);
+      setVideoInputId(next.videoInputId);
+      setAudioOutputId(next.audioOutputId);
+      setVideoQuality(next.videoQuality);
+      setBackgroundMode(next.backgroundMode);
+      setMirrorSelfVideo(next.mirrorSelfVideo);
+      setSoundAlertsEnabled(next.soundAlertsEnabled);
+
+      if (mediaStateRef.current.audio) {
+        await startMicrophone(next.audioInputId);
+      }
+      if (mediaStateRef.current.video) {
+        await startCamera({
+          deviceId: next.videoInputId,
+          quality: next.videoQuality,
+          bgMode: next.backgroundMode,
+          mirror: next.mirrorSelfVideo,
+        });
+      }
+      toast.success('Đã cập nhật thiết bị và hiệu ứng phòng học.');
+    },
+    [startCamera, startMicrophone, toast]
+  );
+
+  // Keyboard shortcuts + Space Push-to-Talk
+  useEffect(() => {
+    if (!isVisible) return undefined;
+    const isTypingTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName.toLowerCase();
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (e.code === 'Space' && !e.repeat && !mediaStateRef.current.audio && !pttHoldRef.current) {
+        e.preventDefault();
+        pttHoldRef.current = true;
+        setPushToTalkActive(true);
+        void startMicrophone();
+        return;
+      }
+      if (k === 'm') {
+        e.preventDefault();
+        void toggleMicrophone();
+      } else if (k === 'v') {
+        e.preventDefault();
+        void toggleCamera();
+      } else if (k === 's') {
+        e.preventDefault();
+        void toggleScreenShare();
+      } else if (k === 'h') {
+        e.preventDefault();
+        toggleRaiseHand();
+      } else if (k === 'w') {
+        e.preventDefault();
+        setStageLayout((cur) => (cur === 'whiteboard' ? 'gallery' : 'whiteboard'));
+      } else if (k === 'c') {
+        e.preventDefault();
+        setDrawerTab((cur) => {
+          if (cur === 'chat') return null;
+          setUnreadChatCount(0);
+          return 'chat';
+        });
+      } else if (k === 'p') {
+        e.preventDefault();
+        setDrawerTab((cur) => (cur === 'participants' ? null : 'participants'));
+      } else if (k === 'f') {
+        e.preventDefault();
+        toggleExpand();
+      }
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && pttHoldRef.current) {
+        e.preventDefault();
+        pttHoldRef.current = false;
+        setPushToTalkActive(false);
+        void stopMicrophone();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [
+    isVisible,
+    startMicrophone,
+    stopMicrophone,
+    toggleCamera,
+    toggleExpand,
+    toggleMicrophone,
+    toggleRaiseHand,
+    toggleScreenShare,
+  ]);
 
   const handleLeave = async () => {
     try {
@@ -610,29 +1231,23 @@ export function MeetingRoom({
         activitySummary: 'Tham gia lớp học trực tuyến',
       });
     } catch {
-      // ignore if already ended or disconnected
+      // ignore
     } finally {
       stopAllLocalMedia();
       closeAllPeerConnections();
+      exitExpand();
       onLeaveRoom?.();
     }
   };
 
-  const handleEnd = async () => {
-    const ok = await confirm({
-      title: 'Kết thúc buổi học trực tuyến?',
-      message: 'Tất cả thành viên sẽ rời phòng và hệ thống sẽ chốt dữ liệu điểm danh.',
-      confirmText: 'Kết thúc buổi học',
-      cancelText: 'Tiếp tục dạy',
-      variant: 'danger',
-    });
-    if (!ok) return;
-
+  const confirmAndEndMeeting = async () => {
     setEnding(true);
     try {
       const updated = await endMeeting(meeting.meetingId);
       stopAllLocalMedia();
       closeAllPeerConnections();
+      setEndConfirmOpen(false);
+      exitExpand();
       toast.success('Đã kết thúc buổi học và lưu nhật ký điểm danh.');
       onMeetingEnded?.(updated);
     } catch (err) {
@@ -642,301 +1257,971 @@ export function MeetingRoom({
     }
   };
 
-  const safeJitsiRoom = useMemo(() => {
-    const cleaned = (meeting.roomCode || meeting.meetingId).replace(/[^A-Za-z0-9_-]/g, '');
-    return `UnivLMS-${cleaned || 'Classroom'}`;
-  }, [meeting.meetingId, meeting.roomCode]);
+  const handleEnd = () => {
+    setEndConfirmOpen(true);
+  };
+
+  const handleCopyInvite = async () => {
+    const url = `${window.location.origin}/classroom?courseId=${encodeURIComponent(courseId)}`;
+    const text = `Tham gia lớp "${meeting.title}"\nMã phòng: ${meeting.roomCode}\nLiên kết: ${url}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedInvite(true);
+      toast.success('Đã sao chép thông tin mời vào lớp.');
+      window.setTimeout(() => setCopiedInvite(false), 2000);
+    } catch {
+      toast.info(`Mã phòng: ${meeting.roomCode}`);
+    }
+  };
 
   const sortedParticipants = useMemo(() => {
     return [...participants].sort((a, b) => {
       if (a.handRaised !== b.handRaised) return a.handRaised ? -1 : 1;
+      if (a.mediaState.screen !== b.mediaState.screen) return a.mediaState.screen ? -1 : 1;
       if (a.peerId === selfPeerId) return -1;
       if (b.peerId === selfPeerId) return 1;
       return a.userName.localeCompare(b.userName, 'vi');
     });
   }, [participants, selfPeerId]);
 
+  const filteredParticipants = useMemo(() => {
+    const q = participantSearch.trim().toLowerCase();
+    if (!q) return sortedParticipants;
+    return sortedParticipants.filter(
+      (p) =>
+        p.userName.toLowerCase().includes(q) ||
+        formatRole(p.userRole).toLowerCase().includes(q)
+    );
+  }, [participantSearch, sortedParticipants]);
+
   const raisedCount = useMemo(
     () => participants.filter((p) => p.handRaised).length,
     [participants]
   );
 
+  // Determine active spotlight participant if spotlight layout or pin selected
+  const effectiveSpotlightParticipant = useMemo(() => {
+    if (sortedParticipants.length === 0) return null;
+    if (spotlightPeerId) {
+      const pinned = sortedParticipants.find((p) => p.peerId === spotlightPeerId);
+      if (pinned) return pinned;
+    }
+    const sharer = sortedParticipants.find((p) => p.mediaState.screen);
+    if (sharer) return sharer;
+    const host = sortedParticipants.find((p) => p.userId === meeting.hostId);
+    return host || sortedParticipants[0];
+  }, [meeting.hostId, sortedParticipants, spotlightPeerId]);
+
+  // Adaptive Gallery grid classes based on participant count so tiles fill stage completely
+  const galleryGridClass = useMemo(() => {
+    const n = sortedParticipants.length;
+    if (n <= 1) return 'grid-cols-1 grid-rows-1';
+    if (n === 2) return 'grid-cols-1 md:grid-cols-2 grid-rows-2 md:grid-rows-1';
+    if (n <= 4) return 'grid-cols-2 grid-rows-2';
+    if (n <= 6) return 'grid-cols-2 lg:grid-cols-3 grid-rows-3 lg:grid-rows-2';
+    if (n <= 9) return 'grid-cols-3 grid-rows-3';
+    return 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4 auto-rows-fr';
+  }, [sortedParticipants.length]);
+
+  const openDrawer = (tab: Exclude<DrawerTab, null>) => {
+    setDrawerTab((cur) => {
+      const next = cur === tab ? null : tab;
+      if (next === 'chat') setUnreadChatCount(0);
+      return next;
+    });
+  };
+
+  const myPollVoteIndex =
+    activePoll && myPollVote && myPollVote.pollId === activePoll.pollId
+      ? myPollVote.optionIndex
+      : null;
+
   return (
     <div
-      className="flex flex-col gap-4"
+      ref={meetingRootRef}
       data-stage-visible={isVisible ? 'true' : 'false'}
+      data-room-wide={isWide ? 'true' : 'false'}
+      className={
+        isExpanded
+          ? 'fixed inset-0 z-50 flex h-screen w-screen flex-col bg-[#0b1120] text-slate-100 overflow-hidden'
+          : isFullscreen
+            ? 'flex h-screen w-screen flex-col bg-[#0b1120] text-slate-100 overflow-hidden'
+            : 'flex flex-col rounded-2xl border border-slate-800 bg-[#0b1120] text-slate-100 shadow-lg overflow-hidden h-[calc(100vh-11rem)] min-h-[620px]'
+      }
     >
-      {/* Top Room Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-4 py-3 shadow-sm">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="danger" dot>
-              <span className="inline-flex items-center gap-1">
-                <Radio className="w-3 h-3" />
-                Đang phát trực tiếp
-              </span>
-            </Badge>
-            <span className="text-xs font-mono text-[var(--lms-text-secondary)]">
-              Mã phòng: {meeting.roomCode}
+      {/* 1. Slim MS Teams Top Bar */}
+      <header className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800/90 bg-slate-950/95 px-3 py-1.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600/20 border border-red-500/40 px-2.5 py-0.5 text-[11px] font-semibold text-red-300">
+            <Radio className="w-3 h-3 animate-pulse text-red-400" />
+            LIVE · <span className="tabular-nums">{formatElapsedSeconds(elapsedSeconds)}</span>
+          </span>
+
+          {isRecording && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2 py-0.5 text-[11px] font-bold text-white animate-pulse">
+              <Circle className="w-2.5 h-2.5 fill-white" />
+              REC {formatElapsedSeconds(recordingSeconds)}
             </span>
-            <Badge variant={wsStatus === 'open' ? 'success' : 'warning'}>
-              <span className="inline-flex items-center gap-1">
-                {wsStatus === 'open' ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-                {wsStatus === 'open' ? 'WebRTC + WS sẵn sàng' : 'Đang đồng bộ kết nối'}
-              </span>
-            </Badge>
-          </div>
-          <h2 className="mt-1 text-lg font-bold text-[var(--lms-text)] truncate">
+          )}
+
+          <h2 className="truncate text-sm font-bold text-white max-w-[220px] sm:max-w-xs md:max-w-md">
             {meeting.title}
           </h2>
-          <p className="text-xs text-[var(--lms-text-secondary)]">
-            Chủ trì: {meeting.hostName || 'Giảng viên'} | Thành viên hiện diện: {Math.max(participants.length, meeting.participantCount)}
-          </p>
+
+          <button
+            type="button"
+            onClick={() => void handleCopyInvite()}
+            title="Sao chép mã phòng & liên kết mời"
+            className="hidden sm:inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] font-mono text-slate-300 hover:border-indigo-500 hover:text-white cursor-pointer"
+          >
+            {copiedInvite ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+            {meeting.roomCode}
+          </button>
+
+          <span
+            className={`hidden md:inline-flex items-center gap-1 text-[11px] ${
+              wsStatus === 'open' ? 'text-emerald-400' : 'text-amber-400'
+            }`}
+            title={wsStatus === 'open' ? 'Kết nối WebRTC + WebSocket ổn định' : 'Đang đồng bộ kết nối'}
+          >
+            {wsStatus === 'open' ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+            {wsStatus === 'open' ? 'Sẵn sàng' : 'Đang nối'}
+          </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowJitsiBackup((prev) => !prev)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface-muted)] px-3 py-2 text-xs font-medium text-[var(--lms-text)] hover:opacity-90 cursor-pointer"
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* Layout Switcher */}
+          <div
+            className="inline-flex items-center rounded-lg border border-slate-800 bg-slate-900 p-0.5 text-xs"
+            role="group"
+            aria-label="Chế độ hiển thị sân khấu"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
-            {showJitsiBackup ? 'Ẩn kênh Jitsi dự phòng' : 'Mở Jitsi dự phòng'}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void handleLeave()}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-xs font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Rời phòng
-          </button>
-
-          {canEndMeeting && (
             <button
               type="button"
-              disabled={ending}
-              onClick={() => void handleEnd()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+              onClick={() => {
+                setSpotlightPeerId(null);
+                setStageLayout('gallery');
+              }}
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium cursor-pointer transition ${
+                stageLayout === 'gallery'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+              title="Xem dạng lưới tự động"
             >
-              <PhoneOff className="w-3.5 h-3.5" />
-              {ending ? 'Đang kết thúc...' : 'Kết thúc buổi học'}
+              <Grid className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Lưới</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setStageLayout('spotlight')}
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium cursor-pointer transition ${
+                stageLayout === 'spotlight'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+              title="Phóng to người thuyết trình / màn hình chia sẻ"
+            >
+              <LayoutPanelLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Tiêu điểm</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setStageLayout('whiteboard')}
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium cursor-pointer transition ${
+                stageLayout === 'whiteboard'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+              title="Mở bảng vẽ cộng tác ngay trong phòng (W)"
+            >
+              <PenTool className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Bảng trắng</span>
+            </button>
+          </div>
+
+          {stageLayout !== 'gallery' && sortedParticipants.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowFilmstrip((v) => !v)}
+              className={`hidden md:inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium cursor-pointer ${
+                showFilmstrip
+                  ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  : 'border-indigo-500/60 bg-indigo-600/20 text-indigo-200'
+              }`}
+              title="Ẩn/hiện dải video thành viên"
+            >
+              {showFilmstrip ? 'Ẩn dải video' : 'Hiện dải video'}
             </button>
           )}
+
+          <ExpandFullscreenControls
+            darkSurface
+            isExpanded={isExpanded}
+            isFullscreen={isFullscreen}
+            onToggleExpand={toggleExpand}
+            onToggleFullscreen={() => void toggleFullscreen()}
+            expandLabel="Tràn cửa sổ"
+            collapseLabel="Thu khung"
+          />
+
+          <button
+            type="button"
+            onClick={() => setDrawerTab((cur) => (cur ? null : 'participants'))}
+            title={drawerTab ? 'Ẩn thanh bên để mở rộng sân khấu' : 'Mở thanh bên'}
+            aria-label="Đóng mở thanh bên phòng học"
+            className="inline-flex items-center rounded-lg border border-slate-700 bg-slate-800 p-1.5 text-slate-200 hover:bg-slate-700 cursor-pointer"
+          >
+            {drawerTab ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Main Interactive Stage + Drawer */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        <div className="xl:col-span-8 flex flex-col gap-3">
-          <div className="rounded-xl border border-[var(--lms-border)] bg-slate-950 p-3 shadow-sm">
-            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
-              <span>{deviceNotice}</span>
-              {raisedCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-0.5 font-medium text-amber-300">
-                  <Hand className="w-3.5 h-3.5" />
-                  {raisedCount} người đang giơ tay
-                </span>
-              )}
-            </div>
-
-            {showJitsiBackup ? (
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs text-slate-200">
-                  <span>Kênh dự phòng Jitsi Meet (chỉ dùng khi tường lửa chặn WebRTC trực tiếp)</span>
-                  <a
-                    href={`https://meet.jit.si/${safeJitsiRoom}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 font-semibold text-blue-400 underline"
-                  >
-                    Mở trong thẻ mới
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-                <iframe
-                  title={`Jitsi Backup - ${meeting.title}`}
-                  src={`https://meet.jit.si/${safeJitsiRoom}#config.prejoinPageEnabled=false`}
-                  allow="camera; microphone; fullscreen; display-capture; autoplay"
-                  className="h-[420px] w-full rounded-lg border border-slate-800 bg-black"
+      {/* 2. Center Workspace: Adaptive Stage + Optional Right Drawer */}
+      <div className="relative flex flex-1 min-h-0 overflow-hidden">
+        {/* Main Stage */}
+        <div className="relative flex flex-1 min-w-0 min-h-0 flex-col overflow-hidden p-2 md:p-3">
+          {stageLayout === 'whiteboard' ? (
+            <div className="flex flex-1 min-h-0 flex-col lg:flex-row gap-2.5 overflow-hidden">
+              <div className="flex flex-1 min-w-0 min-h-0 rounded-xl overflow-hidden border border-slate-700">
+                <WhiteboardCanvas
+                  courseId={courseId}
+                  meetingId={meeting.meetingId}
+                  isVisible={isVisible}
+                  fillParent
+                  externalOpEvent={inlineWbOpEvent}
+                  externalSnapshotJson={inlineWbSnapshotJson}
+                  onSendOp={(op) => sendJson({ type: 'whiteboard.op', op })}
                 />
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {sortedParticipants.length === 0 ? (
-                  <div className="col-span-full flex flex-col items-center justify-center rounded-xl border border-slate-800 bg-slate-900/70 py-14 text-center text-slate-300">
-                    <Video className="w-8 h-8 mb-2 text-blue-400" />
-                    <p className="text-sm font-medium">Đang kết nối vào sân khấu lớp học...</p>
-                  </div>
-                ) : (
-                  sortedParticipants.map((participant) => {
+              {showFilmstrip && sortedParticipants.length > 0 && (
+                <div className="flex lg:w-56 shrink-0 flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto">
+                  {sortedParticipants.map((participant) => {
                     const isSelf = participant.peerId === selfPeerId;
-                    const stream = isSelf
-                      ? localStream
-                      : remoteStreams[participant.peerId] ?? null;
                     return (
                       <StageVideoTile
                         key={participant.peerId}
                         participant={participant}
-                        stream={stream}
+                        stream={isSelf ? localStream : remoteStreams[participant.peerId] ?? null}
                         isSelf={isSelf}
+                        isThumbStrip
+                        isSpeaking={speakingPeerIds.has(participant.peerId)}
+                        mirrorSelf={mirrorSelfVideo}
+                        audioOutputId={audioOutputId}
+                        recentEmoji={tileEmojis[participant.peerId] ?? null}
+                        canModerate={canModerate}
+                        onMutePeer={() =>
+                          sendJson({ type: 'moderation.mute_peer', targetPeerId: participant.peerId })
+                        }
+                        onToggleSpotlight={() => {
+                          setSpotlightPeerId(participant.peerId);
+                          setStageLayout('spotlight');
+                        }}
                       />
                     );
-                  })
+                  })}
+                </div>
+              )}
+            </div>
+          ) : stageLayout === 'spotlight' && effectiveSpotlightParticipant ? (
+            <div className="flex flex-1 min-h-0 flex-col lg:flex-row gap-2.5 overflow-hidden">
+              <div className="flex-1 min-w-0 min-h-0">
+                <StageVideoTile
+                  participant={effectiveSpotlightParticipant}
+                  stream={
+                    effectiveSpotlightParticipant.peerId === selfPeerId
+                      ? localStream
+                      : remoteStreams[effectiveSpotlightParticipant.peerId] ?? null
+                  }
+                  isSelf={effectiveSpotlightParticipant.peerId === selfPeerId}
+                  isSpotlight
+                  isSpeaking={speakingPeerIds.has(effectiveSpotlightParticipant.peerId)}
+                  mirrorSelf={mirrorSelfVideo}
+                  audioOutputId={audioOutputId}
+                  recentEmoji={tileEmojis[effectiveSpotlightParticipant.peerId] ?? null}
+                  canModerate={canModerate}
+                  onMutePeer={() =>
+                    sendJson({
+                      type: 'moderation.mute_peer',
+                      targetPeerId: effectiveSpotlightParticipant.peerId,
+                    })
+                  }
+                  onToggleSpotlight={() => {
+                    setSpotlightPeerId(null);
+                    setStageLayout('gallery');
+                  }}
+                />
+              </div>
+
+              {showFilmstrip && sortedParticipants.length > 1 && (
+                <div className="flex lg:w-56 shrink-0 flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto">
+                  {sortedParticipants
+                    .filter((p) => p.peerId !== effectiveSpotlightParticipant.peerId)
+                    .map((participant) => {
+                      const isSelf = participant.peerId === selfPeerId;
+                      return (
+                        <StageVideoTile
+                          key={participant.peerId}
+                          participant={participant}
+                          stream={isSelf ? localStream : remoteStreams[participant.peerId] ?? null}
+                          isSelf={isSelf}
+                          isThumbStrip
+                          isSpeaking={speakingPeerIds.has(participant.peerId)}
+                          mirrorSelf={mirrorSelfVideo}
+                          audioOutputId={audioOutputId}
+                          recentEmoji={tileEmojis[participant.peerId] ?? null}
+                          canModerate={canModerate}
+                          onMutePeer={() =>
+                            sendJson({
+                              type: 'moderation.mute_peer',
+                              targetPeerId: participant.peerId,
+                            })
+                          }
+                          onToggleSpotlight={() => setSpotlightPeerId(participant.peerId)}
+                        />
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className={`grid flex-1 min-h-0 gap-2.5 overflow-y-auto ${galleryGridClass}`}>
+              {sortedParticipants.length === 0 ? (
+                <div className="col-span-full flex h-full flex-col items-center justify-center rounded-xl border border-slate-800 bg-slate-900/70 p-8 text-center text-slate-300">
+                  <Video className="w-10 h-10 mb-3 text-indigo-400" />
+                  <p className="text-sm font-semibold">Đang đồng bộ sân khấu lớp học WebRTC...</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Đang điểm danh tự động. Bật micro, camera hoặc mở bảng trắng bất kỳ lúc nào.
+                  </p>
+                </div>
+              ) : (
+                sortedParticipants.map((participant) => {
+                  const isSelf = participant.peerId === selfPeerId;
+                  return (
+                    <StageVideoTile
+                      key={participant.peerId}
+                      participant={participant}
+                      stream={isSelf ? localStream : remoteStreams[participant.peerId] ?? null}
+                      isSelf={isSelf}
+                      isSpeaking={speakingPeerIds.has(participant.peerId)}
+                      mirrorSelf={mirrorSelfVideo}
+                      audioOutputId={audioOutputId}
+                      recentEmoji={tileEmojis[participant.peerId] ?? null}
+                      canModerate={canModerate}
+                      onMutePeer={() =>
+                        sendJson({
+                          type: 'moderation.mute_peer',
+                          targetPeerId: participant.peerId,
+                        })
+                      }
+                      onToggleSpotlight={() => {
+                        setSpotlightPeerId(participant.peerId);
+                        setStageLayout('spotlight');
+                      }}
+                    />
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* Floating Reactions Stream */}
+          {reactions.length > 0 && (
+            <div className="pointer-events-none absolute bottom-16 left-4 z-20 flex flex-col gap-1.5">
+              {reactions.map((rx) => (
+                <div
+                  key={rx.id}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/85 border border-slate-700/70 px-3 py-1 text-xs text-white shadow-lg animate-bounce"
+                >
+                  <span className="text-base">{rx.emoji}</span>
+                  <span className="font-medium">{rx.userName}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Live Captions Overlay */}
+          {(captionsEnabled || captionLines.length > 0) && (
+            <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 w-[92%] max-w-2xl -translate-x-1/2 rounded-xl bg-black/80 px-4 py-2 text-center text-xs md:text-sm text-white shadow-xl border border-slate-700/60">
+              {captionLines.length === 0 ? (
+                <span className="text-slate-400">Đang lắng nghe giọng nói (Phụ đề trực tiếp)...</span>
+              ) : (
+                captionLines.map((line) => (
+                  <p key={line.id} className="leading-relaxed">
+                    <span className="font-semibold text-indigo-300">{line.userName}: </span>
+                    <span>{line.text}</span>
+                  </p>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Collapsible Right Drawer (Works cleanly inside Normal, Expanded, and Native Fullscreen!) */}
+        {drawerTab && (
+          <aside className="flex w-full sm:w-80 xl:w-96 shrink-0 flex-col border-l border-slate-800 bg-slate-900 text-slate-100 h-full min-h-0 overflow-hidden">
+            {/* Drawer Inner Tabs */}
+            <div className="flex shrink-0 items-center border-b border-slate-800 bg-slate-950/70 px-2 pt-2 gap-1 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setDrawerTab('participants')}
+                className={`flex-1 inline-flex items-center justify-center gap-1 rounded-t-lg px-2 py-2 font-semibold cursor-pointer ${
+                  drawerTab === 'participants'
+                    ? 'bg-slate-900 text-white border-t border-x border-slate-800'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>({participants.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUnreadChatCount(0);
+                  setDrawerTab('chat');
+                }}
+                className={`flex-1 inline-flex items-center justify-center gap-1 rounded-t-lg px-2 py-2 font-semibold cursor-pointer ${
+                  drawerTab === 'chat'
+                    ? 'bg-slate-900 text-white border-t border-x border-slate-800'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Chat</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDrawerTab('polls')}
+                className={`flex-1 inline-flex items-center justify-center gap-1 rounded-t-lg px-2 py-2 font-semibold cursor-pointer ${
+                  drawerTab === 'polls'
+                    ? 'bg-slate-900 text-white border-t border-x border-slate-800'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <BarChart2 className="w-3.5 h-3.5" />
+                <span>Bình chọn</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDrawerTab('info')}
+                className={`flex-1 inline-flex items-center justify-center gap-1 rounded-t-lg px-2 py-2 font-semibold cursor-pointer ${
+                  drawerTab === 'info'
+                    ? 'bg-slate-900 text-white border-t border-x border-slate-800'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>Thông số</span>
+              </button>
+            </div>
+
+            {drawerTab === 'participants' && (
+              <div className="flex flex-1 min-h-0 flex-col p-3 gap-2.5 overflow-hidden">
+                <div className="relative shrink-0">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={participantSearch}
+                    onChange={(e) => setParticipantSearch(e.target.value)}
+                    placeholder="Tìm tên hoặc vai trò thành viên..."
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                {canModerate && participants.length > 1 && (
+                  <div className="flex shrink-0 flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sendJson({ type: 'moderation.mute_all' });
+                        toast.info('Đã gửi lệnh tắt micro toàn bộ thành viên.');
+                      }}
+                      className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-[11px] font-medium text-slate-200 hover:bg-slate-700 cursor-pointer"
+                    >
+                      <VolumeX className="w-3.5 h-3.5 text-red-400" />
+                      Tắt mic tất cả
+                    </button>
+                    {raisedCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => sendJson({ type: 'moderation.lower_all_hands' })}
+                        className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] font-medium text-amber-300 hover:bg-amber-500/20 cursor-pointer"
+                      >
+                        <Hand className="w-3.5 h-3.5" />
+                        Hạ tất cả tay ({raisedCount})
+                      </button>
+                    )}
+                  </div>
                 )}
+
+                <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
+                  {filteredParticipants.length === 0 ? (
+                    <p className="py-8 text-center text-xs text-slate-400">
+                      Không tìm thấy thành viên phù hợp.
+                    </p>
+                  ) : (
+                    filteredParticipants.map((p) => {
+                      const isSelf = p.peerId === selfPeerId;
+                      return (
+                        <div
+                          key={p.peerId}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate text-xs font-semibold text-white">
+                                {p.userName}
+                              </span>
+                              {isSelf && <Badge variant="primary">Bạn</Badge>}
+                            </div>
+                            <span className="text-[11px] text-slate-400">
+                              {formatRole(p.userRole)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {p.handRaised && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                                <Hand className="w-3 h-3" />
+                              </span>
+                            )}
+                            {canModerate && !isSelf && p.mediaState.audio && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  sendJson({ type: 'moderation.mute_peer', targetPeerId: p.peerId })
+                                }
+                                title={`Tắt micro của ${p.userName}`}
+                                className="rounded p-1 text-red-400 hover:bg-slate-700 cursor-pointer"
+                              >
+                                <VolumeX className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {p.mediaState.audio ? (
+                              <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <MicOff className="w-3.5 h-3.5 text-slate-500" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
 
-            {/* Media & Interaction Bar */}
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 border-t border-slate-800 pt-3">
-              <button
-                type="button"
-                onClick={() => void toggleMicrophone()}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-medium cursor-pointer ${
-                  mediaState.audio
-                    ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                    : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-                }`}
-              >
-                {mediaState.audio ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-                {mediaState.audio ? 'Tắt Micro' : 'Bật Micro'}
-              </button>
+            {drawerTab === 'chat' && (
+              <div className="flex flex-1 min-h-0 flex-col bg-[var(--lms-surface)] text-[var(--lms-text)]">
+                <ChannelChat
+                  courseId={courseId}
+                  meetingId={meeting.meetingId}
+                  fillParent
+                  hideHeader
+                  enableOwnWebSocket={false}
+                  incomingMessages={meetingChatMessages}
+                  onSendViaMeetingWs={(payload) =>
+                    sendJson({ type: 'chat.send', ...payload })
+                  }
+                  onTypingViaMeetingWs={(isTyping) =>
+                    sendJson({ type: 'typing', isTyping })
+                  }
+                  typingUsersFromMeeting={typingUsers}
+                />
+              </div>
+            )}
 
-              <button
-                type="button"
-                onClick={() => void toggleCamera()}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-medium cursor-pointer ${
-                  mediaState.video
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-                }`}
-              >
-                {mediaState.video ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
-                {mediaState.video ? 'Tắt Camera' : 'Bật Camera'}
-              </button>
+            {drawerTab === 'polls' && (
+              <RoomPollsPanel
+                poll={activePoll}
+                canManage={canModerate}
+                myVoteIndex={myPollVoteIndex}
+                onCreatePoll={(question, options) =>
+                  sendJson({ type: 'poll.create', question, options })
+                }
+                onVote={(pollId, optionIndex) => {
+                  setMyPollVote({ pollId, optionIndex });
+                  sendJson({ type: 'poll.vote', pollId, optionIndex });
+                }}
+                onClosePoll={(pollId) => sendJson({ type: 'poll.close', pollId })}
+              />
+            )}
 
-              <button
-                type="button"
-                onClick={() => void toggleScreenShare()}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-medium cursor-pointer ${
-                  mediaState.screen
-                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                    : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-                }`}
-              >
-                <MonitorUp className="w-4 h-4" />
-                {mediaState.screen ? 'Dừng chia sẻ' : 'Chia sẻ màn hình'}
-              </button>
+            {drawerTab === 'info' && (
+              <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3 text-xs">
+                <div className="rounded-xl border border-slate-800 bg-slate-800/60 p-3 space-y-2">
+                  <div className="flex items-center gap-1.5 font-semibold text-white">
+                    <Info className="w-3.5 h-3.5 text-indigo-400" />
+                    Thông tin phòng học
+                  </div>
+                  <p className="text-slate-300">Chủ trì: {meeting.hostName || 'Giảng viên'}</p>
+                  <p className="text-slate-300 font-mono">Mã phòng: {meeting.roomCode}</p>
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyInvite()}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 font-semibold text-white hover:bg-indigo-700 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    Sao chép thông tin mời vào lớp
+                  </button>
+                </div>
 
+                <div className="rounded-xl border border-slate-800 bg-slate-800/60 p-3 space-y-2">
+                  <div className="flex items-center gap-1.5 font-semibold text-white">
+                    <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                    Thống kê kết nối WebRTC ({peerStats.length} peer)
+                  </div>
+                  {peerStats.length === 0 ? (
+                    <p className="text-slate-400">
+                      Chưa có kết nối P2P nào khác ngoài bạn. Các chỉ số độ trễ sẽ hiển thị khi có thành viên khác tham gia.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {peerStats.map((st) => (
+                        <div
+                          key={st.peerId}
+                          className="flex items-center justify-between rounded-lg bg-slate-900 px-2.5 py-1.5"
+                        >
+                          <span className="truncate font-medium text-slate-200">{st.userName}</span>
+                          <span className="shrink-0 tabular-nums text-[11px] text-slate-400">
+                            {st.connectionState} · {st.rttMs !== null ? `${st.rttMs} ms` : '—'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-800/60 p-3 space-y-1.5">
+                  <div className="font-semibold text-white mb-1">Phím tắt nhanh</div>
+                  <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-300">
+                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">M</kbd> Micro</span>
+                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">V</kbd> Camera</span>
+                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">S</kbd> Chia sẻ màn hình</span>
+                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">H</kbd> Giơ tay</span>
+                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">W</kbd> Bảng trắng</span>
+                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">C</kbd> Trò chuyện</span>
+                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">F</kbd> Tràn cửa sổ</span>
+                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">Space</kbd> Nhấn để nói</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </aside>
+        )}
+      </div>
+
+      {/* 3. MS Teams Bottom Control Dock */}
+      <footer className="relative z-30 flex min-h-14 shrink-0 flex-wrap lg:flex-nowrap items-center justify-between gap-2 border-t border-slate-800/90 bg-slate-950/95 px-3 md:px-4 py-2">
+        {/* Left hint */}
+        <div className="hidden 2xl:flex shrink-0 items-center gap-2 text-[11px] text-slate-400">
+          {pushToTalkActive ? (
+            <span className="rounded-full bg-emerald-500/20 px-2.5 py-1 font-semibold text-emerald-300">
+              Đang giữ Space để nói...
+            </span>
+          ) : (
+            <span>
+              Giữ <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-200">Space</kbd> nói nhanh · {videoQuality}
+            </span>
+          )}
+        </div>
+
+        {/* Center primary call dock */}
+        <div className="flex flex-wrap items-center justify-center gap-1.5 mx-auto">
+          <button
+            type="button"
+            onClick={() => void toggleMicrophone()}
+            title="Bật / Tắt Micro (M)"
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
+              mediaState.audio
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+            }`}
+          >
+            {mediaState.audio ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+            <span className="hidden sm:inline">{mediaState.audio ? 'Tắt Mic' : 'Bật Mic'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void toggleCamera()}
+            title="Bật / Tắt Camera (V)"
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
+              mediaState.video
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+            }`}
+          >
+            {mediaState.video ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
+            <span className="hidden sm:inline">{mediaState.video ? 'Tắt Cam' : 'Bật Cam'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void toggleScreenShare()}
+            title="Chia sẻ màn hình (S)"
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
+              mediaState.screen
+                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+            }`}
+          >
+            <MonitorUp className="w-4 h-4" />
+            <span className="hidden md:inline">
+              {mediaState.screen ? 'Dừng chia sẻ' : 'Chia sẻ'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleRaiseHand}
+            title="Giơ tay phát biểu (H)"
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
+              handRaised
+                ? 'bg-amber-400 text-slate-950 hover:bg-amber-300'
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+            }`}
+          >
+            <Hand className="w-4 h-4" />
+            <span className="hidden md:inline">{handRaised ? 'Hạ tay' : 'Giơ tay'}</span>
+          </button>
+
+          {/* Reactions Popover */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowReactionPicker((v) => !v)}
+              title="Thả biểu cảm"
+              aria-label="Thả biểu cảm"
+              className={`inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
+                showReactionPicker
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+              }`}
+            >
+              <Smile className="w-4 h-4" />
+            </button>
+            {showReactionPicker && (
+              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1.5 shadow-2xl">
+                {REACTION_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => sendReaction(emoji)}
+                    className="rounded-full p-1 text-lg hover:scale-125 hover:bg-slate-800 transition cursor-pointer"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleLiveCaptions}
+            title="Bật/tắt phụ đề trực tiếp"
+            className={`inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
+              captionsEnabled
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+            }`}
+          >
+            <Captions className="w-4 h-4" />
+            <span className="hidden xl:inline">Phụ đề</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStageLayout((cur) => (cur === 'whiteboard' ? 'gallery' : 'whiteboard'))}
+            title="Bảng vẽ cộng tác trong phòng (W)"
+            className={`inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
+              stageLayout === 'whiteboard'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+            }`}
+          >
+            <PenTool className="w-4 h-4" />
+            <span className="hidden xl:inline">Bảng vẽ</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void toggleLocalRecording()}
+            title={isRecording ? 'Dừng và tải video ghi hình' : 'Ghi hình buổi học cục bộ (.webm)'}
+            className={`inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
+              isRecording
+                ? 'bg-rose-600 text-white hover:bg-rose-700'
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+            }`}
+          >
+            {isRecording ? <Square className="w-3.5 h-3.5 fill-white" /> : <Circle className="w-3.5 h-3.5 text-rose-400" />}
+            <span className="hidden xl:inline">{isRecording ? 'Dừng ghi' : 'Ghi hình'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            title="Cài đặt Micro, Camera, Loa & Nền ảo"
+            aria-label="Cài đặt thiết bị và nền ảo"
+            className="inline-flex items-center gap-1 rounded-xl bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 cursor-pointer"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+
+          {/* Drawer Toggles inside dock so accessible in Fullscreen */}
+          <span className="mx-0.5 h-5 w-px bg-slate-800 hidden sm:inline-block" aria-hidden="true" />
+
+          <button
+            type="button"
+            onClick={() => openDrawer('participants')}
+            title="Thành viên & Điều phối (P)"
+            className={`relative inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
+              drawerTab === 'participants'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>{participants.length}</span>
+            {raisedCount > 0 && (
+              <span className="ml-0.5 rounded-full bg-amber-400 px-1.5 text-[10px] font-bold text-slate-950">
+                {raisedCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openDrawer('chat')}
+            title="Trò chuyện phòng (C)"
+            className={`relative inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
+              drawerTab === 'chat'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            {unreadChatCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                {unreadChatCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openDrawer('polls')}
+            title="Bình chọn nhanh"
+            aria-label="Bình chọn nhanh"
+            className={`relative inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
+              drawerTab === 'polls'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+            }`}
+          >
+            <BarChart2 className="w-4 h-4" />
+            {activePoll?.isOpen && (
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowShortcuts((v) => !v);
+              if (drawerTab !== 'info') setDrawerTab('info');
+            }}
+            title="Thông số kết nối & Phím tắt"
+            aria-label="Thông số kết nối và phím tắt"
+            className={`inline-flex items-center rounded-xl px-2.5 py-2 text-xs cursor-pointer ${
+              drawerTab === 'info' || showShortcuts
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            <HelpCircle className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Right Hangup Actions */}
+        <div className="flex shrink-0 items-center gap-1.5 ml-auto lg:ml-0">
+          <button
+            type="button"
+            onClick={() => void handleLeave()}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-700 cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Rời phòng</span>
+          </button>
+
+          {canModerate && (
+            <button
+              type="button"
+              disabled={ending}
+              onClick={handleEnd}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+            >
+              <PhoneOff className="w-3.5 h-3.5" />
+              <span>{ending ? 'Đang kết thúc...' : 'Kết thúc'}</span>
+            </button>
+          )}
+        </div>
+      </footer>
+
+      <DeviceSettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        audioInputId={audioInputId}
+        videoInputId={videoInputId}
+        audioOutputId={audioOutputId}
+        videoQuality={videoQuality}
+        backgroundMode={backgroundMode}
+        mirrorSelfVideo={mirrorSelfVideo}
+        soundAlertsEnabled={soundAlertsEnabled}
+        onApply={(next) => void handleApplyDeviceSettings(next)}
+      />
+
+      {endConfirmOpen && (
+        <div
+          className="fixed inset-0 z-[75] flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Xác nhận kết thúc buổi học"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl space-y-4">
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-white">Kết thúc buổi học trực tuyến?</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Tất cả thành viên sẽ rời phòng và hệ thống sẽ chốt dữ liệu điểm danh tự động.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={toggleRaiseHand}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-medium cursor-pointer ${
-                  handRaised
-                    ? 'bg-amber-500 text-slate-950 font-semibold hover:bg-amber-400'
-                    : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-                }`}
+                disabled={ending}
+                onClick={() => setEndConfirmOpen(false)}
+                className="rounded-lg border border-slate-700 px-3.5 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800 cursor-pointer"
               >
-                <Hand className="w-4 h-4" />
-                {handRaised ? 'Hạ tay' : 'Giơ tay phát biểu'}
+                Tiếp tục dạy
+              </button>
+              <button
+                type="button"
+                disabled={ending}
+                onClick={() => void confirmAndEndMeeting()}
+                className="rounded-lg bg-red-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+              >
+                {ending ? 'Đang kết thúc...' : 'Kết thúc buổi học'}
               </button>
             </div>
           </div>
         </div>
-
-        {/* Right Side Drawer: Live Presence or In-Room Chat */}
-        <aside className="xl:col-span-4 flex flex-col gap-3">
-          <div className="flex rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)] p-1">
-            <button
-              type="button"
-              onClick={() => setSidePanel('participants')}
-              className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold cursor-pointer ${
-                sidePanel === 'participants'
-                  ? 'bg-[var(--lms-surface)] text-[var(--lms-text)] shadow-sm'
-                  : 'text-[var(--lms-text-secondary)] hover:text-[var(--lms-text)]'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              Hiện diện ({participants.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setSidePanel('chat')}
-              className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold cursor-pointer ${
-                sidePanel === 'chat'
-                  ? 'bg-[var(--lms-surface)] text-[var(--lms-text)] shadow-sm'
-                  : 'text-[var(--lms-text-secondary)] hover:text-[var(--lms-text)]'
-              }`}
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              Trò chuyện phòng
-            </button>
-          </div>
-
-          {sidePanel === 'participants' ? (
-            <div className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-3 shadow-sm h-[420px] overflow-y-auto space-y-2">
-              {sortedParticipants.length === 0 ? (
-                <p className="py-8 text-center text-xs text-[var(--lms-text-secondary)]">
-                  Đang cập nhật danh sách thành viên...
-                </p>
-              ) : (
-                sortedParticipants.map((p) => (
-                  <div
-                    key={p.peerId}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface-muted)] px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate text-sm font-medium text-[var(--lms-text)]">
-                          {p.userName}
-                        </span>
-                        {p.peerId === selfPeerId && (
-                          <Badge variant="primary">Bạn</Badge>
-                        )}
-                      </div>
-                      <span className="text-xs text-[var(--lms-text-secondary)]">
-                        {formatRole(p.userRole)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {p.handRaised && (
-                        <Badge variant="warning">
-                          <span className="inline-flex items-center gap-1">
-                            <Hand className="w-3 h-3" />
-                            Giơ tay
-                          </span>
-                        </Badge>
-                      )}
-                      {p.mediaState.audio ? (
-                        <Mic className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                      ) : (
-                        <MicOff className="w-3.5 h-3.5 text-[var(--lms-text-secondary)]" />
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          ) : (
-            <ChannelChat
-              courseId={courseId}
-              meetingId={meeting.meetingId}
-              compact
-              enableOwnWebSocket={false}
-              incomingMessages={meetingChatMessages}
-              onSendViaMeetingWs={(payload) =>
-                sendJson({ type: 'chat.send', ...payload })
-              }
-              onTypingViaMeetingWs={(isTyping) =>
-                sendJson({ type: 'typing', isTyping })
-              }
-              typingUsersFromMeeting={typingUsers}
-            />
-          )}
-        </aside>
-      </div>
+      )}
     </div>
   );
 }

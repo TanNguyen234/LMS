@@ -3,6 +3,7 @@ import { ExternalLink, Play, Plus, Users, Video } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiError } from '../../api/http';
 import { getCourseMeetings, startMeeting } from '../../api/realtime';
+import { useWebSocket } from '../../hooks/useWebSocket';
 import type { Course, Meeting } from '../../types';
 import { formatDateTimeVi } from '../../utils/formatters';
 import { Badge } from '../ui/Badge';
@@ -67,6 +68,16 @@ export const CourseClassroomTab: React.FC<CourseClassroomTabProps> = ({
       active = false;
     };
   }, [course.courseId]);
+
+  useWebSocket({
+    path: course.courseId ? `/ws/courses/${course.courseId}` : null,
+    enabled: Boolean(course.courseId),
+    onMessage: (event) => {
+      if (event?.type === 'meeting.started' || event?.type === 'meeting.ended') {
+        void loadMeetings();
+      }
+    },
+  });
 
   const handleStartMeeting = async (event: React.FormEvent) => {
     event.preventDefault();

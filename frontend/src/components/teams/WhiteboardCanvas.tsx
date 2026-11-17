@@ -18,7 +18,9 @@ import {
   type WhiteboardStroke,
 } from '../../api/realtime';
 import { useAuth } from '../../auth/AuthContext';
+import { useExpandableView } from '../../hooks/useExpandableView';
 import { useConfirm } from '../ui/ConfirmDialog';
+import { ExpandFullscreenControls } from '../ui/ExpandFullscreenControls';
 import { useToast } from '../ui/Toast';
 
 export interface WhiteboardOpEvent {
@@ -32,6 +34,7 @@ export interface WhiteboardCanvasProps {
   courseId: string;
   meetingId?: string;
   isVisible?: boolean;
+  fillParent?: boolean;
   externalOpEvent?: WhiteboardOpEvent | null;
   externalSnapshotJson?: string | null;
   onSendOp?: (op: WhiteboardOp) => boolean;
@@ -136,6 +139,7 @@ export function WhiteboardCanvas({
   courseId,
   meetingId,
   isVisible = true,
+  fillParent = false,
   externalOpEvent = null,
   externalSnapshotJson = null,
   onSendOp,
@@ -150,6 +154,14 @@ export function WhiteboardCanvas({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const {
+    containerRef: boardSectionRef,
+    isExpanded: isBoardExpanded,
+    isFullscreen: isBoardFullscreen,
+    isWide: isBoardWide,
+    toggleExpand: toggleBoardExpand,
+    toggleFullscreen: toggleBoardFullscreen,
+  } = useExpandableView<HTMLElement>();
   const sizeRef = useRef<{ width: number; height: number }>({ width: 800, height: 450 });
   const activeStrokeRef = useRef<WhiteboardStroke | null>(null);
   const lastSeqRef = useRef<number>(-1);
@@ -284,14 +296,14 @@ export function WhiteboardCanvas({
   }, [paint, isVisible]);
 
   useEffect(() => {
-    if (isVisible) {
+    if (isVisible || isBoardWide) {
       const rect = containerRef.current?.getBoundingClientRect();
       if (rect && rect.width > 0 && rect.height > 0) {
         sizeRef.current = { width: rect.width, height: rect.height };
       }
       paint(activeStrokeRef.current);
     }
-  }, [isVisible, strokes, paint]);
+  }, [isVisible, isBoardWide, strokes, paint]);
 
   const persistSnapshotFallback = useCallback(
     async (nextStrokes: WhiteboardStroke[], showFeedback = false) => {
@@ -402,6 +414,9 @@ export function WhiteboardCanvas({
   };
 
   const handleClear = async () => {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => {});
+    }
     const ok = await confirm({
       title: 'Xóa toàn bộ bảng vẽ?',
       message: 'Toàn bộ nét vẽ hiện tại sẽ bị xóa khỏi bảng chung của lớp học.',
@@ -430,7 +445,16 @@ export function WhiteboardCanvas({
 
   return (
     <section
-      className="flex flex-col rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] shadow-sm overflow-hidden"
+      ref={boardSectionRef}
+      className={
+        isBoardExpanded
+          ? 'fixed inset-0 z-50 flex flex-col bg-[var(--lms-surface)] overflow-hidden'
+          : isBoardFullscreen
+            ? 'flex h-full w-full flex-col bg-[var(--lms-surface)] overflow-hidden'
+            : fillParent
+              ? 'flex h-full w-full flex-1 min-h-0 flex-col bg-[var(--lms-surface)] overflow-hidden'
+              : 'flex flex-col rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] shadow-sm overflow-hidden'
+      }
       aria-label="Bảng vẽ vector cộng tác"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-b border-[var(--lms-border)] bg-[var(--lms-surface-muted)]">
@@ -569,12 +593,27 @@ export function WhiteboardCanvas({
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingSnapshot ? 'animate-spin' : ''}`} />
           </button>
+
+          {!fillParent && (
+            <>
+              <span className="mx-0.5 h-5 w-px bg-[var(--lms-border)] hidden sm:inline-block" aria-hidden="true" />
+
+              <ExpandFullscreenControls
+                isExpanded={isBoardExpanded}
+                isFullscreen={isBoardFullscreen}
+                onToggleExpand={toggleBoardExpand}
+                onToggleFullscreen={() => void toggleBoardFullscreen()}
+              />
+            </>
+          )}
         </div>
       </div>
 
       <div
         ref={containerRef}
-        className="relative w-full min-h-[380px] md:min-h-[480px] bg-white select-none"
+        className={`relative w-full bg-white select-none ${
+          isBoardWide || fillParent ? 'flex-1 min-h-0' : 'min-h-[420px] md:min-h-[540px]'
+        }`}
       >
         <canvas
           ref={canvasRef}
