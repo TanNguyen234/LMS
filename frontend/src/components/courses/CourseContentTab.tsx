@@ -15,6 +15,8 @@ import {
   File as FileIcon,
   FileText,
   FolderOpen,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pencil,
   Plus,
   Presentation,
@@ -33,12 +35,14 @@ import {
 import { downloadFile } from '../../api/files';
 import { ApiError } from '../../api/http';
 import { updateLessonProgress } from '../../api/learning';
+import { useExpandableView } from '../../hooks/useExpandableView';
 import type { Lesson, LessonContentType, Module, StoredFile } from '../../types';
 import { LessonAiTutorDrawer } from '../ai/LessonAiTutorDrawer';
 import { FilePreviewModal } from '../files/FilePreviewModal';
 import { Badge } from '../ui/Badge';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { EmptyState } from '../ui/EmptyState';
+import { ExpandFullscreenControls } from '../ui/ExpandFullscreenControls';
 import { SafeHtml } from '../ui/SafeHtml';
 import { useToast } from '../ui/Toast';
 import { LessonFormModal } from './LessonFormModal';
@@ -108,6 +112,15 @@ export const CourseContentTab: React.FC<CourseContentTabProps> = ({
   const [collapsedModules, setCollapsedModules] = useState<Record<string, boolean>>({});
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [togglingProgressId, setTogglingProgressId] = useState<string | null>(null);
+  const [outlineHidden, setOutlineHidden] = useState(false);
+  const {
+    containerRef: lessonContainerRef,
+    isExpanded: isLessonExpanded,
+    isFullscreen: isLessonFullscreen,
+    isWide: isLessonWide,
+    toggleExpand: toggleLessonExpand,
+    toggleFullscreen: toggleLessonFullscreen,
+  } = useExpandableView<HTMLElement>();
 
   const [moduleModalOpen, setModuleModalOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<Module | null>(null);
@@ -285,7 +298,8 @@ export const CourseContentTab: React.FC<CourseContentTabProps> = ({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      <aside className="lg:col-span-4 bg-[var(--lms-surface)] border border-[var(--lms-border)] rounded-2xl overflow-hidden shadow-xs">
+      {!outlineHidden && (
+        <aside className="lg:col-span-4 bg-[var(--lms-surface)] border border-[var(--lms-border)] rounded-2xl overflow-hidden shadow-xs">
         <div className="px-4 py-3.5 border-b border-[var(--lms-border)] flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <FolderOpen className="w-4 h-4 text-[var(--color-primary)]" aria-hidden="true" />
@@ -556,8 +570,18 @@ export const CourseContentTab: React.FC<CourseContentTabProps> = ({
           </div>
         )}
       </aside>
+      )}
 
-      <section className="lg:col-span-8 bg-[var(--lms-surface)] border border-[var(--lms-border)] rounded-2xl p-6 shadow-xs min-h-[420px]">
+      <section
+        ref={lessonContainerRef}
+        className={
+          isLessonExpanded
+            ? 'fixed inset-0 z-50 bg-[var(--lms-surface)] p-6 sm:p-10 overflow-y-auto'
+            : isLessonFullscreen
+              ? 'h-full w-full bg-[var(--lms-surface)] p-6 sm:p-10 overflow-y-auto'
+              : `${outlineHidden ? 'lg:col-span-12' : 'lg:col-span-8'} bg-[var(--lms-surface)] border border-[var(--lms-border)] rounded-2xl p-6 shadow-xs min-h-[420px]`
+        }
+      >
         {!activeLesson ? (
           <EmptyState
             icon={<BookOpen className="w-6 h-6" />}
@@ -594,6 +618,34 @@ export const CourseContentTab: React.FC<CourseContentTabProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {!isLessonWide && (
+                  <button
+                    type="button"
+                    onClick={() => setOutlineHidden((prev) => !prev)}
+                    className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] text-xs font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] transition cursor-pointer"
+                    title={outlineHidden ? 'Hiện danh sách chương & bài giảng' : 'Ẩn đề cương để mở rộng vùng đọc'}
+                  >
+                    {outlineHidden ? (
+                      <>
+                        <PanelLeftOpen className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>Hiện đề cương</span>
+                      </>
+                    ) : (
+                      <>
+                        <PanelLeftClose className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>Ẩn đề cương</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <ExpandFullscreenControls
+                  isExpanded={isLessonExpanded}
+                  isFullscreen={isLessonFullscreen}
+                  onToggleExpand={toggleLessonExpand}
+                  onToggleFullscreen={() => void toggleLessonFullscreen()}
+                />
+
                 <button
                   type="button"
                   onClick={() => setTutorOpen(true)}

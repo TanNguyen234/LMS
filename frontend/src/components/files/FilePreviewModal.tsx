@@ -4,6 +4,8 @@ import {
   ExternalLink,
   FileArchive,
   FileText,
+  Maximize2,
+  Minimize2,
   RotateCcw,
   ZoomIn,
   ZoomOut,
@@ -327,6 +329,7 @@ export function FilePreviewModal({
   const effectiveMime = metadata?.mimeType || mimeType || '';
   const previewKind = detectPreviewKind(effectiveMime, effectiveName);
   const safeExternalUrl = isSafeExternalUrl(externalUrl) ? externalUrl?.trim() || null : null;
+  const [isExpandedModal, setIsExpandedModal] = useState(false);
 
   const csvParsed = useMemo(() => {
     if (previewKind !== 'csv' || textContent === null) return null;
@@ -428,13 +431,13 @@ export function FilePreviewModal({
             data={blobUrl}
             type="application/pdf"
             aria-label={effectiveName}
-            className="h-[70vh] w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]"
+            className={`${isExpandedModal ? 'h-[76vh]' : 'h-[70vh]'} w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]`}
           >
             <iframe
               title={effectiveName}
               src={blobUrl}
               sandbox="allow-same-origin"
-              className="h-[70vh] w-full rounded-xl border-0"
+              className={`${isExpandedModal ? 'h-[76vh]' : 'h-[70vh]'} w-full rounded-xl border-0`}
             />
           </object>
         </div>
@@ -449,7 +452,7 @@ export function FilePreviewModal({
             playsInline
             preload="metadata"
             src={blobUrl}
-            className="max-h-[70vh] w-full"
+            className={`${isExpandedModal ? 'max-h-[76vh]' : 'max-h-[70vh]'} w-full`}
           />
         </div>
       );
@@ -596,10 +599,25 @@ export function FilePreviewModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={handleClose}
+      onClose={() => {
+        setIsExpandedModal(false);
+        handleClose();
+      }}
       title={title || effectiveName}
       subtitle={metadata ? `${formatFileSize(metadata.sizeBytes)} · ${metadata.mimeType}` : undefined}
-      size="xl"
+      size={isExpandedModal ? 'full' : 'xl'}
+      headerActions={
+        <button
+          type="button"
+          onClick={() => setIsExpandedModal((prev) => !prev)}
+          aria-pressed={isExpandedModal}
+          title={isExpandedModal ? 'Thu nhỏ cửa sổ xem' : 'Phóng to cửa sổ xem'}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 text-xs font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] transition-colors cursor-pointer"
+        >
+          {isExpandedModal ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
+          <span className="hidden sm:inline">{isExpandedModal ? 'Thu nhỏ' : 'Phóng to'}</span>
+        </button>
+      }
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-[var(--lms-text-muted)]">

@@ -6,9 +6,10 @@ export interface ModalProps {
   onClose: () => void;
   title: string;
   subtitle?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   children: ReactNode;
   footer?: ReactNode;
+  headerActions?: ReactNode;
   closeOnBackdrop?: boolean;
 }
 
@@ -17,6 +18,7 @@ const SIZE_CLASSES: Record<NonNullable<ModalProps['size']>, string> = {
   md: 'max-w-lg',
   lg: 'max-w-2xl',
   xl: 'max-w-4xl',
+  full: 'max-w-[96vw] h-[92vh]',
 };
 
 export function Modal({
@@ -27,6 +29,7 @@ export function Modal({
   size = 'md',
   children,
   footer,
+  headerActions,
   closeOnBackdrop = true,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
@@ -84,14 +87,17 @@ export function Modal({
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Đóng hộp thoại"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--lms-text-muted)] transition-colors hover:bg-[var(--lms-surface-muted)] hover:text-[var(--lms-text)]"
-        >
-          <X className="h-5 w-5" aria-hidden="true" />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {headerActions}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng hộp thoại"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--lms-text-muted)] transition-colors hover:bg-[var(--lms-surface-muted)] hover:text-[var(--lms-text)]"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
