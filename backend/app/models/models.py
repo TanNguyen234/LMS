@@ -26,8 +26,8 @@ from backend.app.db.base import Base
 
 
 def utcnow() -> datetime:
-    """Return naive UTC datetime compatible with SQL Server DATETIME2(0)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    """Return naive UTC datetime truncated to whole seconds for SQL Server DATETIME2(0)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
 
 
 class UtcDateTimeColumn(TypeDecorator):
@@ -50,8 +50,8 @@ class UtcDateTimeColumn(TypeDecorator):
                 raw = f"{raw[:-1]}+00:00"
             value = datetime.fromisoformat(raw)
         if value.tzinfo is not None:
-            return value.astimezone(timezone.utc).replace(tzinfo=None)
-        return value
+            return value.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0)
+        return value.replace(microsecond=0)
 
     def process_result_value(self, value, dialect):
         if value is None:

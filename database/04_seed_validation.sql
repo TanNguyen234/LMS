@@ -21,13 +21,15 @@ UNION ALL SELECT 'Notifications', COUNT(*) FROM dbo.Notifications;
 
 DECLARE @ExtendedCounts TABLE (TableName VARCHAR(50), [Count] INT);
 INSERT INTO @ExtendedCounts (TableName, [Count])
-SELECT 'Meetings', COUNT(*) FROM dbo.Meetings
+SELECT 'AcademicSemesters', COUNT(*) FROM dbo.AcademicSemesters
+UNION ALL SELECT 'Meetings', COUNT(*) FROM dbo.Meetings
 UNION ALL SELECT 'MeetingLogs', COUNT(*) FROM dbo.MeetingLogs
 UNION ALL SELECT 'CourseMessages', COUNT(*) FROM dbo.CourseMessages
 UNION ALL SELECT 'StoredFiles', COUNT(*) FROM dbo.StoredFiles
 UNION ALL SELECT 'WhiteboardSnapshots', COUNT(*) FROM dbo.WhiteboardSnapshots
 UNION ALL SELECT 'LessonProgress', COUNT(*) FROM dbo.LessonProgress
-UNION ALL SELECT 'AiInteractionLogs', COUNT(*) FROM dbo.AiInteractionLogs;
+UNION ALL SELECT 'AiInteractionLogs', COUNT(*) FROM dbo.AiInteractionLogs
+UNION ALL SELECT 'CourseSessions', COUNT(*) FROM dbo.CourseSessions;
 
 SELECT * FROM @CoreCounts
 UNION ALL
@@ -40,19 +42,20 @@ BEGIN
     SET @Errors = @Errors + 1;
 END
 
--- 2. Verify all 19 tables exist
+-- 2. Verify all 21 tables exist
 SELECT @Count = COUNT(*)
 FROM sys.tables
 WHERE schema_id = SCHEMA_ID('dbo')
   AND name IN (
-      'Users','Courses','Enrollments','Modules','Lessons',
+      'Users','AcademicSemesters','Courses','Enrollments','Modules','Lessons',
       'Assignments','Submissions','Quizzes','QuizQuestions','QuizAttempts',
       'Grades','Notifications','Meetings','MeetingLogs','CourseMessages',
-      'StoredFiles','WhiteboardSnapshots','LessonProgress','AiInteractionLogs'
+      'StoredFiles','WhiteboardSnapshots','LessonProgress','AiInteractionLogs',
+      'CourseSessions'
   );
-IF @Count <> 19
+IF @Count <> 21
 BEGIN
-    RAISERROR('ERROR: Expected 19 tables in dbo schema, found %d!', 16, 1, @Count);
+    RAISERROR('ERROR: Expected 21 tables in dbo schema, found %d!', 16, 1, @Count);
     SET @Errors = @Errors + 1;
 END
 
@@ -103,6 +106,6 @@ BEGIN
 END
 
 IF @Errors = 0
-    PRINT 'SUCCESS: Seed validation passed 19-table schema check, 12 core tables >=10 rows, and referential integrity checks.';
+    PRINT 'SUCCESS: Seed validation passed 21-table schema check, 12 core tables >=10 rows, and referential integrity checks.';
 ELSE
     RAISERROR('VALIDATION FAILED with %d error condition(s).', 16, 1, @Errors);

@@ -58,10 +58,10 @@ try {
         Execute-SqlFile -conn $dbConn -filePath "$PSScriptRoot\01_schema.sql"
         Execute-SqlFile -conn $dbConn -filePath "$PSScriptRoot\02_seed.sql"
     } else {
-        Write-Host "Tables already exist in $Database. Run alembic upgrade head to migrate existing schema." -ForegroundColor Yellow
+        Write-Host "Tables already exist in $Database. If initialized from 01_schema.sql with an empty alembic_version, run 'alembic stamp head'; otherwise run 'alembic upgrade head' to migrate legacy schema." -ForegroundColor Yellow
     }
 
-    Write-Host "`n=== Validating 19-Table Seed Data ==="
+    Write-Host "`n=== Validating 21-Table Seed Data ==="
     $valCmd = $dbConn.CreateCommand()
     $valCmd.CommandText = Get-Content -Path "$PSScriptRoot\04_seed_validation.sql" -Raw -Encoding UTF8
     $reader = $valCmd.ExecuteReader()

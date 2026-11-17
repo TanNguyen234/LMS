@@ -1,11 +1,13 @@
 import hmac
 import json
+import os
 from pathlib import Path
 from typing import Annotated, List, Optional, Sequence
 from urllib.parse import parse_qsl, quote_plus, urlencode
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 DEFAULT_DEMO_JWT_SECRET = "university-lms-super-secret-jwt-key-2026-pm-academic"
 KNOWN_PLACEHOLDER_JWT_SECRETS = {
@@ -29,6 +31,26 @@ def _get_installed_odbc_drivers() -> List[str]:
         return list(pyodbc.drivers())
     except Exception:
         return []
+
+
+def apply_test_database_override(
+    database_url: str,
+    test_database: Optional[str] = None,
+) -> str:
+    """Override the SQL Server database name when LMS_E2E_TEST_DATABASE targets an isolated UniversityLms_Test_* DB."""
+    override = (
+        test_database if test_database is not None else os.environ.get("LMS_E2E_TEST_DATABASE", "")
+    ).strip()
+    if not override or not override.lower().startswith("universitylms_test_") or not database_url:
+        return database_url
+    try:
+        url_obj = make_url(database_url)
+    except Exception:
+        return database_url
+    current_db = (url_obj.database or "").strip()
+    if current_db.lower().startswith("universitylms_test_"):
+        return database_url
+    return url_obj.set(database=override).render_as_string(hide_password=False)
 
 
 def resolve_database_url(
@@ -105,6 +127,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
     ]
 
     # AI Tutor / Grading Assistant (optional; empty triggers local extractive fallback)
@@ -126,7 +150,8 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
     def apply_available_odbc_driver(cls, value: str) -> str:
-        return resolve_database_url(value)
+        overridden = apply_test_database_override(value)
+        return resolve_database_url(overridden)
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

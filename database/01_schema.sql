@@ -384,7 +384,9 @@ CREATE TABLE dbo.CourseSessions (
 );
 GO
 
+CREATE INDEX IX_Courses_CourseCode ON dbo.Courses(CourseCode);
 CREATE INDEX IX_Courses_LecturerId ON dbo.Courses(LecturerId);
+CREATE INDEX IX_Courses_SemesterId ON dbo.Courses(SemesterId);
 CREATE UNIQUE INDEX UQ_Courses_JoinCode ON dbo.Courses(JoinCode) WHERE JoinCode IS NOT NULL;
 CREATE INDEX IX_Enrollments_StudentId ON dbo.Enrollments(StudentId);
 CREATE INDEX IX_Modules_CourseId ON dbo.Modules(CourseId);

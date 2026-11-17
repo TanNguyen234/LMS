@@ -225,14 +225,18 @@ def ensure_demo_seed(db: Session, vault_dir: Optional[str] = None) -> Dict[str, 
     course_settings = {
         COURSE_CS101_ID: ("CS101-DEMO", True, 60, "Khoa học máy tính"),
         COURSE_CS202_ID: ("CS202-OPEN", True, 60, "Khoa học máy tính"),
-        COURSE_AI310_ID: ("OS301-OPEN", True, 60, "Hệ điều hành & Hệ thống"),
+        COURSE_AI310_ID: ("AI310-OPEN", True, 60, "Trí tuệ nhân tạo"),
         COURSE_WEB220_ID: ("WEB220-DEMO", True, 60, "Kỹ thuật phần mềm"),
     }
     for cid, (join_code, allow_self, max_students, category) in course_settings.items():
         course = db.query(Course).filter(Course.CourseId == cid).first()
         if course:
             expected_join = f"{course.CourseCode}-OPEN" if cid == COURSE_AI310_ID and course.CourseCode != "AI310" else join_code
-            if not course.JoinCode or (cid == COURSE_AI310_ID and course.JoinCode == "AI310-OPEN" and course.CourseCode != "AI310"):
+            if not course.JoinCode or (
+                cid == COURSE_AI310_ID
+                and course.JoinCode in {"AI310-OPEN", "OS301-OPEN"}
+                and course.JoinCode != expected_join
+            ):
                 course.JoinCode = expected_join
             course.AllowSelfEnroll = allow_self
             course.MaxStudents = course.MaxStudents or max_students

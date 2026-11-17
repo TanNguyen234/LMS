@@ -16,18 +16,23 @@ INSERT INTO dbo.Users (UserId, Email, FullName, PasswordHash, Role, IsActive, St
 ('00000000-0000-0000-0000-000000000009','student5@university.edu.vn',N'Võ Giang','__SET_ON_FIRST_RUN__','STUDENT',1,'SV005',NULL,DATEADD(day,-80,@Now)),
 ('00000000-0000-0000-0000-000000000010','student6@university.edu.vn',N'Đặng Huy','__SET_ON_FIRST_RUN__','STUDENT',1,'SV006',NULL,DATEADD(day,-80,@Now));
 
+-- ACADEMIC SEMESTERS: 2 baseline terms (current ACTIVE + historical ARCHIVED)
+INSERT INTO dbo.AcademicSemesters (SemesterId, Code, Name, Semester, AcademicYear, StartDate, EndDate, GraceDays, Status, IsCurrent, AutoArchiveOnExpire, CreatedAt) VALUES
+('90000000-0000-0000-0000-000000000001','2026-2027-HK1',N'Học kỳ 1 (2026-2027)','HK1','2026-2027',DATEADD(day,-60,@Now),DATEADD(day,90,@Now),14,'ACTIVE',1,1,@Now),
+('90000000-0000-0000-0000-000000000002','2025-2026-HK2',N'Học kỳ 2 (2025-2026)','HK2','2025-2026',DATEADD(day,-240,@Now),DATEADD(day,-90,@Now),14,'ARCHIVED',0,1,DATEADD(day,-240,@Now));
+
 -- COURSES: 10 rows
-INSERT INTO dbo.Courses (CourseId, CourseCode, Title, Description, LecturerId, Semester, AcademicYear, Credits, Status, JoinCode, AllowSelfEnroll, MaxStudents, Category, CreatedAt) VALUES
-('10000000-0000-0000-0000-000000000001','CS101',N'Nhập môn Lập trình',N'Cơ sở lập trình và tư duy giải thuật.','00000000-0000-0000-0000-000000000002','HK1','2026-2027',3,'ACTIVE','CS101-DEMO',1,60,N'Khoa học máy tính',DATEADD(day,-70,@Now)),
-('10000000-0000-0000-0000-000000000002','CS202',N'Cấu trúc dữ liệu và giải thuật',N'Danh sách, cây, đồ thị và độ phức tạp.','00000000-0000-0000-0000-000000000002','HK1','2026-2027',4,'ACTIVE','CS202-OPEN',1,60,N'Khoa học máy tính',DATEADD(day,-70,@Now)),
-('10000000-0000-0000-0000-000000000003','DB201',N'Cơ sở dữ liệu',N'Mô hình quan hệ, SQL và thiết kế dữ liệu.','00000000-0000-0000-0000-000000000003','HK1','2026-2027',3,'ACTIVE',NULL,0,50,N'Hệ thống thông tin',DATEADD(day,-70,@Now)),
-('10000000-0000-0000-0000-000000000004','SE301',N'Công nghệ phần mềm',N'Quy trình phát triển và đảm bảo chất lượng phần mềm.','00000000-0000-0000-0000-000000000003','HK1','2026-2027',3,'ACTIVE',NULL,0,50,N'Kỹ thuật phần mềm',DATEADD(day,-70,@Now)),
-('10000000-0000-0000-0000-000000000005','NW210',N'Mạng máy tính',N'Kiến trúc mạng, TCP/IP và dịch vụ mạng.','00000000-0000-0000-0000-000000000004','HK1','2026-2027',3,'ACTIVE',NULL,0,45,N'Mạng & Hạ tầng',DATEADD(day,-70,@Now)),
-('10000000-0000-0000-0000-000000000006','AI310',N'Nhập môn Trí tuệ nhân tạo',N'Tìm kiếm, biểu diễn tri thức và machine learning cơ bản.','00000000-0000-0000-0000-000000000004','HK1','2026-2027',3,'ACTIVE','AI310-OPEN',1,60,N'Trí tuệ nhân tạo',DATEADD(day,-70,@Now)),
-('10000000-0000-0000-0000-000000000007','WEB220',N'Phát triển ứng dụng Web',N'Frontend, REST API và triển khai ứng dụng web.','00000000-0000-0000-0000-000000000002','HK1','2026-2027',3,'ACTIVE','WEB220-DEMO',1,60,N'Kỹ thuật phần mềm',DATEADD(day,-70,@Now)),
-('10000000-0000-0000-0000-000000000008','PM401',N'Quản lý dự án CNTT',N'Phạm vi, tiến độ, chi phí, rủi ro và chất lượng.','00000000-0000-0000-0000-000000000003','HK1','2026-2027',3,'ACTIVE',NULL,0,45,N'Quản trị dự án',DATEADD(day,-70,@Now)),
-('10000000-0000-0000-0000-000000000009','SEC330',N'An toàn thông tin',N'Các nguyên lý bảo mật ứng dụng và hệ thống.','00000000-0000-0000-0000-000000000004','HK1','2026-2027',3,'ACTIVE',NULL,0,45,N'An toàn thông tin',DATEADD(day,-70,@Now)),
-('10000000-0000-0000-0000-000000000010','CLOUD350',N'Điện toán đám mây',N'Khái niệm cloud, container và triển khai dịch vụ.','00000000-0000-0000-0000-000000000004','HK1','2026-2027',3,'DRAFT',NULL,0,40,N'Điện toán đám mây',DATEADD(day,-70,@Now));
+INSERT INTO dbo.Courses (CourseId, CourseCode, SectionCode, Title, Description, LecturerId, SemesterId, Semester, AcademicYear, Credits, Status, JoinCode, AllowSelfEnroll, MaxStudents, Category, CreatedAt) VALUES
+('10000000-0000-0000-0000-000000000001','CS101','',N'Nhập môn Lập trình',N'Cơ sở lập trình và tư duy giải thuật.','00000000-0000-0000-0000-000000000002','90000000-0000-0000-0000-000000000001','HK1','2026-2027',3,'ACTIVE','CS101-DEMO',1,60,N'Khoa học máy tính',DATEADD(day,-70,@Now)),
+('10000000-0000-0000-0000-000000000002','CS202','',N'Cấu trúc dữ liệu và giải thuật',N'Danh sách, cây, đồ thị và độ phức tạp.','00000000-0000-0000-0000-000000000002','90000000-0000-0000-0000-000000000001','HK1','2026-2027',4,'ACTIVE','CS202-OPEN',1,60,N'Khoa học máy tính',DATEADD(day,-70,@Now)),
+('10000000-0000-0000-0000-000000000003','DB201','',N'Cơ sở dữ liệu',N'Mô hình quan hệ, SQL và thiết kế dữ liệu.','00000000-0000-0000-0000-000000000003','90000000-0000-0000-0000-000000000001','HK1','2026-2027',3,'ACTIVE',NULL,0,50,N'Hệ thống thông tin',DATEADD(day,-70,@Now)),
+('10000000-0000-0000-0000-000000000004','SE301','',N'Công nghệ phần mềm',N'Quy trình phát triển và đảm bảo chất lượng phần mềm.','00000000-0000-0000-0000-000000000003','90000000-0000-0000-0000-000000000001','HK1','2026-2027',3,'ACTIVE',NULL,0,50,N'Kỹ thuật phần mềm',DATEADD(day,-70,@Now)),
+('10000000-0000-0000-0000-000000000005','NW210','',N'Mạng máy tính',N'Kiến trúc mạng, TCP/IP và dịch vụ mạng.','00000000-0000-0000-0000-000000000004','90000000-0000-0000-0000-000000000001','HK1','2026-2027',3,'ACTIVE',NULL,0,45,N'Mạng & Hạ tầng',DATEADD(day,-70,@Now)),
+('10000000-0000-0000-0000-000000000006','AI310','',N'Nhập môn Trí tuệ nhân tạo',N'Tìm kiếm, biểu diễn tri thức và machine learning cơ bản.','00000000-0000-0000-0000-000000000004','90000000-0000-0000-0000-000000000001','HK1','2026-2027',3,'ACTIVE','AI310-OPEN',1,60,N'Trí tuệ nhân tạo',DATEADD(day,-70,@Now)),
+('10000000-0000-0000-0000-000000000007','WEB220','',N'Phát triển ứng dụng Web',N'Frontend, REST API và triển khai ứng dụng web.','00000000-0000-0000-0000-000000000002','90000000-0000-0000-0000-000000000001','HK1','2026-2027',3,'ACTIVE','WEB220-DEMO',1,60,N'Kỹ thuật phần mềm',DATEADD(day,-70,@Now)),
+('10000000-0000-0000-0000-000000000008','PM401','',N'Quản lý dự án CNTT',N'Phạm vi, tiến độ, chi phí, rủi ro và chất lượng.','00000000-0000-0000-0000-000000000003','90000000-0000-0000-0000-000000000001','HK1','2026-2027',3,'ACTIVE',NULL,0,45,N'Quản trị dự án',DATEADD(day,-70,@Now)),
+('10000000-0000-0000-0000-000000000009','SEC330','',N'An toàn thông tin',N'Các nguyên lý bảo mật ứng dụng và hệ thống.','00000000-0000-0000-0000-000000000004','90000000-0000-0000-0000-000000000001','HK1','2026-2027',3,'ACTIVE',NULL,0,45,N'An toàn thông tin',DATEADD(day,-70,@Now)),
+('10000000-0000-0000-0000-000000000010','CLOUD350','',N'Điện toán đám mây',N'Khái niệm cloud, container và triển khai dịch vụ.','00000000-0000-0000-0000-000000000004','90000000-0000-0000-0000-000000000001','HK1','2026-2027',3,'DRAFT',NULL,0,40,N'Điện toán đám mây',DATEADD(day,-70,@Now));
 
 -- ENROLLMENTS: 10 rows
 INSERT INTO dbo.Enrollments (EnrollmentId, CourseId, StudentId, EnrolledAt, Status, FinalScore) VALUES
@@ -183,5 +188,18 @@ INSERT INTO dbo.LessonProgress (ProgressId, LessonId, StudentId, IsCompleted, Co
 
 INSERT INTO dbo.WhiteboardSnapshots (SnapshotId, CourseId, MeetingId, StrokesJson, UpdatedBy, UpdatedAt) VALUES
 ('c2000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000001',N'[{"id":"seed-1","color":"#2563eb","width":3,"points":[{"x":0.15,"y":0.25},{"x":0.45,"y":0.25},{"x":0.45,"y":0.55}]}]','00000000-0000-0000-0000-000000000002',@Now);
+
+-- COURSE SESSIONS: 6 non-overlapping weekly demo timetable sessions aligned with seed_demo.py
+DECLARE @DayStart DATETIME2(0) = DATETIME2FROMPARTS(YEAR(@Now), MONTH(@Now), DAY(@Now), 0, 0, 0, 0, 0);
+DECLARE @DaysSinceMonday INT = (DATEDIFF(day, '19000101', @DayStart) % 7 + 7) % 7;
+DECLARE @WeekMonday DATETIME2(0) = DATEADD(day, -@DaysSinceMonday, @DayStart);
+
+INSERT INTO dbo.CourseSessions (SessionId, CourseId, Title, SessionType, DeliveryMode, Room, StartAt, EndAt, Status, Notes, CreatedBy, CreatedAt) VALUES
+('d1000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001',N'CS101 - Lý thuyết Nhập môn Lập trình','REGULAR','IN_PERSON',N'B203',DATEADD(minute,30,@WeekMonday),DATEADD(minute,150,@WeekMonday),'SCHEDULED',NULL,'00000000-0000-0000-0000-000000000002',@Now),
+('d1000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002',N'CS202 - Cấu trúc dữ liệu & Giải thuật','REGULAR','IN_PERSON',N'B205',DATEADD(minute,30,DATEADD(day,2,@WeekMonday)),DATEADD(minute,150,DATEADD(day,2,@WeekMonday)),'SCHEDULED',NULL,'00000000-0000-0000-0000-000000000002',@Now),
+('d1000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000007',N'WEB220 - Thực hành REST API (Trực tuyến)','ONLINE','ONLINE',N'Trực tuyến',DATEADD(minute,165,DATEADD(day,4,@WeekMonday)),DATEADD(minute,285,DATEADD(day,4,@WeekMonday)),'SCHEDULED',NULL,'00000000-0000-0000-0000-000000000002',@Now),
+('d1000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000006',N'AI310 - Nhập môn Trí tuệ nhân tạo','REGULAR','IN_PERSON',N'A301',DATEADD(minute,360,DATEADD(day,2,@WeekMonday)),DATEADD(minute,480,DATEADD(day,2,@WeekMonday)),'SCHEDULED',NULL,'00000000-0000-0000-0000-000000000004',@Now),
+('d1000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000001',N'CS101 - Thực hành Vòng lặp & Hàm','REGULAR','IN_PERSON',N'B203',DATEADD(minute,30,DATEADD(day,7,@WeekMonday)),DATEADD(minute,150,DATEADD(day,7,@WeekMonday)),'SCHEDULED',NULL,'00000000-0000-0000-0000-000000000002',@Now),
+('d1000000-0000-0000-0000-000000000006','10000000-0000-0000-0000-000000000007',N'WEB220 - Triển khai Frontend & API','ONLINE','ONLINE',N'Trực tuyến',DATEADD(minute,165,DATEADD(day,11,@WeekMonday)),DATEADD(minute,285,DATEADD(day,11,@WeekMonday)),'SCHEDULED',NULL,'00000000-0000-0000-0000-000000000002',@Now);
 
 COMMIT TRANSACTION;

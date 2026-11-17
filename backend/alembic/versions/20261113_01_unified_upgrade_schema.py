@@ -99,6 +99,14 @@ def _drop_column_if_exists_sql(table_name: str, column_name: str) -> str:
                WHERE rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id AND rc.name = '{column_name}'
            ));
 
+        SELECT @dropSql = @dropSql + N'ALTER TABLE dbo.{table_name} DROP CONSTRAINT ' + QUOTENAME(kc.name) + N';'
+        FROM sys.key_constraints kc
+        JOIN sys.index_columns ic ON kc.parent_object_id = ic.object_id AND kc.unique_index_id = ic.index_id
+        JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+        WHERE kc.parent_object_id = OBJECT_ID('dbo.{table_name}')
+          AND kc.type = 'UQ'
+          AND c.name = '{column_name}';
+
         SELECT @dropSql = @dropSql + N'DROP INDEX ' + QUOTENAME(i.name) + N' ON dbo.{table_name};'
         FROM sys.indexes i
         JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
@@ -168,7 +176,6 @@ def upgrade() -> None:
         ("Users", "Department"),
         ("Users", "IsChatEnabled"),
         ("Courses", "SubjectCode"),
-        ("Courses", "SectionCode"),
         ("Courses", "IsDeleted"),
         ("Courses", "DeletedAt"),
         ("Courses", "DeletedBy"),

@@ -123,8 +123,39 @@ def downgrade() -> None:
             """
             IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE name = 'UQ_Courses_Code_Section_Term' AND parent_object_id = OBJECT_ID('dbo.Courses'))
                 ALTER TABLE dbo.Courses DROP CONSTRAINT UQ_Courses_Code_Section_Term;
+            IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Courses_SemesterId' AND object_id = OBJECT_ID('dbo.Courses'))
+                DROP INDEX IX_Courses_SemesterId ON dbo.Courses;
+            IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Courses_CourseCode' AND object_id = OBJECT_ID('dbo.Courses'))
+                DROP INDEX IX_Courses_CourseCode ON dbo.Courses;
             IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Courses_AcademicSemester')
                 ALTER TABLE dbo.Courses DROP CONSTRAINT FK_Courses_AcademicSemester;
+            IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Courses_Semester')
+                ALTER TABLE dbo.Courses DROP CONSTRAINT FK_Courses_Semester;
+
+            IF COL_LENGTH('dbo.Courses', 'SemesterId') IS NOT NULL
+            BEGIN
+                DECLARE @dfSemSql NVARCHAR(MAX) = N'';
+                SELECT @dfSemSql = @dfSemSql + N'ALTER TABLE dbo.Courses DROP CONSTRAINT ' + QUOTENAME(dc.name) + N';'
+                FROM sys.default_constraints dc
+                JOIN sys.columns c ON dc.parent_object_id = c.object_id AND dc.parent_column_id = c.column_id
+                WHERE dc.parent_object_id = OBJECT_ID('dbo.Courses') AND c.name = 'SemesterId';
+                IF LEN(@dfSemSql) > 0 EXEC sp_executesql @dfSemSql;
+                ALTER TABLE dbo.Courses DROP COLUMN SemesterId;
+            END
+
+            IF COL_LENGTH('dbo.Courses', 'SectionCode') IS NOT NULL
+            BEGIN
+                DECLARE @dfSecSql NVARCHAR(MAX) = N'';
+                SELECT @dfSecSql = @dfSecSql + N'ALTER TABLE dbo.Courses DROP CONSTRAINT ' + QUOTENAME(dc.name) + N';'
+                FROM sys.default_constraints dc
+                JOIN sys.columns c ON dc.parent_object_id = c.object_id AND dc.parent_column_id = c.column_id
+                WHERE dc.parent_object_id = OBJECT_ID('dbo.Courses') AND c.name = 'SectionCode';
+                IF LEN(@dfSecSql) > 0 EXEC sp_executesql @dfSecSql;
+                ALTER TABLE dbo.Courses DROP COLUMN SectionCode;
+            END
+
+            IF OBJECT_ID('dbo.AcademicSemesters', 'U') IS NOT NULL
+                DROP TABLE dbo.AcademicSemesters;
             """
         )
     )
