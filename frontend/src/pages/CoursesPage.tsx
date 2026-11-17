@@ -4,8 +4,11 @@ import {
   Archive,
   ArrowRight,
   BookOpen,
+  Calendar,
   CheckCircle2,
   Clock,
+  Copy,
+  FileSpreadsheet,
   Filter,
   GraduationCap,
   KeyRound,
@@ -24,6 +27,10 @@ import {
   type CourseUpdatePayload,
 } from '../api/learning';
 import { useAuth } from '../auth/AuthContext';
+import { BulkCourseImportModal } from '../components/courses/BulkCourseImportModal';
+import { CloneCoursesModal } from '../components/courses/CloneCoursesModal';
+import { LecturerCombobox } from '../components/courses/LecturerCombobox';
+import { SemesterManagementModal } from '../components/courses/SemesterManagementModal';
 import { Badge, type BadgeVariant } from '../components/ui/Badge';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -32,10 +39,11 @@ import { Modal } from '../components/ui/Modal';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import { Tabs, TabPanel } from '../components/ui/Tabs';
 import { useToast } from '../components/ui/Toast';
-import { formatCourseStatus, formatEnrollmentStatus } from '../utils/formatters';
-import type { Course, CourseCatalogItem, CourseStatus, User } from '../types';
+import { formatCourseStatus, formatDateVi, formatEnrollmentStatus } from '../utils/formatters';
+import type { AcademicSemester, Course, CourseCatalogItem, CourseStatus, User } from '../types';
 
 type StudentTab = 'my-courses' | 'catalog';
+type TermViewMode = 'CURRENT' | 'ARCHIVED' | 'ALL';
 
 function getCourseStatusMeta(status?: string): { label: string; variant: BadgeVariant; icon: React.ReactNode } {
   switch (status?.toUpperCase()) {
@@ -78,8 +86,16 @@ export const CoursesPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<StudentTab>('my-courses');
   const [courses, setCourses] = useState<Course[]>([]);
+  const [semesters, setSemesters] = useState<AcademicSemester[]>([]);
   const [catalog, setCatalog] = useState<CourseCatalogItem[]>([]);
   const [lecturers, setLecturers] = useState<User[]>([]);
+
+  const [termViewMode, setTermViewMode] = useState<TermViewMode>('CURRENT');
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string>('ALL');
+
+  const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [isCloneModalOpen, setIsCloneModalOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -96,11 +112,13 @@ export const CoursesPage: React.FC = () => {
   const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [formCode, setFormCode] = useState('');
+  const [formSectionCode, setFormSectionCode] = useState('');
   const [formTitle, setFormTitle] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formCredits, setFormCredits] = useState<number>(3);
+  const [formSemesterId, setFormSemesterId] = useState<string>('');
   const [formSemester, setFormSemester] = useState('HK1');
-  const [formAcademicYear, setFormAcademicYear] = useState('2025-2026');
+  const [formAcademicYear, setFormAcademicYear] = useState('2026-2027');
   const [formStatus, setFormStatus] = useState<CourseStatus>('ACTIVE');
   const [formLecturerId, setFormLecturerId] = useState('');
   const [formCategory, setFormCategory] = useState('');
@@ -129,9 +147,13 @@ export const CoursesPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await learningApi.getCourses(
-        !isStudent && statusFilter !== 'ALL' ? { status: statusFilter } : undefined,
-      );
+      const [semRows, data] = await Promise.all([
+        learningApi.getSemesters().catch(() => [] as AcademicSemester[]),
+        learningApi.getCourses(
+          !isStudent && statusFilter !== 'ALL' ? { status: statusFilter } : undefined,
+        ),
+      ]);
+      setSemesters(semRows);
       setCourses(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không thể tải danh sách khóa học');
@@ -205,13 +227,20 @@ export const CoursesPage: React.FC = () => {
   }, [isAdmin, toast]);
 
   const resetCourseForm = () => {
+    const defaultSem =
+      semesters.find((s) => s.isCurrent) ??
+      semesters.find((s) => s.status !== 'ARCHIVED') ??
+      semesters[0] ??
+      null;
     setEditingCourse(null);
     setFormCode('');
+    setFormSectionCode('');
     setFormTitle('');
     setFormDescription('');
     setFormCredits(3);
-    setFormSemester('HK1');
-    setFormAcademicYear('2025-2026');
+    setFormSemesterId(defaultSem ? defaultSem.semesterId : '');
+    setFormSemester(defaultSem ? defaultSem.semester : 'HK1');
+    setFormAcademicYear(defaultSem ? defaultSem.academicYear : '2026-2027');
     setFormStatus('ACTIVE');
     setFormCategory('');
     setFormAllowSelfEnroll(true);
@@ -232,11 +261,13 @@ export const CoursesPage: React.FC = () => {
   const openEditModal = (course: Course) => {
     setEditingCourse(course);
     setFormCode(course.courseCode ?? course.code);
+    setFormSectionCode(course.sectionCode || '');
     setFormTitle(course.title);
     setFormDescription(course.description || '');
     setFormCredits(Number(course.credits || 3));
+    setFormSemesterId(course.semesterId || '');
     setFormSemester(course.semester || 'HK1');
-    setFormAcademicYear(course.academicYear || '2025-2026');
+    setFormAcademicYear(course.academicYear || '2026-2027');
     setFormStatus(course.status);
     setFormLecturerId(String(course.lecturerId ?? course.lecturer_id ?? ''));
     setFormCategory(course.category || '');
@@ -267,10 +298,12 @@ export const CoursesPage: React.FC = () => {
       if (editingCourse) {
         const courseId = String(editingCourse.courseId ?? editingCourse.id);
         const payload: CourseUpdatePayload = {
+          sectionCode: formSectionCode.trim().toUpperCase(),
           title: formTitle.trim(),
           description: formDescription.trim() || null,
           lecturerId: formLecturerId || undefined,
           credits: formCredits,
+          semesterId: formSemesterId || null,
           semester: formSemester.trim(),
           academicYear: formAcademicYear.trim(),
           status: formStatus,
@@ -282,12 +315,18 @@ export const CoursesPage: React.FC = () => {
         await learningApi.updateCourse(courseId, payload);
         toast.success('Đã cập nhật thông tin khóa học');
       } else {
+        if (!formLecturerId) {
+          toast.warning('Vui lòng chọn giảng viên phụ trách');
+          return;
+        }
         const payload: CourseCreatePayload = {
           courseCode: formCode.trim().toUpperCase(),
+          sectionCode: formSectionCode.trim().toUpperCase(),
           title: formTitle.trim(),
           description: formDescription.trim() || null,
           lecturerId: formLecturerId,
           credits: formCredits,
+          semesterId: formSemesterId || null,
           semester: formSemester.trim(),
           academicYear: formAcademicYear.trim(),
           status: formStatus,
@@ -416,16 +455,49 @@ export const CoursesPage: React.FC = () => {
     }
   };
 
+  const courseCountByLecturer = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const c of courses) {
+      if (c.status !== 'ARCHIVED') {
+        const lid = String(c.lecturerId ?? c.lecturer_id ?? '');
+        if (lid) counts[lid] = (counts[lid] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [courses]);
+
+  const termCounts = useMemo(() => {
+    let currentCount = 0;
+    let archivedCount = 0;
+    for (const c of courses) {
+      if (c.status === 'ARCHIVED' || c.semesterStatus === 'ARCHIVED') {
+        archivedCount += 1;
+      } else {
+        currentCount += 1;
+      }
+    }
+    return { currentCount, archivedCount, allCount: courses.length };
+  }, [courses]);
+
   const filteredMyCourses = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return courses;
     return courses.filter((c) => {
+      if (selectedSemesterId !== 'ALL' && c.semesterId !== selectedSemesterId) {
+        return false;
+      }
+      const isCourseArchived = c.status === 'ARCHIVED' || c.semesterStatus === 'ARCHIVED';
+      if (selectedSemesterId === 'ALL') {
+        if (termViewMode === 'CURRENT' && isCourseArchived) return false;
+        if (termViewMode === 'ARCHIVED' && !isCourseArchived) return false;
+      }
+      if (!q) return true;
       const code = (c.courseCode ?? c.code).toLowerCase();
+      const section = (c.sectionCode ?? '').toLowerCase();
       const title = c.title.toLowerCase();
       const lecturer = (c.lecturerName ?? c.lecturer_name ?? '').toLowerCase();
-      return code.includes(q) || title.includes(q) || lecturer.includes(q);
+      return code.includes(q) || section.includes(q) || title.includes(q) || lecturer.includes(q);
     });
-  }, [courses, search]);
+  }, [courses, search, selectedSemesterId, termViewMode]);
 
   const categoryOptions = useMemo(() => {
     const set = new Set<string>();
@@ -484,14 +556,40 @@ export const CoursesPage: React.FC = () => {
           )}
 
           {isAdmin && (
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-sm transition-colors"
-            >
-              <Plus className="w-4 h-4" aria-hidden="true" />
-              <span>Thêm khóa học mới</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setIsSemesterModalOpen(true)}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] hover:bg-[var(--lms-surface-muted)] text-sm font-semibold text-[var(--lms-text)] transition-colors cursor-pointer"
+              >
+                <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
+                <span>Học kỳ ({semesters.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsCloneModalOpen(true)}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] hover:bg-[var(--lms-surface-muted)] text-sm font-semibold text-[var(--lms-text)] transition-colors cursor-pointer"
+              >
+                <Copy className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                <span>Mở lớp từ kỳ trước</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsBulkImportOpen(true)}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] hover:bg-[var(--lms-surface-muted)] text-sm font-semibold text-[var(--lms-text)] transition-colors cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                <span>Nhập CSV</span>
+              </button>
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-sm transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                <span>Thêm khóa học mới</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -517,6 +615,88 @@ export const CoursesPage: React.FC = () => {
         idPrefix="courses-student-tabs"
       >
         <div className="space-y-5">
+          {/* Semester / Term Separation Bar (Admin, Lecturer, Student) */}
+          <div className="bg-[var(--lms-surface)] p-4 rounded-2xl border border-[var(--lms-border)] space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Phân tách lớp theo học kỳ">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTermViewMode('CURRENT');
+                    setSelectedSemesterId('ALL');
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                    termViewMode === 'CURRENT' && selectedSemesterId === 'ALL'
+                      ? 'bg-blue-600 text-white'
+                      : 'border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/60 text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Kỳ hiện tại / Đang mở ({termCounts.currentCount})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTermViewMode('ARCHIVED');
+                    setSelectedSemesterId('ALL');
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                    termViewMode === 'ARCHIVED' && selectedSemesterId === 'ALL'
+                      ? 'bg-slate-700 text-white dark:bg-slate-600'
+                      : 'border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/60 text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]'
+                  }`}
+                >
+                  <Archive className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Các kỳ cũ / Lưu trữ ({termCounts.archivedCount})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTermViewMode('ALL');
+                    setSelectedSemesterId('ALL');
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                    termViewMode === 'ALL' && selectedSemesterId === 'ALL'
+                      ? 'bg-indigo-600 text-white'
+                      : 'border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/60 text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]'
+                  }`}
+                >
+                  <span>Tất cả ({termCounts.allCount})</span>
+                </button>
+              </div>
+
+              {semesters.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-[var(--lms-text-muted)] shrink-0" aria-hidden="true" />
+                  <label htmlFor="course-semester-select" className="text-xs font-semibold text-[var(--lms-text-muted)] shrink-0">
+                    Học kỳ:
+                  </label>
+                  <select
+                    id="course-semester-select"
+                    value={selectedSemesterId}
+                    onChange={(e) => setSelectedSemesterId(e.target.value)}
+                    className="px-3 py-1.5 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] text-xs font-medium text-[var(--lms-text)] focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="ALL">Theo nhóm trên (Tất cả kỳ)</option>
+                    {semesters.map((s) => (
+                      <option key={s.semesterId} value={s.semesterId}>
+                        {s.name} · {s.status === 'ARCHIVED' ? 'Đã lưu trữ' : s.isCurrent ? 'Hiện tại' : 'Sắp mở'} ({formatDateVi(s.endDate)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {termViewMode === 'ARCHIVED' && (
+              <p className="text-xs text-[var(--lms-text-muted)] bg-[var(--lms-surface-muted)]/50 rounded-xl px-3 py-2">
+                Các lớp thuộc học kỳ đã hết hạn được tự động chuyển sang trạng thái <strong>Lưu trữ (Chỉ đọc)</strong> để tránh cộng dồn vào kỳ mới, đồng thời vẫn giữ nguyên điểm số, bài nộp và tài liệu để tra cứu.
+              </p>
+            )}
+          </div>
+
           {/* Search and Filter Bar */}
           <div className="bg-[var(--lms-surface)] p-4 rounded-2xl border border-[var(--lms-border)] flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
             <div className="relative w-full sm:w-80">
@@ -607,7 +787,7 @@ export const CoursesPage: React.FC = () => {
                       <div className="flex items-start justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-200 dark:border-blue-800/70">
-                            {courseCode}
+                            {courseCode}{c.sectionCode ? ` · ${c.sectionCode}` : ''}
                           </span>
                           {c.category && <Badge variant="info">{c.category}</Badge>}
                         </div>
@@ -632,9 +812,14 @@ export const CoursesPage: React.FC = () => {
 
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--lms-text-muted)] pt-1">
                         {lecturerName && <span>GV: {lecturerName}</span>}
-                        {(c.semester || c.academicYear) && (
+                        {(c.semesterName || c.semester || c.academicYear) && (
                           <span className="tabular-nums">
-                            {[c.semester, c.academicYear].filter(Boolean).join(' - ')}
+                            {c.semesterName || [c.semester, c.academicYear].filter(Boolean).join(' - ')}
+                          </span>
+                        )}
+                        {c.archiveAfterDate && c.status !== 'ARCHIVED' && (
+                          <span className="tabular-nums text-[11px] text-amber-700 dark:text-amber-300">
+                            Hạn tách kỳ: {formatDateVi(c.archiveAfterDate)}
                           </span>
                         )}
                       </div>
@@ -1007,7 +1192,7 @@ export const CoursesPage: React.FC = () => {
         }
       >
         <form id="admin-course-form" onSubmit={handleSaveCourse} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
               <label
                 htmlFor="course-form-code"
@@ -1024,6 +1209,23 @@ export const CoursesPage: React.FC = () => {
                 onChange={(e) => setFormCode(e.target.value)}
                 placeholder="CS101"
                 className="w-full px-3.5 py-2 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] text-sm text-[var(--lms-text)] disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="course-form-section"
+                className="block text-xs font-semibold text-[var(--lms-text-muted)] uppercase mb-1"
+              >
+                Nhóm lớp
+              </label>
+              <input
+                id="course-form-section"
+                type="text"
+                value={formSectionCode}
+                onChange={(e) => setFormSectionCode(e.target.value)}
+                placeholder="N01 (tùy chọn)"
+                className="w-full px-3.5 py-2 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] text-sm text-[var(--lms-text)] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
               />
             </div>
 
@@ -1083,6 +1285,38 @@ export const CoursesPage: React.FC = () => {
               className="w-full px-3.5 py-2 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] text-sm text-[var(--lms-text)] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
             />
           </div>
+
+          {semesters.length > 0 && (
+            <div>
+              <label
+                htmlFor="course-form-term-select"
+                className="block text-xs font-semibold text-[var(--lms-text-muted)] uppercase mb-1"
+              >
+                Thuộc Học kỳ (có thời hạn)
+              </label>
+              <select
+                id="course-form-term-select"
+                value={formSemesterId}
+                onChange={(e) => {
+                  const sid = e.target.value;
+                  setFormSemesterId(sid);
+                  const matched = semesters.find((s) => s.semesterId === sid);
+                  if (matched) {
+                    setFormSemester(matched.semester);
+                    setFormAcademicYear(matched.academicYear);
+                  }
+                }}
+                className="w-full px-3.5 py-2 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] text-sm text-[var(--lms-text)] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+              >
+                <option value="">-- Nhập thủ công học kỳ bên dưới --</option>
+                {semesters.map((s) => (
+                  <option key={s.semesterId} value={s.semesterId}>
+                    {s.name} ({s.code}) · Kết thúc: {formatDateVi(s.endDate)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
@@ -1156,31 +1390,13 @@ export const CoursesPage: React.FC = () => {
             />
           </div>
 
-          <div>
-            <label
-              htmlFor="course-form-lecturer"
-              className="block text-xs font-semibold text-[var(--lms-text-muted)] uppercase mb-1"
-            >
-              Phân công giảng viên
-            </label>
-            <select
-              id="course-form-lecturer"
-              required
-              value={formLecturerId}
-              onChange={(e) => setFormLecturerId(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] text-sm text-[var(--lms-text)] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-            >
-              {lecturers.map((lec) => {
-                const lecId = String(lec.userId ?? lec.id);
-                const lecName = lec.fullName ?? lec.full_name ?? lec.email;
-                return (
-                  <option key={lecId} value={lecId}>
-                    {lecName} ({lec.email})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+          <LecturerCombobox
+            lecturers={lecturers}
+            value={formLecturerId}
+            onChange={setFormLecturerId}
+            courseCountByLecturer={courseCountByLecturer}
+            required
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div>
@@ -1334,6 +1550,30 @@ export const CoursesPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {isAdmin && (
+        <>
+          <SemesterManagementModal
+            isOpen={isSemesterModalOpen}
+            onClose={() => setIsSemesterModalOpen(false)}
+            semesters={semesters}
+            onChanged={fetchMyCourses}
+          />
+          <BulkCourseImportModal
+            isOpen={isBulkImportOpen}
+            onClose={() => setIsBulkImportOpen(false)}
+            semesters={semesters}
+            onImported={fetchMyCourses}
+          />
+          <CloneCoursesModal
+            isOpen={isCloneModalOpen}
+            onClose={() => setIsCloneModalOpen(false)}
+            semesters={semesters}
+            allCourses={courses}
+            onCloned={fetchMyCourses}
+          />
+        </>
+      )}
     </div>
   );
 };

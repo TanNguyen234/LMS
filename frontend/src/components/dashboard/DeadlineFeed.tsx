@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarClock, ChevronRight, ClipboardCheck, FileText, Video } from 'lucide-react';
+import { CalendarClock, ChevronRight, ClipboardCheck, FileText, GraduationCap, Video } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { CalendarEventItem } from '../../types';
 import { formatDateTimeVi } from '../../utils/formatters';
@@ -10,9 +10,10 @@ const KIND_META: Record<
   CalendarEventItem['kind'],
   { label: string; variant: BadgeVariant; icon: React.ElementType }
 > = {
+  SESSION: { label: 'Buổi học', variant: 'success', icon: GraduationCap },
   ASSIGNMENT: { label: 'Bài tập', variant: 'warning', icon: FileText },
   QUIZ: { label: 'Trắc nghiệm', variant: 'info', icon: ClipboardCheck },
-  MEETING: { label: 'Phòng học', variant: 'success', icon: Video },
+  MEETING: { label: 'Phòng học', variant: 'info', icon: Video },
 };
 
 function isDueWithin24Hours(isoDate: string): boolean {

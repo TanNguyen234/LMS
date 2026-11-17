@@ -6,11 +6,13 @@ import {
   httpPut,
 } from './http';
 import type {
+  AcademicSemester,
   Assignment,
   CalendarEventItem,
   Course,
   CourseCatalogItem,
   CourseProgressSummary,
+  CourseSession,
   CourseStatus,
   Enrollment,
   Grade,
@@ -22,9 +24,63 @@ import type {
   QuizAttemptStart,
   QuizQuestion,
   ScoreVisibility,
+  SemesterStatus,
+  SlotConflictDetail,
   Submission,
   SubmissionGradeResult,
 } from '../types';
+
+export interface AcademicSemesterCreatePayload {
+  code: string;
+  name: string;
+  semester: string;
+  academicYear: string;
+  startDate: string;
+  endDate: string;
+  graceDays?: number;
+  status?: SemesterStatus;
+  isCurrent?: boolean;
+  autoArchiveOnExpire?: boolean;
+}
+
+export interface AcademicSemesterUpdatePayload {
+  name?: string;
+  semester?: string;
+  academicYear?: string;
+  startDate?: string;
+  endDate?: string;
+  graceDays?: number;
+  status?: SemesterStatus;
+  isCurrent?: boolean;
+  autoArchiveOnExpire?: boolean;
+}
+
+export interface CourseBulkImportRowPayload {
+  courseCode: string;
+  sectionCode?: string;
+  title: string;
+  credits: number;
+  lecturerIdentifier: string;
+  description?: string | null;
+  status?: CourseStatus;
+  allowSelfEnroll?: boolean;
+  joinCode?: string | null;
+  maxStudents?: number | null;
+  category?: string | null;
+}
+
+export interface CourseBulkImportResponse {
+  createdCount: number;
+  createdCourses: Course[];
+  errors: Array<{ row: number; courseCode: string; message: string }>;
+}
+
+export interface CourseClonePayload {
+  sourceCourseIds: string[];
+  targetSemesterId: string;
+  copyModulesAndLessons?: boolean;
+  defaultStatus?: 'DRAFT' | 'ACTIVE';
+}
 
 export interface CourseEnrollmentSettingsPayload {
   allowSelfEnroll: boolean;
@@ -35,9 +91,11 @@ export interface CourseEnrollmentSettingsPayload {
 
 export interface CourseCreatePayload {
   courseCode: string;
+  sectionCode?: string;
   title: string;
   description?: string | null;
   lecturerId: string;
+  semesterId?: string | null;
   semester: string;
   academicYear: string;
   credits: number;
@@ -49,9 +107,11 @@ export interface CourseCreatePayload {
 }
 
 export interface CourseUpdatePayload {
+  sectionCode?: string;
   title?: string;
   description?: string | null;
   lecturerId?: string;
+  semesterId?: string | null;
   semester?: string;
   academicYear?: string;
   credits?: number;
@@ -351,10 +411,70 @@ function buildQuery(params: Record<string, string | undefined | null>): string {
   return encoded ? `?${encoded}` : '';
 }
 
-export async function getCourses(params?: { status?: string; lecturerId?: string }): Promise<Course[]> {
-  const qs = buildQuery({ status: params?.status, lecturerId: params?.lecturerId });
+export async function getSemesters(): Promise<AcademicSemester[]> {
+  return httpGet<AcademicSemester[]>('/semesters');
+}
+
+export async function createSemester(payload: AcademicSemesterCreatePayload): Promise<AcademicSemester> {
+  return httpPost<AcademicSemester>('/semesters', payload);
+}
+
+export async function updateSemester(
+  semesterId: string,
+  payload: AcademicSemesterUpdatePayload,
+): Promise<AcademicSemester> {
+  return httpPut<AcademicSemester>(`/semesters/${semesterId}`, payload);
+}
+
+export async function archiveSemesterNow(semesterId: string): Promise<AcademicSemester> {
+  return httpPost<AcademicSemester>(`/semesters/${semesterId}/archive`);
+}
+
+export async function syncExpiredSemesters(): Promise<{
+  archivedSemesters: number;
+  archivedCourses: number;
+  activatedSemesters: number;
+}> {
+  return httpPost('/semesters/sync-expired');
+}
+
+export async function getCourses(params?: {
+  status?: string;
+  lecturerId?: string;
+  semesterId?: string;
+  semester?: string;
+  academicYear?: string;
+}): Promise<Course[]> {
+  const qs = buildQuery({
+    status: params?.status,
+    lecturerId: params?.lecturerId,
+    semesterId: params?.semesterId,
+    semester: params?.semester,
+    academicYear: params?.academicYear,
+  });
   const rows = await httpGet<Course[]>(`/courses${qs}`);
   return rows.map(normalizeCourse);
+}
+
+export async function bulkImportCourses(payload: {
+  semesterId: string;
+  rows: CourseBulkImportRowPayload[];
+}): Promise<CourseBulkImportResponse> {
+  const res = await httpPost<CourseBulkImportResponse>('/courses/bulk-import', payload);
+  return {
+    ...res,
+    createdCourses: res.createdCourses.map(normalizeCourse),
+  };
+}
+
+export async function cloneCoursesToSemester(
+  payload: CourseClonePayload,
+): Promise<CourseBulkImportResponse> {
+  const res = await httpPost<CourseBulkImportResponse>('/courses/clone-to-semester', payload);
+  return {
+    ...res,
+    createdCourses: res.createdCourses.map(normalizeCourse),
+  };
 }
 
 export async function getCourseDetail(courseId: string): Promise<Course> {
@@ -611,17 +731,79 @@ export async function deleteManualGrade(gradeId: string): Promise<MessageRespons
   return httpDelete<MessageResponse>(`/grades/${gradeId}`);
 }
 
+export interface QuickScheduleGeneratePayload {
+  courseId: string;
+  titlePrefix: string;
+  weekdays: number[];
+  startTime: string;
+  endTime: string;
+  startDate: string;
+  endDate: string;
+  timezoneOffsetMinutes: number;
+  sessionType: 'REGULAR' | 'MAKEUP' | 'EXAM' | 'ONLINE';
+  deliveryMode: 'IN_PERSON' | 'ONLINE';
+  room?: string | null;
+  notes?: string | null;
+  skipConflicts?: boolean;
+  allowStudentConflicts?: boolean;
+}
+
+export interface QuickScheduleGenerateResponse {
+  createdCount: number;
+  skippedCount: number;
+  sessions: CourseSession[];
+  conflicts: SlotConflictDetail[];
+}
+
 export async function getDashboardCalendar(params?: {
   from?: string;
   to?: string;
   courseId?: string;
+  lecturerId?: string;
+  semesterId?: string;
 }): Promise<CalendarEventItem[]> {
   const qs = buildQuery({
     from: params?.from,
     to: params?.to,
     courseId: params?.courseId,
+    lecturerId: params?.lecturerId,
+    semesterId: params?.semesterId,
   });
   return httpGet<CalendarEventItem[]>(`/dashboard/calendar${qs}`);
+}
+
+export async function getSchedules(params?: {
+  courseId?: string;
+  lecturerId?: string;
+  semesterId?: string;
+  from?: string;
+  to?: string;
+}): Promise<CourseSession[]> {
+  const qs = buildQuery(params ?? {});
+  return httpGet<CourseSession[]>(`/schedules${qs}`);
+}
+
+export async function checkScheduleConflicts(payload: {
+  courseId: string;
+  timezoneOffsetMinutes?: number;
+  slots: Array<{
+    startAt: string;
+    endAt: string;
+    deliveryMode: 'IN_PERSON' | 'ONLINE';
+    room?: string | null;
+  }>;
+}): Promise<{ hasConflicts: boolean; conflicts: SlotConflictDetail[] }> {
+  return httpPost('/schedules/check-conflicts', payload);
+}
+
+export async function quickGenerateSchedules(
+  payload: QuickScheduleGeneratePayload,
+): Promise<QuickScheduleGenerateResponse> {
+  return httpPost<QuickScheduleGenerateResponse>('/schedules/quick-generate', payload);
+}
+
+export async function deleteScheduleSession(sessionId: string): Promise<MessageResponse> {
+  return httpDelete<MessageResponse>(`/schedules/${sessionId}`);
 }
 
 export async function getAdminDashboard(): Promise<AdminDashboardPayload> {
@@ -637,7 +819,14 @@ export async function getStudentDashboard(): Promise<StudentDashboardPayload> {
 }
 
 export const learningApi = {
+  getSemesters,
+  createSemester,
+  updateSemester,
+  archiveSemesterNow,
+  syncExpiredSemesters,
   getCourses,
+  bulkImportCourses,
+  cloneCoursesToSemester,
   getCourseDetail,
   getCourseCatalog,
   createCourse,
@@ -682,6 +871,10 @@ export const learningApi = {
   updateManualGrade,
   deleteManualGrade,
   getDashboardCalendar,
+  getSchedules,
+  checkScheduleConflicts,
+  quickGenerateSchedules,
+  deleteScheduleSession,
   getAdminDashboard,
   getLecturerDashboard,
   getStudentDashboard,

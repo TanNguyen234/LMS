@@ -25,6 +25,26 @@ export interface AuthResponse {
 }
 
 export type CourseStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+export type SemesterStatus = 'UPCOMING' | 'ACTIVE' | 'ARCHIVED';
+
+export interface AcademicSemester {
+  semesterId: string;
+  code: string;
+  name: string;
+  semester: string;
+  academicYear: string;
+  startDate: string;
+  endDate: string;
+  graceDays: number;
+  status: SemesterStatus;
+  isCurrent: boolean;
+  autoArchiveOnExpire: boolean;
+  createdAt: string;
+  archiveAfterDate: string;
+  courseCount: number;
+  activeCourseCount: number;
+  archivedCourseCount: number;
+}
 export type LessonContentType = 'TEXT' | 'PDF' | 'VIDEO' | 'SLIDE';
 export type ScoreVisibility = 'SCORE_ONLY' | 'AFTER_ATTEMPT' | 'AFTER_CLOSE';
 export type GradeSourceType = 'ASSIGNMENT' | 'QUIZ' | 'MIDTERM' | 'FINAL' | 'MANUAL';
@@ -36,6 +56,7 @@ export interface Course {
   courseId: string;
   id: string | number;
   courseCode: string;
+  sectionCode?: string;
   code: string;
   title: string;
   description?: string;
@@ -47,6 +68,11 @@ export interface Course {
   lecturer_name?: string;
   lecturerEmail?: string;
   lecturer_email?: string;
+  semesterId?: string | null;
+  semesterName?: string | null;
+  semesterStatus?: SemesterStatus | null;
+  semesterEndDate?: string | null;
+  archiveAfterDate?: string | null;
   semester?: string;
   academicYear?: string;
   joinCode?: string | null;
@@ -356,13 +382,59 @@ export interface CalendarEventItem {
   id: string;
   courseId: string;
   courseCode: string;
+  sectionCode?: string;
   courseTitle: string;
-  kind: 'ASSIGNMENT' | 'QUIZ' | 'MEETING';
+  kind: 'ASSIGNMENT' | 'QUIZ' | 'MEETING' | 'SESSION';
   title: string;
   startAt?: string | null;
   endAt: string;
   status: string;
   relatedUrl: string;
+  room?: string | null;
+  deliveryMode?: 'IN_PERSON' | 'ONLINE' | null;
+  lecturerId?: string | null;
+  lecturerName?: string | null;
+}
+
+export interface CourseSession {
+  sessionId: string;
+  courseId: string;
+  courseCode: string;
+  sectionCode?: string;
+  courseTitle: string;
+  lecturerId: string;
+  lecturerName?: string | null;
+  title: string;
+  sessionType: 'REGULAR' | 'MAKEUP' | 'EXAM' | 'ONLINE';
+  deliveryMode: 'IN_PERSON' | 'ONLINE';
+  room?: string | null;
+  startAt: string;
+  endAt: string;
+  status: 'SCHEDULED' | 'CANCELLED' | 'COMPLETED';
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface StudentConflictSample {
+  studentId: string;
+  studentName: string;
+  studentCode?: string | null;
+  conflictingCourseCode: string;
+  conflictingTitle: string;
+  conflictingStartAt: string;
+  conflictingEndAt: string;
+}
+
+export interface SlotConflictDetail {
+  startAt: string;
+  endAt: string;
+  lecturerConflict: boolean;
+  lecturerConflictDetail?: string | null;
+  roomConflict: boolean;
+  roomConflictDetail?: string | null;
+  studentConflictCount: number;
+  studentConflicts: StudentConflictSample[];
+  reasons: string[];
 }
 
 export interface MeetingLog {

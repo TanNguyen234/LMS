@@ -190,6 +190,21 @@ export const formatDateTimeVi = (dateString?: string | null): string => {
   }
 };
 
+export const formatDateVi = (dateString?: string | null): string => {
+  if (!dateString) return 'Chưa cập nhật';
+  try {
+    const parsed = new Date(dateString);
+    if (Number.isNaN(parsed.getTime())) return dateString;
+    return parsed.toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  } catch {
+    return dateString;
+  }
+};
+
 export const formatFileSize = (bytes?: number | null): string => {
   if (bytes == null || bytes < 0) return '0 B';
   if (bytes < 1024) return `${bytes} B`;
