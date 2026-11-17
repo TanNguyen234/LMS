@@ -40,4 +40,7 @@ START_SYSTEM.bat
 Thumbs.db
 .agents/
 .chrome-session/
+.code-review-graph/
+.ua/.trash-*/
+.ua/tmp/
 

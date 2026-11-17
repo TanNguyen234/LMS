@@ -1,0 +1,2293 @@
+{
+  "name": "university-lms",
+  "description": "Hệ thống Quản lý Học tập Đại học (University LMS) kiến trúc Modular Monolith kết hợp FastAPI, SQLAlchemy 2.x, Microsoft SQL Server và React 19/TypeScript, hỗ trợ quản lý học kỳ, xếp lịch chống trùng, bài giảng, bài tập, kiểm tra định giờ, sổ điểm GPA và phòng học trực tuyến thời gian thực. Note: this project has over 100 source files; consider scoping analysis to a subdirectory for faster results.",
+  "languages": [
+    "config",
+    "css",
+    "html",
+    "json",
+    "mako",
+    "markdown",
+    "powershell",
+    "python",
+    "sql",
+    "txt",
+    "typescript",
+    "unknown"
+  ],
+  "frameworks": [
+    "React",
+    "Vite",
+    "Tailwind CSS",
+    "FastAPI",
+    "SQLAlchemy",
+    "Alembic",
+    "Pydantic",
+    "Uvicorn",
+    "Pytest"
+  ],
+  "files": [
+    {
+      "path": "FUTURE_ENHANCEMENTS.md",
+      "language": "markdown",
+      "sizeLines": 57,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "IMPLEMENTATION_NOTES.md",
+      "language": "markdown",
+      "sizeLines": 80,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "PROJECT.md",
+      "language": "markdown",
+      "sizeLines": 46,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "README.md",
+      "language": "markdown",
+      "sizeLines": 107,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "backend/.env.example",
+      "language": "config",
+      "sizeLines": 23,
+      "fileCategory": "config"
+    },
+    {
+      "path": "backend/alembic.ini",
+      "language": "config",
+      "sizeLines": 149,
+      "fileCategory": "config"
+    },
+    {
+      "path": "backend/alembic/README",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/alembic/env.py",
+      "language": "python",
+      "sizeLines": 61,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/alembic/script.py.mako",
+      "language": "mako",
+      "sizeLines": 28,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/alembic/versions/20261113_01_unified_upgrade_schema.py",
+      "language": "python",
+      "sizeLines": 531,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/alembic/versions/20261117_01_semesters_and_course_sections.py",
+      "language": "python",
+      "sizeLines": 161,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/alembic/versions/20261117_02_course_sessions.py",
+      "language": "python",
+      "sizeLines": 61,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/alembic/versions/6f2d4db8312a_unique_grade_sources.py",
+      "language": "python",
+      "sizeLines": 80,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/alembic/versions/efd8af3f19c3_initial_baseline_12_tables.py",
+      "language": "python",
+      "sizeLines": 300,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/ai.py",
+      "language": "python",
+      "sizeLines": 158,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/assignments.py",
+      "language": "python",
+      "sizeLines": 718,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/auth.py",
+      "language": "python",
+      "sizeLines": 203,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/content.py",
+      "language": "python",
+      "sizeLines": 805,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/courses.py",
+      "language": "python",
+      "sizeLines": 1261,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/dashboard.py",
+      "language": "python",
+      "sizeLines": 486,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/files.py",
+      "language": "python",
+      "sizeLines": 315,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/grades.py",
+      "language": "python",
+      "sizeLines": 343,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/meetings.py",
+      "language": "python",
+      "sizeLines": 463,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/messages.py",
+      "language": "python",
+      "sizeLines": 182,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/notifications.py",
+      "language": "python",
+      "sizeLines": 157,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/progress.py",
+      "language": "python",
+      "sizeLines": 241,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/quizzes.py",
+      "language": "python",
+      "sizeLines": 1691,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/schedules.py",
+      "language": "python",
+      "sizeLines": 413,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/semesters.py",
+      "language": "python",
+      "sizeLines": 227,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/users.py",
+      "language": "python",
+      "sizeLines": 379,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/api/routes/ws.py",
+      "language": "python",
+      "sizeLines": 1069,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/core/config.py",
+      "language": "python",
+      "sizeLines": 179,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/core/dependencies.py",
+      "language": "python",
+      "sizeLines": 189,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/core/security.py",
+      "language": "python",
+      "sizeLines": 118,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/db/base.py",
+      "language": "python",
+      "sizeLines": 3,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/db/init_db.py",
+      "language": "python",
+      "sizeLines": 40,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/db/seed_demo.py",
+      "language": "python",
+      "sizeLines": 479,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/db/session.py",
+      "language": "python",
+      "sizeLines": 24,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/main.py",
+      "language": "python",
+      "sizeLines": 208,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/models/__init__.py",
+      "language": "python",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/models/models.py",
+      "language": "python",
+      "sizeLines": 585,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/realtime/__init__.py",
+      "language": "python",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/realtime/manager.py",
+      "language": "python",
+      "sizeLines": 390,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/realtime/meeting_lifecycle.py",
+      "language": "python",
+      "sizeLines": 185,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/schemas/__init__.py",
+      "language": "python",
+      "sizeLines": 37,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/schemas/common.py",
+      "language": "python",
+      "sizeLines": 48,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/schemas/schemas.py",
+      "language": "python",
+      "sizeLines": 1332,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/services/__init__.py",
+      "language": "python",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/services/ai_service.py",
+      "language": "python",
+      "sizeLines": 1134,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/services/file_storage.py",
+      "language": "python",
+      "sizeLines": 528,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/services/grading.py",
+      "language": "python",
+      "sizeLines": 282,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/services/notification_push.py",
+      "language": "python",
+      "sizeLines": 26,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/services/schedule_conflicts.py",
+      "language": "python",
+      "sizeLines": 258,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/app/services/semester_lifecycle.py",
+      "language": "python",
+      "sizeLines": 165,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/requirements.txt",
+      "language": "txt",
+      "sizeLines": 16,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "backend/tests/conftest.py",
+      "language": "python",
+      "sizeLines": 79,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_acceptance.py",
+      "language": "python",
+      "sizeLines": 406,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_ai_assistant.py",
+      "language": "python",
+      "sizeLines": 903,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_audit_fixes_20261118.py",
+      "language": "python",
+      "sizeLines": 854,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_auth_users_demo.py",
+      "language": "python",
+      "sizeLines": 359,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_challenger_recon.py",
+      "language": "python",
+      "sizeLines": 776,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_files_and_content.py",
+      "language": "python",
+      "sizeLines": 672,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_forensic_contracts.py",
+      "language": "python",
+      "sizeLines": 171,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_foundation_contracts.py",
+      "language": "python",
+      "sizeLines": 276,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_learning_flows.py",
+      "language": "python",
+      "sizeLines": 1215,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_live_qa_regressions.py",
+      "language": "python",
+      "sizeLines": 70,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_meeting_lifecycle.py",
+      "language": "python",
+      "sizeLines": 234,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_meetings_and_teams.py",
+      "language": "python",
+      "sizeLines": 166,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_realtime_classroom.py",
+      "language": "python",
+      "sizeLines": 389,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_recon2_challenger.py",
+      "language": "python",
+      "sizeLines": 160,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_schedules_and_conflicts.py",
+      "language": "python",
+      "sizeLines": 284,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_semesters_and_scale.py",
+      "language": "python",
+      "sizeLines": 437,
+      "fileCategory": "code"
+    },
+    {
+      "path": "backend/tests/test_wave2_main.py",
+      "language": "python",
+      "sizeLines": 183,
+      "fileCategory": "code"
+    },
+    {
+      "path": "database/01_schema.sql",
+      "language": "sql",
+      "sizeLines": 422,
+      "fileCategory": "data"
+    },
+    {
+      "path": "database/02_seed.sql",
+      "language": "sql",
+      "sizeLines": 205,
+      "fileCategory": "data"
+    },
+    {
+      "path": "database/03_demo_queries.sql",
+      "language": "sql",
+      "sizeLines": 67,
+      "fileCategory": "data"
+    },
+    {
+      "path": "database/04_seed_validation.sql",
+      "language": "sql",
+      "sizeLines": 111,
+      "fileCategory": "data"
+    },
+    {
+      "path": "database/README.md",
+      "language": "markdown",
+      "sizeLines": 38,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "database/setup_database.ps1",
+      "language": "powershell",
+      "sizeLines": 76,
+      "fileCategory": "script"
+    },
+    {
+      "path": "docs/00_COURSE_CONTEXT_AND_DELIVERABLES.md",
+      "language": "markdown",
+      "sizeLines": 118,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/01_SCOPE_AND_REQUIREMENTS.md",
+      "language": "markdown",
+      "sizeLines": 108,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/02_ROLES_USE_CASES.md",
+      "language": "markdown",
+      "sizeLines": 80,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/03_ARCHITECTURE.md",
+      "language": "markdown",
+      "sizeLines": 132,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/04_DATABASE_DESIGN.md",
+      "language": "markdown",
+      "sizeLines": 72,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/05_API_SPEC.md",
+      "language": "markdown",
+      "sizeLines": 132,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/06_UI_UX_SCREENS.md",
+      "language": "markdown",
+      "sizeLines": 131,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/07_BUSINESS_RULES.md",
+      "language": "markdown",
+      "sizeLines": 60,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/08_PROJECT_MANAGEMENT.md",
+      "language": "markdown",
+      "sizeLines": 230,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/09_TEST_PLAN_ACCEPTANCE.md",
+      "language": "markdown",
+      "sizeLines": 143,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/10_IMPLEMENTATION_PLAN.md",
+      "language": "markdown",
+      "sizeLines": 122,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/11_REPORT_OUTLINE.md",
+      "language": "markdown",
+      "sizeLines": 117,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/01_PROJECT_CHARTER.md",
+      "language": "markdown",
+      "sizeLines": 107,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/02_STAKEHOLDER_REGISTER.md",
+      "language": "markdown",
+      "sizeLines": 48,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/03_RACI_MATRIX.md",
+      "language": "markdown",
+      "sizeLines": 63,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/04_SCOPE_BASELINE_WBS.md",
+      "language": "markdown",
+      "sizeLines": 136,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/05_WBS_DICTIONARY.md",
+      "language": "markdown",
+      "sizeLines": 201,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/06_SCHEDULE_CPM_GANTT.md",
+      "language": "markdown",
+      "sizeLines": 68,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/07_RESOURCE_AND_BUDGET_BASELINE.md",
+      "language": "markdown",
+      "sizeLines": 88,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/08_RISK_REGISTER.md",
+      "language": "markdown",
+      "sizeLines": 48,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/09_QUALITY_PLAN_AND_GATES.md",
+      "language": "markdown",
+      "sizeLines": 68,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/10_COMMUNICATION_PLAN.md",
+      "language": "markdown",
+      "sizeLines": 64,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/11_CHANGE_MANAGEMENT_PLAN.md",
+      "language": "markdown",
+      "sizeLines": 85,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/12_UAT_AND_ACCEPTANCE_EVIDENCE.md",
+      "language": "markdown",
+      "sizeLines": 53,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/project-management/13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md",
+      "language": "markdown",
+      "sizeLines": 74,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "frontend/.oxlintrc.json",
+      "language": "json",
+      "sizeLines": 8,
+      "fileCategory": "config"
+    },
+    {
+      "path": "frontend/README.md",
+      "language": "markdown",
+      "sizeLines": 20,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "frontend/index.html",
+      "language": "html",
+      "sizeLines": 28,
+      "fileCategory": "markup"
+    },
+    {
+      "path": "frontend/package.json",
+      "language": "json",
+      "sizeLines": 31,
+      "fileCategory": "config"
+    },
+    {
+      "path": "frontend/src/App.css",
+      "language": "css",
+      "sizeLines": 1,
+      "fileCategory": "markup"
+    },
+    {
+      "path": "frontend/src/App.tsx",
+      "language": "typescript",
+      "sizeLines": 83,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/api/ai.ts",
+      "language": "typescript",
+      "sizeLines": 42,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/api/content.ts",
+      "language": "typescript",
+      "sizeLines": 240,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/api/demo.ts",
+      "language": "typescript",
+      "sizeLines": 35,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/api/files.ts",
+      "language": "typescript",
+      "sizeLines": 142,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/api/http.ts",
+      "language": "typescript",
+      "sizeLines": 297,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/api/learning.ts",
+      "language": "typescript",
+      "sizeLines": 881,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/api/realtime.ts",
+      "language": "typescript",
+      "sizeLines": 182,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/api/users.ts",
+      "language": "typescript",
+      "sizeLines": 177,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/auth/AuthContext.tsx",
+      "language": "typescript",
+      "sizeLines": 199,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ai/AiFeedbackButton.tsx",
+      "language": "typescript",
+      "sizeLines": 98,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ai/AiQuizGeneratorModal.tsx",
+      "language": "typescript",
+      "sizeLines": 568,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ai/LessonAiTutorDrawer.tsx",
+      "language": "typescript",
+      "sizeLines": 399,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/assignments/AssignmentFormModal.tsx",
+      "language": "typescript",
+      "sizeLines": 539,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/assignments/StudentSubmitDrawer.tsx",
+      "language": "typescript",
+      "sizeLines": 588,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/assignments/SubmissionsGradingDrawer.tsx",
+      "language": "typescript",
+      "sizeLines": 720,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/assignments/assignmentUtils.ts",
+      "language": "typescript",
+      "sizeLines": 218,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/auth/ProtectedRoute.tsx",
+      "language": "typescript",
+      "sizeLines": 86,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/common/DemoRoleSwitcher.tsx",
+      "language": "typescript",
+      "sizeLines": 156,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/common/OnboardingGuideModal.tsx",
+      "language": "typescript",
+      "sizeLines": 198,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/courses/BulkCourseImportModal.tsx",
+      "language": "typescript",
+      "sizeLines": 270,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/courses/CloneCoursesModal.tsx",
+      "language": "typescript",
+      "sizeLines": 248,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/courses/CourseClassroomTab.tsx",
+      "language": "typescript",
+      "sizeLines": 306,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/courses/CourseContentTab.tsx",
+      "language": "typescript",
+      "sizeLines": 791,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/courses/CourseGradebookTab.tsx",
+      "language": "typescript",
+      "sizeLines": 632,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/courses/CourseHeader.tsx",
+      "language": "typescript",
+      "sizeLines": 356,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/courses/CourseStudentsTab.tsx",
+      "language": "typescript",
+      "sizeLines": 434,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/courses/LecturerCombobox.tsx",
+      "language": "typescript",
+      "sizeLines": 159,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/courses/LessonFormModal.tsx",
+      "language": "typescript",
+      "sizeLines": 291,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/courses/ModuleFormModal.tsx",
+      "language": "typescript",
+      "sizeLines": 158,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/courses/SemesterManagementModal.tsx",
+      "language": "typescript",
+      "sizeLines": 436,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/dashboard/AdminDashboard.tsx",
+      "language": "typescript",
+      "sizeLines": 288,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/dashboard/DeadlineFeed.tsx",
+      "language": "typescript",
+      "sizeLines": 124,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/dashboard/KpiCard.tsx",
+      "language": "typescript",
+      "sizeLines": 72,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/dashboard/LecturerDashboard.tsx",
+      "language": "typescript",
+      "sizeLines": 306,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/dashboard/StudentDashboard.tsx",
+      "language": "typescript",
+      "sizeLines": 287,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/files/FileDropzone.tsx",
+      "language": "typescript",
+      "sizeLines": 356,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/files/FilePreviewModal.tsx",
+      "language": "typescript",
+      "sizeLines": 717,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/layout/AppLayout.tsx",
+      "language": "typescript",
+      "sizeLines": 88,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/layout/NotificationPopover.tsx",
+      "language": "typescript",
+      "sizeLines": 297,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/layout/SidebarNav.tsx",
+      "language": "typescript",
+      "sizeLines": 278,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/layout/TopHeader.tsx",
+      "language": "typescript",
+      "sizeLines": 142,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/quizzes/QuizAnalyticsPanel.tsx",
+      "language": "typescript",
+      "sizeLines": 393,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/quizzes/QuizAttemptsModal.tsx",
+      "language": "typescript",
+      "sizeLines": 735,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/quizzes/QuizBuilderDrawer.tsx",
+      "language": "typescript",
+      "sizeLines": 864,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/quizzes/QuizFormModal.tsx",
+      "language": "typescript",
+      "sizeLines": 492,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/quizzes/QuizRunnerModal.tsx",
+      "language": "typescript",
+      "sizeLines": 685,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/quizzes/quizUtils.ts",
+      "language": "typescript",
+      "sizeLines": 295,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/schedule/QuickScheduleModal.tsx",
+      "language": "typescript",
+      "sizeLines": 508,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/teams/ChannelChat.tsx",
+      "language": "typescript",
+      "sizeLines": 512,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/teams/DeviceSettingsModal.tsx",
+      "language": "typescript",
+      "sizeLines": 282,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/teams/MeetingRoom.tsx",
+      "language": "typescript",
+      "sizeLines": 2354,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/teams/RoomPollsPanel.tsx",
+      "language": "typescript",
+      "sizeLines": 210,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/teams/StageVideoTile.tsx",
+      "language": "typescript",
+      "sizeLines": 236,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/teams/WhiteboardCanvas.tsx",
+      "language": "typescript",
+      "sizeLines": 643,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/Badge.tsx",
+      "language": "typescript",
+      "sizeLines": 49,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/ConfirmDialog.tsx",
+      "language": "typescript",
+      "sizeLines": 92,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/DataTable.tsx",
+      "language": "typescript",
+      "sizeLines": 205,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/EmptyState.tsx",
+      "language": "typescript",
+      "sizeLines": 38,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/ErrorBanner.tsx",
+      "language": "typescript",
+      "sizeLines": 48,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/ExpandFullscreenControls.tsx",
+      "language": "typescript",
+      "sizeLines": 61,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/Modal.tsx",
+      "language": "typescript",
+      "sizeLines": 114,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/SafeHtml.tsx",
+      "language": "typescript",
+      "sizeLines": 56,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/Skeleton.tsx",
+      "language": "typescript",
+      "sizeLines": 105,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/Tabs.tsx",
+      "language": "typescript",
+      "sizeLines": 139,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/ThemeToggle.tsx",
+      "language": "typescript",
+      "sizeLines": 126,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/components/ui/Toast.tsx",
+      "language": "typescript",
+      "sizeLines": 176,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/hooks/useExpandableView.ts",
+      "language": "typescript",
+      "sizeLines": 106,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/hooks/useWebSocket.ts",
+      "language": "typescript",
+      "sizeLines": 226,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/index.css",
+      "language": "css",
+      "sizeLines": 302,
+      "fileCategory": "markup"
+    },
+    {
+      "path": "frontend/src/main.tsx",
+      "language": "typescript",
+      "sizeLines": 10,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/AdminUsersPage.tsx",
+      "language": "typescript",
+      "sizeLines": 919,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/AssignmentsPage.tsx",
+      "language": "typescript",
+      "sizeLines": 907,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/CourseDetailPage.tsx",
+      "language": "typescript",
+      "sizeLines": 336,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/CoursesPage.tsx",
+      "language": "typescript",
+      "sizeLines": 1579,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/DashboardPage.tsx",
+      "language": "typescript",
+      "sizeLines": 263,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/GradesPage.tsx",
+      "language": "typescript",
+      "sizeLines": 1750,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/LoginPage.tsx",
+      "language": "typescript",
+      "sizeLines": 260,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/NotificationsPage.tsx",
+      "language": "typescript",
+      "sizeLines": 337,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/ProfilePage.tsx",
+      "language": "typescript",
+      "sizeLines": 404,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/QuizzesPage.tsx",
+      "language": "typescript",
+      "sizeLines": 899,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/SchedulePage.tsx",
+      "language": "typescript",
+      "sizeLines": 725,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/pages/VirtualClassroomPage.tsx",
+      "language": "typescript",
+      "sizeLines": 773,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/routes/AppRoutes.tsx",
+      "language": "typescript",
+      "sizeLines": 108,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/types/index.ts",
+      "language": "typescript",
+      "sizeLines": 573,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/utils/classroomMedia.ts",
+      "language": "typescript",
+      "sizeLines": 166,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/utils/exportUtils.ts",
+      "language": "typescript",
+      "sizeLines": 60,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/src/utils/formatters.ts",
+      "language": "typescript",
+      "sizeLines": 240,
+      "fileCategory": "code"
+    },
+    {
+      "path": "frontend/tsconfig.app.json",
+      "language": "json",
+      "sizeLines": 26,
+      "fileCategory": "config"
+    },
+    {
+      "path": "frontend/tsconfig.json",
+      "language": "json",
+      "sizeLines": 7,
+      "fileCategory": "config"
+    },
+    {
+      "path": "frontend/tsconfig.node.json",
+      "language": "json",
+      "sizeLines": 23,
+      "fileCategory": "config"
+    },
+    {
+      "path": "frontend/vite.config.ts",
+      "language": "typescript",
+      "sizeLines": 28,
+      "fileCategory": "code"
+    },
+    {
+      "path": "scripts/probe_db_state.py",
+      "language": "python",
+      "sizeLines": 70,
+      "fileCategory": "code"
+    },
+    {
+      "path": "scripts/run_devtools_e2e.py",
+      "language": "python",
+      "sizeLines": 547,
+      "fileCategory": "code"
+    },
+    {
+      "path": "scripts/run_live_crud_e2e.py",
+      "language": "python",
+      "sizeLines": 1194,
+      "fileCategory": "code"
+    },
+    {
+      "path": "scripts/serve_e2e_test_database.py",
+      "language": "python",
+      "sizeLines": 25,
+      "fileCategory": "code"
+    }
+  ],
+  "totalFiles": 205,
+  "filteredByIgnore": 81,
+  "estimatedComplexity": "large",
+  "importMap": {
+    "FUTURE_ENHANCEMENTS.md": [],
+    "IMPLEMENTATION_NOTES.md": [],
+    "PROJECT.md": [],
+    "README.md": [],
+    "backend/.env.example": [],
+    "backend/alembic.ini": [],
+    "backend/alembic/README": [],
+    "backend/alembic/env.py": [
+      "backend/app/core/config.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/alembic/script.py.mako": [],
+    "backend/alembic/versions/20261113_01_unified_upgrade_schema.py": [],
+    "backend/alembic/versions/20261117_01_semesters_and_course_sections.py": [],
+    "backend/alembic/versions/20261117_02_course_sessions.py": [],
+    "backend/alembic/versions/6f2d4db8312a_unique_grade_sources.py": [],
+    "backend/alembic/versions/efd8af3f19c3_initial_baseline_12_tables.py": [],
+    "backend/app/api/routes/ai.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/ai_service.py"
+    ],
+    "backend/app/api/routes/assignments.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/grading.py",
+      "backend/app/services/notification_push.py"
+    ],
+    "backend/app/api/routes/auth.py": [
+      "backend/app/core/config.py",
+      "backend/app/core/dependencies.py",
+      "backend/app/core/security.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py"
+    ],
+    "backend/app/api/routes/content.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py"
+    ],
+    "backend/app/api/routes/courses.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/grading.py",
+      "backend/app/services/schedule_conflicts.py",
+      "backend/app/services/semester_lifecycle.py"
+    ],
+    "backend/app/api/routes/dashboard.py": [
+      "backend/app/api/routes/courses.py",
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/grading.py"
+    ],
+    "backend/app/api/routes/files.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/file_storage.py"
+    ],
+    "backend/app/api/routes/grades.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/grading.py",
+      "backend/app/services/notification_push.py"
+    ],
+    "backend/app/api/routes/meetings.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/realtime/__init__.py",
+      "backend/app/realtime/meeting_lifecycle.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/notification_push.py"
+    ],
+    "backend/app/api/routes/messages.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/realtime/__init__.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py"
+    ],
+    "backend/app/api/routes/notifications.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/notification_push.py"
+    ],
+    "backend/app/api/routes/progress.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py"
+    ],
+    "backend/app/api/routes/quizzes.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/grading.py",
+      "backend/app/services/notification_push.py"
+    ],
+    "backend/app/api/routes/schedules.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/schedule_conflicts.py"
+    ],
+    "backend/app/api/routes/semesters.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/semester_lifecycle.py"
+    ],
+    "backend/app/api/routes/users.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/core/security.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py"
+    ],
+    "backend/app/api/routes/ws.py": [
+      "backend/app/core/dependencies.py",
+      "backend/app/core/security.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/realtime/__init__.py",
+      "backend/app/realtime/meeting_lifecycle.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py"
+    ],
+    "backend/app/core/config.py": [],
+    "backend/app/core/dependencies.py": [
+      "backend/app/core/security.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/app/core/security.py": [
+      "backend/app/core/config.py"
+    ],
+    "backend/app/db/base.py": [],
+    "backend/app/db/init_db.py": [
+      "backend/app/core/config.py",
+      "backend/app/core/security.py",
+      "backend/app/db/seed_demo.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/app/db/seed_demo.py": [
+      "backend/app/core/config.py",
+      "backend/app/models/models.py",
+      "backend/app/services/semester_lifecycle.py"
+    ],
+    "backend/app/db/session.py": [
+      "backend/app/core/config.py"
+    ],
+    "backend/app/main.py": [
+      "backend/app/api/routes/ai.py",
+      "backend/app/api/routes/assignments.py",
+      "backend/app/api/routes/auth.py",
+      "backend/app/api/routes/content.py",
+      "backend/app/api/routes/courses.py",
+      "backend/app/api/routes/dashboard.py",
+      "backend/app/api/routes/files.py",
+      "backend/app/api/routes/grades.py",
+      "backend/app/api/routes/meetings.py",
+      "backend/app/api/routes/messages.py",
+      "backend/app/api/routes/notifications.py",
+      "backend/app/api/routes/progress.py",
+      "backend/app/api/routes/quizzes.py",
+      "backend/app/api/routes/schedules.py",
+      "backend/app/api/routes/semesters.py",
+      "backend/app/api/routes/users.py",
+      "backend/app/api/routes/ws.py",
+      "backend/app/core/config.py",
+      "backend/app/db/init_db.py",
+      "backend/app/db/session.py",
+      "backend/app/realtime/manager.py",
+      "backend/app/realtime/meeting_lifecycle.py",
+      "backend/app/services/semester_lifecycle.py"
+    ],
+    "backend/app/models/__init__.py": [
+      "backend/app/models/models.py"
+    ],
+    "backend/app/models/models.py": [
+      "backend/app/db/base.py"
+    ],
+    "backend/app/realtime/__init__.py": [
+      "backend/app/realtime/manager.py"
+    ],
+    "backend/app/realtime/manager.py": [],
+    "backend/app/realtime/meeting_lifecycle.py": [
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/realtime/manager.py",
+      "backend/app/schemas/common.py"
+    ],
+    "backend/app/schemas/__init__.py": [
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py"
+    ],
+    "backend/app/schemas/common.py": [],
+    "backend/app/schemas/schemas.py": [
+      "backend/app/core/security.py",
+      "backend/app/schemas/common.py"
+    ],
+    "backend/app/services/__init__.py": [],
+    "backend/app/services/ai_service.py": [
+      "backend/app/api/routes/quizzes.py",
+      "backend/app/core/config.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/schemas.py"
+    ],
+    "backend/app/services/file_storage.py": [
+      "backend/app/core/config.py"
+    ],
+    "backend/app/services/grading.py": [
+      "backend/app/models/models.py"
+    ],
+    "backend/app/services/notification_push.py": [
+      "backend/app/realtime/manager.py"
+    ],
+    "backend/app/services/schedule_conflicts.py": [
+      "backend/app/models/models.py",
+      "backend/app/schemas/schemas.py"
+    ],
+    "backend/app/services/semester_lifecycle.py": [
+      "backend/app/models/models.py"
+    ],
+    "backend/requirements.txt": [],
+    "backend/tests/conftest.py": [
+      "backend/app/db/init_db.py",
+      "backend/app/db/session.py",
+      "backend/app/main.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/tests/test_acceptance.py": [
+      "backend/app/db/session.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/tests/test_ai_assistant.py": [
+      "backend/app/api/routes/quizzes.py",
+      "backend/app/core/config.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/tests/test_audit_fixes_20261118.py": [
+      "backend/app/api/routes/assignments.py",
+      "backend/app/core/config.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/realtime/manager.py",
+      "backend/app/realtime/meeting_lifecycle.py",
+      "backend/app/schemas/schemas.py",
+      "backend/app/services/file_storage.py"
+    ],
+    "backend/tests/test_auth_users_demo.py": [
+      "backend/app/core/config.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/tests/test_challenger_recon.py": [
+      "backend/app/core/security.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/tests/test_files_and_content.py": [
+      "backend/app/core/config.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/tests/test_forensic_contracts.py": [
+      "backend/app/api/routes/assignments.py",
+      "backend/app/api/routes/quizzes.py",
+      "backend/app/core/config.py",
+      "backend/app/main.py",
+      "backend/app/schemas/schemas.py"
+    ],
+    "backend/tests/test_foundation_contracts.py": [
+      "backend/app/core/config.py",
+      "backend/app/core/dependencies.py",
+      "backend/app/core/security.py",
+      "backend/app/db/seed_demo.py",
+      "backend/app/models/models.py",
+      "backend/app/schemas/common.py",
+      "backend/app/schemas/schemas.py"
+    ],
+    "backend/tests/test_learning_flows.py": [
+      "backend/app/core/security.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/tests/test_live_qa_regressions.py": [],
+    "backend/tests/test_meeting_lifecycle.py": [
+      "backend/app/db/seed_demo.py",
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/realtime/meeting_lifecycle.py"
+    ],
+    "backend/tests/test_meetings_and_teams.py": [
+      "backend/app/models/models.py"
+    ],
+    "backend/tests/test_realtime_classroom.py": [
+      "backend/app/db/session.py",
+      "backend/app/models/models.py",
+      "backend/app/services/notification_push.py"
+    ],
+    "backend/tests/test_recon2_challenger.py": [
+      "backend/app/db/init_db.py",
+      "backend/app/db/session.py",
+      "backend/app/main.py"
+    ],
+    "backend/tests/test_schedules_and_conflicts.py": [
+      "backend/app/db/session.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/tests/test_semesters_and_scale.py": [
+      "backend/app/db/session.py",
+      "backend/app/models/models.py"
+    ],
+    "backend/tests/test_wave2_main.py": [
+      "backend/app/core/config.py"
+    ],
+    "database/01_schema.sql": [],
+    "database/02_seed.sql": [],
+    "database/03_demo_queries.sql": [],
+    "database/04_seed_validation.sql": [],
+    "database/README.md": [],
+    "database/setup_database.ps1": [],
+    "docs/00_COURSE_CONTEXT_AND_DELIVERABLES.md": [],
+    "docs/01_SCOPE_AND_REQUIREMENTS.md": [],
+    "docs/02_ROLES_USE_CASES.md": [],
+    "docs/03_ARCHITECTURE.md": [],
+    "docs/04_DATABASE_DESIGN.md": [],
+    "docs/05_API_SPEC.md": [],
+    "docs/06_UI_UX_SCREENS.md": [],
+    "docs/07_BUSINESS_RULES.md": [],
+    "docs/08_PROJECT_MANAGEMENT.md": [],
+    "docs/09_TEST_PLAN_ACCEPTANCE.md": [],
+    "docs/10_IMPLEMENTATION_PLAN.md": [],
+    "docs/11_REPORT_OUTLINE.md": [],
+    "docs/project-management/01_PROJECT_CHARTER.md": [],
+    "docs/project-management/02_STAKEHOLDER_REGISTER.md": [],
+    "docs/project-management/03_RACI_MATRIX.md": [],
+    "docs/project-management/04_SCOPE_BASELINE_WBS.md": [],
+    "docs/project-management/05_WBS_DICTIONARY.md": [],
+    "docs/project-management/06_SCHEDULE_CPM_GANTT.md": [],
+    "docs/project-management/07_RESOURCE_AND_BUDGET_BASELINE.md": [],
+    "docs/project-management/08_RISK_REGISTER.md": [],
+    "docs/project-management/09_QUALITY_PLAN_AND_GATES.md": [],
+    "docs/project-management/10_COMMUNICATION_PLAN.md": [],
+    "docs/project-management/11_CHANGE_MANAGEMENT_PLAN.md": [],
+    "docs/project-management/12_UAT_AND_ACCEPTANCE_EVIDENCE.md": [],
+    "docs/project-management/13_PROJECT_CLOSURE_AND_LESSONS_LEARNED.md": [],
+    "frontend/.oxlintrc.json": [],
+    "frontend/README.md": [],
+    "frontend/index.html": [],
+    "frontend/package.json": [],
+    "frontend/src/App.css": [],
+    "frontend/src/App.tsx": [
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/ThemeToggle.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/routes/AppRoutes.tsx"
+    ],
+    "frontend/src/api/ai.ts": [
+      "frontend/src/api/http.ts",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/api/content.ts": [
+      "frontend/src/api/http.ts",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/api/demo.ts": [
+      "frontend/src/api/http.ts",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/api/files.ts": [
+      "frontend/src/api/http.ts",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/api/http.ts": [],
+    "frontend/src/api/learning.ts": [
+      "frontend/src/api/http.ts",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/api/realtime.ts": [
+      "frontend/src/api/http.ts",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/api/users.ts": [
+      "frontend/src/api/http.ts",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/auth/AuthContext.tsx": [
+      "frontend/src/api/demo.ts",
+      "frontend/src/api/http.ts",
+      "frontend/src/api/users.ts",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/ai/AiFeedbackButton.tsx": [
+      "frontend/src/api/ai.ts",
+      "frontend/src/api/http.ts",
+      "frontend/src/components/ui/Badge.tsx"
+    ],
+    "frontend/src/components/ai/AiQuizGeneratorModal.tsx": [
+      "frontend/src/api/ai.ts",
+      "frontend/src/api/http.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx"
+    ],
+    "frontend/src/components/ai/LessonAiTutorDrawer.tsx": [
+      "frontend/src/api/ai.ts",
+      "frontend/src/api/http.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx"
+    ],
+    "frontend/src/components/assignments/AssignmentFormModal.tsx": [
+      "frontend/src/api/files.ts",
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/assignments/assignmentUtils.ts",
+      "frontend/src/components/files/FileDropzone.tsx",
+      "frontend/src/components/files/FilePreviewModal.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/assignments/StudentSubmitDrawer.tsx": [
+      "frontend/src/api/files.ts",
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/assignments/assignmentUtils.ts",
+      "frontend/src/components/files/FileDropzone.tsx",
+      "frontend/src/components/files/FilePreviewModal.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/SafeHtml.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/assignments/SubmissionsGradingDrawer.tsx": [
+      "frontend/src/api/files.ts",
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/ai/AiFeedbackButton.tsx",
+      "frontend/src/components/assignments/assignmentUtils.ts",
+      "frontend/src/components/files/FilePreviewModal.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/SafeHtml.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/exportUtils.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/assignments/assignmentUtils.ts": [
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/auth/ProtectedRoute.tsx": [
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/common/DemoRoleSwitcher.tsx": [
+      "frontend/src/api/demo.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/common/OnboardingGuideModal.tsx": [
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/courses/BulkCourseImportModal.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/courses/CloneCoursesModal.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/courses/CourseClassroomTab.tsx": [
+      "frontend/src/api/http.ts",
+      "frontend/src/api/realtime.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/hooks/useWebSocket.ts",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/courses/CourseContentTab.tsx": [
+      "frontend/src/api/content.ts",
+      "frontend/src/api/files.ts",
+      "frontend/src/api/http.ts",
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/ai/LessonAiTutorDrawer.tsx",
+      "frontend/src/components/courses/LessonFormModal.tsx",
+      "frontend/src/components/courses/ModuleFormModal.tsx",
+      "frontend/src/components/files/FilePreviewModal.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ExpandFullscreenControls.tsx",
+      "frontend/src/components/ui/SafeHtml.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/hooks/useExpandableView.ts",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/courses/CourseGradebookTab.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/DataTable.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/exportUtils.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/courses/CourseHeader.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/courses/CourseStudentsTab.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/api/users.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/DataTable.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/courses/LecturerCombobox.tsx": [
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/courses/LessonFormModal.tsx": [
+      "frontend/src/api/content.ts",
+      "frontend/src/api/files.ts",
+      "frontend/src/components/files/FileDropzone.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/courses/ModuleFormModal.tsx": [
+      "frontend/src/api/content.ts",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/courses/SemesterManagementModal.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/dashboard/AdminDashboard.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/dashboard/KpiCard.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/dashboard/DeadlineFeed.tsx": [
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/dashboard/KpiCard.tsx": [],
+    "frontend/src/components/dashboard/LecturerDashboard.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/dashboard/DeadlineFeed.tsx",
+      "frontend/src/components/dashboard/KpiCard.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/dashboard/StudentDashboard.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/dashboard/DeadlineFeed.tsx",
+      "frontend/src/components/dashboard/KpiCard.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/files/FileDropzone.tsx": [
+      "frontend/src/api/files.ts",
+      "frontend/src/api/http.ts",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/files/FilePreviewModal.tsx": [
+      "frontend/src/api/files.ts",
+      "frontend/src/api/http.ts",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/layout/AppLayout.tsx": [
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/common/OnboardingGuideModal.tsx",
+      "frontend/src/components/layout/SidebarNav.tsx",
+      "frontend/src/components/layout/TopHeader.tsx",
+      "frontend/src/components/ui/Skeleton.tsx"
+    ],
+    "frontend/src/components/layout/NotificationPopover.tsx": [
+      "frontend/src/api/realtime.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/hooks/useWebSocket.ts",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/layout/SidebarNav.tsx": [
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/layout/TopHeader.tsx": [
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/common/DemoRoleSwitcher.tsx",
+      "frontend/src/components/layout/NotificationPopover.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ThemeToggle.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/quizzes/QuizAnalyticsPanel.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/quizzes/quizUtils.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/DataTable.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/quizzes/QuizAttemptsModal.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/quizzes/quizUtils.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/DataTable.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/exportUtils.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/quizzes/QuizBuilderDrawer.tsx": [
+      "frontend/src/api/ai.ts",
+      "frontend/src/api/content.ts",
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/ai/AiQuizGeneratorModal.tsx",
+      "frontend/src/components/quizzes/quizUtils.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/quizzes/QuizFormModal.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/quizzes/quizUtils.ts",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/quizzes/QuizRunnerModal.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/quizzes/quizUtils.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/quizzes/quizUtils.ts": [
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/components/schedule/QuickScheduleModal.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/teams/ChannelChat.tsx": [
+      "frontend/src/api/files.ts",
+      "frontend/src/api/http.ts",
+      "frontend/src/api/realtime.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/files/FileDropzone.tsx",
+      "frontend/src/components/files/FilePreviewModal.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/hooks/useWebSocket.ts",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/teams/DeviceSettingsModal.tsx": [
+      "frontend/src/utils/classroomMedia.ts"
+    ],
+    "frontend/src/components/teams/MeetingRoom.tsx": [
+      "frontend/src/api/http.ts",
+      "frontend/src/api/realtime.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/teams/ChannelChat.tsx",
+      "frontend/src/components/teams/DeviceSettingsModal.tsx",
+      "frontend/src/components/teams/RoomPollsPanel.tsx",
+      "frontend/src/components/teams/StageVideoTile.tsx",
+      "frontend/src/components/teams/WhiteboardCanvas.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ExpandFullscreenControls.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/hooks/useExpandableView.ts",
+      "frontend/src/hooks/useWebSocket.ts",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/classroomMedia.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/teams/RoomPollsPanel.tsx": [],
+    "frontend/src/components/teams/StageVideoTile.tsx": [
+      "frontend/src/api/realtime.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/components/teams/WhiteboardCanvas.tsx": [
+      "frontend/src/api/http.ts",
+      "frontend/src/api/realtime.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/ExpandFullscreenControls.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/hooks/useExpandableView.ts"
+    ],
+    "frontend/src/components/ui/Badge.tsx": [],
+    "frontend/src/components/ui/ConfirmDialog.tsx": [
+      "frontend/src/components/ui/Modal.tsx"
+    ],
+    "frontend/src/components/ui/DataTable.tsx": [
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/Skeleton.tsx"
+    ],
+    "frontend/src/components/ui/EmptyState.tsx": [],
+    "frontend/src/components/ui/ErrorBanner.tsx": [],
+    "frontend/src/components/ui/ExpandFullscreenControls.tsx": [],
+    "frontend/src/components/ui/Modal.tsx": [],
+    "frontend/src/components/ui/SafeHtml.tsx": [],
+    "frontend/src/components/ui/Skeleton.tsx": [],
+    "frontend/src/components/ui/Tabs.tsx": [],
+    "frontend/src/components/ui/ThemeToggle.tsx": [],
+    "frontend/src/components/ui/Toast.tsx": [],
+    "frontend/src/hooks/useExpandableView.ts": [],
+    "frontend/src/hooks/useWebSocket.ts": [
+      "frontend/src/api/http.ts",
+      "frontend/src/api/realtime.ts"
+    ],
+    "frontend/src/index.css": [],
+    "frontend/src/main.tsx": [
+      "frontend/src/App.tsx",
+      "frontend/src/index.css"
+    ],
+    "frontend/src/pages/AdminUsersPage.tsx": [
+      "frontend/src/api/users.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/DataTable.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/pages/AssignmentsPage.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/assignments/AssignmentFormModal.tsx",
+      "frontend/src/components/assignments/StudentSubmitDrawer.tsx",
+      "frontend/src/components/assignments/SubmissionsGradingDrawer.tsx",
+      "frontend/src/components/assignments/assignmentUtils.ts",
+      "frontend/src/components/files/FilePreviewModal.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/DataTable.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/SafeHtml.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/pages/CourseDetailPage.tsx": [
+      "frontend/src/api/content.ts",
+      "frontend/src/api/learning.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/courses/CourseClassroomTab.tsx",
+      "frontend/src/components/courses/CourseContentTab.tsx",
+      "frontend/src/components/courses/CourseGradebookTab.tsx",
+      "frontend/src/components/courses/CourseHeader.tsx",
+      "frontend/src/components/courses/CourseStudentsTab.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Tabs.tsx",
+      "frontend/src/pages/AssignmentsPage.tsx",
+      "frontend/src/pages/QuizzesPage.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/pages/CoursesPage.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/api/users.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/courses/BulkCourseImportModal.tsx",
+      "frontend/src/components/courses/CloneCoursesModal.tsx",
+      "frontend/src/components/courses/LecturerCombobox.tsx",
+      "frontend/src/components/courses/SemesterManagementModal.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Tabs.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/pages/DashboardPage.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/api/realtime.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/dashboard/AdminDashboard.tsx",
+      "frontend/src/components/dashboard/LecturerDashboard.tsx",
+      "frontend/src/components/dashboard/StudentDashboard.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/pages/GradesPage.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/DataTable.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Tabs.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/exportUtils.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/pages/LoginPage.tsx": [
+      "frontend/src/api/demo.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/types/index.ts"
+    ],
+    "frontend/src/pages/NotificationsPage.tsx": [
+      "frontend/src/api/http.ts",
+      "frontend/src/api/realtime.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/hooks/useWebSocket.ts",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/pages/ProfilePage.tsx": [
+      "frontend/src/api/users.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/pages/QuizzesPage.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/quizzes/QuizAnalyticsPanel.tsx",
+      "frontend/src/components/quizzes/QuizAttemptsModal.tsx",
+      "frontend/src/components/quizzes/QuizBuilderDrawer.tsx",
+      "frontend/src/components/quizzes/QuizFormModal.tsx",
+      "frontend/src/components/quizzes/QuizRunnerModal.tsx",
+      "frontend/src/components/quizzes/quizUtils.ts",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/DataTable.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/pages/SchedulePage.tsx": [
+      "frontend/src/api/learning.ts",
+      "frontend/src/api/users.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/courses/LecturerCombobox.tsx",
+      "frontend/src/components/schedule/QuickScheduleModal.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/DataTable.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Skeleton.tsx",
+      "frontend/src/components/ui/Tabs.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/exportUtils.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/pages/VirtualClassroomPage.tsx": [
+      "frontend/src/api/http.ts",
+      "frontend/src/api/learning.ts",
+      "frontend/src/api/realtime.ts",
+      "frontend/src/auth/AuthContext.tsx",
+      "frontend/src/components/teams/ChannelChat.tsx",
+      "frontend/src/components/teams/MeetingRoom.tsx",
+      "frontend/src/components/teams/WhiteboardCanvas.tsx",
+      "frontend/src/components/ui/Badge.tsx",
+      "frontend/src/components/ui/ConfirmDialog.tsx",
+      "frontend/src/components/ui/EmptyState.tsx",
+      "frontend/src/components/ui/ErrorBanner.tsx",
+      "frontend/src/components/ui/Toast.tsx",
+      "frontend/src/types/index.ts",
+      "frontend/src/utils/exportUtils.ts",
+      "frontend/src/utils/formatters.ts"
+    ],
+    "frontend/src/routes/AppRoutes.tsx": [
+      "frontend/src/components/auth/ProtectedRoute.tsx",
+      "frontend/src/components/layout/AppLayout.tsx",
+      "frontend/src/components/ui/Skeleton.tsx"
+    ],
+    "frontend/src/types/index.ts": [],
+    "frontend/src/utils/classroomMedia.ts": [],
+    "frontend/src/utils/exportUtils.ts": [],
+    "frontend/src/utils/formatters.ts": [],
+    "frontend/tsconfig.app.json": [],
+    "frontend/tsconfig.json": [],
+    "frontend/tsconfig.node.json": [],
+    "frontend/vite.config.ts": [],
+    "scripts/probe_db_state.py": [],
+    "scripts/run_devtools_e2e.py": [],
+    "scripts/run_live_crud_e2e.py": [],
+    "scripts/serve_e2e_test_database.py": [
+      "backend/app/core/config.py",
+      "backend/app/db/session.py"
+    ]
+  }
+}
