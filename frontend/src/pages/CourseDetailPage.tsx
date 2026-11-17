@@ -305,11 +305,11 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ initialTab }
       </TabPanel>
 
       <TabPanel id="assignments" activeId={activeTab} idPrefix="course-workspace">
-        <AssignmentsPage embeddedCourseId={course.courseId} />
+        <AssignmentsPage embeddedCourseId={course.courseId} embeddedCourseStatus={course.status} />
       </TabPanel>
 
       <TabPanel id="quizzes" activeId={activeTab} idPrefix="course-workspace">
-        <QuizzesPage embeddedCourseId={course.courseId} />
+        <QuizzesPage embeddedCourseId={course.courseId} embeddedCourseStatus={course.status} />
       </TabPanel>
 
       <TabPanel id="gradebook" activeId={activeTab} idPrefix="course-workspace">

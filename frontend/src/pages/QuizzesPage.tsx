@@ -42,16 +42,20 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { SkeletonCard, SkeletonTable } from '../components/ui/Skeleton';
 import { useToast } from '../components/ui/Toast';
-import type { Course, Quiz, QuizAttempt } from '../types';
+import type { Course, CourseStatus, Quiz, QuizAttempt } from '../types';
 import { formatDateTimeVi, formatScoreVisibility } from '../utils/formatters';
 
 export interface QuizzesPageProps {
   embeddedCourseId?: string;
+  embeddedCourseStatus?: CourseStatus;
 }
 
 type QuizFilterKey = 'ALL' | 'OPEN' | 'UPCOMING' | 'CLOSED' | 'DRAFT';
 
-export function QuizzesPage({ embeddedCourseId }: QuizzesPageProps = {}) {
+export function QuizzesPage({
+  embeddedCourseId,
+  embeddedCourseStatus,
+}: QuizzesPageProps = {}) {
   const { user } = useAuth();
   const confirm = useConfirm();
   const toast = useToast();
@@ -71,6 +75,11 @@ export function QuizzesPage({ embeddedCourseId }: QuizzesPageProps = {}) {
     params.id ?? queryCourseId ?? '',
   );
   const selectedCourseId = embeddedCourseId ?? manualCourseId;
+  const selectedCourse = courses.find(
+    (c) => String(c.courseId ?? c.id) === selectedCourseId,
+  );
+  const isCourseArchived =
+    (embeddedCourseStatus ?? selectedCourse?.status ?? 'ACTIVE').toUpperCase() === 'ARCHIVED';
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [myAttemptsMap, setMyAttemptsMap] = useState<Record<string, QuizAttempt[]>>({});
@@ -176,7 +185,7 @@ export function QuizzesPage({ embeddedCourseId }: QuizzesPageProps = {}) {
                 const attempts = nextAttemptsMap[deepLinkQuizId] ?? [];
                 if (attempts.length > 0) {
                   setAttemptsTarget(match);
-                } else if (getQuizWindowMeta(match).key === 'OPEN') {
+                } else if (!isCourseArchived && getQuizWindowMeta(match).key === 'OPEN') {
                   setRunnerTarget(match);
                 }
               }
@@ -197,7 +206,7 @@ export function QuizzesPage({ embeddedCourseId }: QuizzesPageProps = {}) {
     return () => {
       cancelled = true;
     };
-  }, [deepLinkQuizId, isInstructor, reloadNonce, selectedCourseId]);
+  }, [deepLinkQuizId, isCourseArchived, isInstructor, reloadNonce, selectedCourseId]);
 
   const handleRetry = () => {
     setError(null);
@@ -501,8 +510,9 @@ export function QuizzesPage({ embeddedCourseId }: QuizzesPageProps = {}) {
         const inProgress = attempts.find(
           (a) => (a.status || '').toUpperCase() === 'IN_PROGRESS',
         );
-        const canStartNew = win.key === 'OPEN' && attempts.length < maxAttempts;
-        const canResume = win.key === 'OPEN' && Boolean(inProgress);
+        const canStartNew =
+          !isCourseArchived && win.key === 'OPEN' && attempts.length < maxAttempts;
+        const canResume = !isCourseArchived && win.key === 'OPEN' && Boolean(inProgress);
 
         return (
           <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -544,16 +554,16 @@ export function QuizzesPage({ embeddedCourseId }: QuizzesPageProps = {}) {
                 <Play className="h-3.5 w-3.5" aria-hidden="true" />
                 Bắt đầu làm bài
               </button>
+            ) : isCourseArchived && attempts.length === 0 ? (
+              <Badge variant="neutral" size="sm">
+                Đã lưu trữ (Chỉ đọc)
+              </Badge>
             ) : null}
           </div>
         );
       },
     },
   ];
-
-  const selectedCourse = courses.find(
-    (c) => String(c.courseId ?? c.id) === selectedCourseId,
-  );
 
   return (
     <div className={isEmbedded ? 'space-y-4' : 'space-y-6'}>
@@ -800,7 +810,7 @@ export function QuizzesPage({ embeddedCourseId }: QuizzesPageProps = {}) {
               const hasInProgress = attempts.some(
                 (a) => (a.status || '').toUpperCase() === 'IN_PROGRESS',
               );
-              if (win.key === 'OPEN' && (hasInProgress || attempts.length === 0)) {
+              if (!isCourseArchived && win.key === 'OPEN' && (hasInProgress || attempts.length === 0)) {
                 setRunnerTarget(row);
               } else if (attempts.length > 0) {
                 setAttemptsTarget(row);

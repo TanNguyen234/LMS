@@ -61,6 +61,7 @@ export const CourseHeader: React.FC<CourseHeaderProps> = ({
   const [regenerateCode, setRegenerateCode] = useState(false);
   const [courseStatus, setCourseStatus] = useState<CourseStatus>(course.status);
 
+  const isAdmin = userRole === 'ADMIN';
   const statusLabel = formatCourseStatus(course.status);
 
   const handleCopyJoinCode = async () => {
@@ -105,7 +106,7 @@ export const CourseHeader: React.FC<CourseHeaderProps> = ({
         joinCode: nextJoinCode,
       });
 
-      if (courseStatus !== course.status) {
+      if (isAdmin && courseStatus !== course.status) {
         await updateCourseStatus(course.courseId, courseStatus);
         updated.status = courseStatus;
       }
@@ -251,29 +252,31 @@ export const CourseHeader: React.FC<CourseHeaderProps> = ({
       <Modal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        title="Cấu hình ghi danh & trạng thái khóa học"
+        title={isAdmin ? 'Cấu hình ghi danh & trạng thái khóa học' : 'Cấu hình ghi danh khóa học'}
         subtitle={`${course.courseCode} — ${course.title}`}
         size="md"
       >
         <form onSubmit={handleSaveSettings} className="space-y-4">
-          <div>
-            <label
-              htmlFor="course-status-select"
-              className="block text-sm font-medium text-[var(--lms-text)] mb-1"
-            >
-              Trạng thái hiển thị
-            </label>
-            <select
-              id="course-status-select"
-              value={courseStatus}
-              onChange={(e) => setCourseStatus(e.target.value as CourseStatus)}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] text-sm text-[var(--lms-text)]"
-            >
-              <option value="ACTIVE">Đang hoạt động (ACTIVE)</option>
-              <option value="DRAFT">Bản nháp (DRAFT)</option>
-              <option value="ARCHIVED">Lưu trữ (ARCHIVED)</option>
-            </select>
-          </div>
+          {isAdmin && (
+            <div>
+              <label
+                htmlFor="course-status-select"
+                className="block text-sm font-medium text-[var(--lms-text)] mb-1"
+              >
+                Trạng thái hiển thị
+              </label>
+              <select
+                id="course-status-select"
+                value={courseStatus}
+                onChange={(e) => setCourseStatus(e.target.value as CourseStatus)}
+                className="w-full px-3 py-2 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] text-sm text-[var(--lms-text)]"
+              >
+                <option value="ACTIVE">Đang hoạt động (ACTIVE)</option>
+                <option value="DRAFT">Bản nháp (DRAFT)</option>
+                <option value="ARCHIVED">Lưu trữ (ARCHIVED)</option>
+              </select>
+            </div>
+          )}
 
           <label className="flex items-center gap-2.5 text-sm text-[var(--lms-text)] cursor-pointer">
             <input

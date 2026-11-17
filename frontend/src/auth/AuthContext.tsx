@@ -5,8 +5,6 @@ import { ApiError, clearAuthToken, getAuthToken, httpPost, setAuthToken, setUnau
 import { getMyProfile, normalizeUser, type ApiUser } from '../api/users';
 import { demoSwitch } from '../api/demo';
 
-/** Legacy key read by `api/client.ts`; kept in sync with the `api/http.ts` key until Wave 2 retires client.ts. */
-const LEGACY_TOKEN_KEY = 'token';
 const USER_STORAGE_KEY = 'user';
 
 interface AuthContextType {
@@ -28,18 +26,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function readStoredToken(): string | null {
-  const current = getAuthToken();
-  if (current) return current;
-  try {
-    const legacy = localStorage.getItem(LEGACY_TOKEN_KEY);
-    if (legacy) {
-      setAuthToken(legacy);
-      return legacy;
-    }
-  } catch {
-    // Storage unavailable
-  }
-  return null;
+  return getAuthToken();
 }
 
 function readStoredUser(): User | null {
@@ -54,7 +41,6 @@ function readStoredUser(): User | null {
 function persistSession(token: string, user: User): void {
   setAuthToken(token);
   try {
-    localStorage.setItem(LEGACY_TOKEN_KEY, token);
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
   } catch {
     // Storage unavailable
@@ -72,7 +58,6 @@ function persistUser(user: User): void {
 function clearSession(): void {
   clearAuthToken();
   try {
-    localStorage.removeItem(LEGACY_TOKEN_KEY);
     localStorage.removeItem(USER_STORAGE_KEY);
   } catch {
     // Storage unavailable

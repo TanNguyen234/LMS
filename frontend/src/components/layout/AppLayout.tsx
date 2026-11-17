@@ -68,7 +68,7 @@ export const AppLayout: React.FC = () => {
                 </div>
               }
             >
-              <Outlet />
+              <Outlet key={user.userId || user.id || 'anon'} />
             </Suspense>
           </main>
 

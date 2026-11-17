@@ -48,6 +48,7 @@ function ToastIcon({ variant }: { variant: ToastVariant }) {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const timersRef = useRef<Map<string, number>>(new Map());
+  const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const dismiss = useCallback((id: string) => {
     const timer = timersRef.current.get(id);
@@ -89,6 +90,39 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [showToast],
   );
 
+  useEffect(() => {
+    const el = viewportRef.current as (HTMLDivElement & {
+      showPopover?: () => void;
+      hidePopover?: () => void;
+    }) | null;
+    if (!el || typeof el.showPopover !== 'function' || typeof el.hidePopover !== 'function') {
+      return undefined;
+    }
+
+    const promoteToTopLayer = () => {
+      try {
+        if (toasts.length > 0) {
+          if (el.matches(':popover-open')) {
+            el.hidePopover?.();
+          }
+          el.showPopover?.();
+        } else if (el.matches(':popover-open')) {
+          el.hidePopover?.();
+        }
+      } catch {
+        // Ignore Popover API errors in headless or older browser environments
+      }
+    };
+
+    promoteToTopLayer();
+    if (toasts.length === 0) return undefined;
+
+    document.addEventListener('fullscreenchange', promoteToTopLayer);
+    return () => {
+      document.removeEventListener('fullscreenchange', promoteToTopLayer);
+    };
+  }, [toasts]);
+
   const politeToasts = toasts.filter((t) => t.variant !== 'error');
   const assertiveToasts = toasts.filter((t) => t.variant === 'error');
 
@@ -116,7 +150,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="no-print pointer-events-none fixed right-4 bottom-4 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
+      <div
+        ref={viewportRef}
+        popover="manual"
+        className="no-print pointer-events-none fixed top-auto left-auto right-4 bottom-4 z-50 m-0 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2 overflow-visible border-0 bg-transparent p-0"
+      >
         <div aria-live="polite" aria-atomic="false" className="flex flex-col gap-2">
           {politeToasts.map(renderItem)}
         </div>

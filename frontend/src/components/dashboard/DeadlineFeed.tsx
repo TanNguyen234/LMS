@@ -29,13 +29,24 @@ export interface DeadlineFeedProps {
   emptyDescription?: string;
 }
 
+function getEventAnchorTime(ev: CalendarEventItem): string {
+  if (ev.kind === 'SESSION' || ev.kind === 'MEETING') {
+    return ev.startAt || ev.endAt;
+  }
+  return ev.endAt;
+}
+
 export const DeadlineFeed: React.FC<DeadlineFeedProps> = ({
   events,
   title = 'Lịch & Hạn nộp sắp tới',
   emptyDescription = 'Không có bài tập, kiểm tra hay buổi học nào trong 14 ngày tới.',
 }) => {
   const sorted = [...events]
-    .sort((a, b) => new Date(a.endAt).getTime() - new Date(b.endAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(getEventAnchorTime(a)).getTime() -
+        new Date(getEventAnchorTime(b)).getTime(),
+    )
     .slice(0, 8);
 
   return (
@@ -66,7 +77,9 @@ export const DeadlineFeed: React.FC<DeadlineFeedProps> = ({
           {sorted.map((ev) => {
             const meta = KIND_META[ev.kind] ?? KIND_META.ASSIGNMENT;
             const Icon = meta.icon;
-            const urgent = isDueWithin24Hours(ev.endAt);
+            const isClassEvent = ev.kind === 'SESSION' || ev.kind === 'MEETING';
+            const anchorTime = getEventAnchorTime(ev);
+            const urgent = isDueWithin24Hours(anchorTime);
             return (
               <Link
                 key={`${ev.kind}-${ev.id}`}
@@ -85,8 +98,8 @@ export const DeadlineFeed: React.FC<DeadlineFeedProps> = ({
                       {ev.courseCode}
                     </span>
                     {urgent && (
-                      <Badge variant="danger" size="sm">
-                        Sắp hết hạn
+                      <Badge variant={isClassEvent ? 'warning' : 'danger'} size="sm">
+                        {isClassEvent ? 'Sắp diễn ra' : 'Sắp hết hạn'}
                       </Badge>
                     )}
                   </div>
@@ -94,7 +107,7 @@ export const DeadlineFeed: React.FC<DeadlineFeedProps> = ({
                     {ev.title}
                   </div>
                   <div className="text-xs text-[var(--lms-text-muted)] mt-0.5 tabular-nums">
-                    {formatDateTimeVi(ev.endAt)} · {ev.courseTitle}
+                    {formatDateTimeVi(anchorTime)} · {ev.courseTitle}
                   </div>
                 </div>
                 <ChevronRight

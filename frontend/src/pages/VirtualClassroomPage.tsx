@@ -14,8 +14,8 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { api } from '../api/client';
 import { ApiError } from '../api/http';
+import { getCourses } from '../api/learning';
 import {
   getCourseMeetings,
   getMeetingAuditLogs,
@@ -101,7 +101,7 @@ export function VirtualClassroomPage() {
   const fetchCourses = useCallback(async () => {
     setLoadingCourses(true);
     try {
-      const list = await api.getCourses();
+      const list = await getCourses();
       setCourses(list);
       setPageError(null);
       if (list.length > 0) {
@@ -120,7 +120,7 @@ export function VirtualClassroomPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const list = await api.getCourses();
+        const list = await getCourses();
         if (cancelled) return;
         setCourses(list);
         setPageError(null);
@@ -238,7 +238,11 @@ export function VirtualClassroomPage() {
       toast.success('Đã mở phòng học trực tuyến.');
       void fetchCourseMeetings(selectedCourseId);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        err.detail.includes('replaceActive')
+      ) {
         const replace = await confirm({
           title: 'Lớp học đang có phòng trực tuyến',
           message:
@@ -409,7 +413,7 @@ export function VirtualClassroomPage() {
           </aside>
         )}
 
-        <main className="flex-1 min-w-0 w-full space-y-4">
+        <div className="flex-1 min-w-0 w-full space-y-4">
           {!selectedCourse ? (
             <EmptyState
               title="Chọn một lớp học"
@@ -504,7 +508,11 @@ export function VirtualClassroomPage() {
                           title="Hiện chưa có phòng học nào đang phát sóng"
                           description={
                             canManageMeetings
-                              ? 'Giảng viên có thể tạo buổi học trực tuyến mới ngay bên dưới.'
+                              ? (selectedCourse.status || 'ACTIVE').toUpperCase() === 'ACTIVE'
+                                ? 'Giảng viên có thể tạo buổi học trực tuyến mới ngay bên dưới.'
+                                : selectedCourse.status === 'ARCHIVED'
+                                  ? 'Học phần đã lưu trữ (chỉ đọc) nên không thể mở buổi học mới.'
+                                  : 'Học phần đang ở trạng thái Bản nháp — hãy kích hoạt học phần trước khi mở phòng học trực tuyến.'
                               : 'Khi giảng viên bắt đầu buổi học, nút tham gia sẽ xuất hiện tại đây.'
                           }
                         />
@@ -512,39 +520,49 @@ export function VirtualClassroomPage() {
                     )}
 
                     {/* Lecturer / Admin Start New Room Form */}
-                    {canManageMeetings && (
-                      <form
-                        onSubmit={(e) => void handleStartMeeting(e)}
-                        className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-4 shadow-sm space-y-3"
-                      >
-                        <h3 className="text-sm font-semibold text-[var(--lms-text)]">
-                          Mở buổi học trực tuyến mới cho {selectedCourse.courseCode || selectedCourse.code}
-                        </h3>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <div className="flex-1">
-                            <label htmlFor={titleInputId} className="sr-only">
-                              Tiêu đề buổi học trực tuyến
-                            </label>
-                            <input
-                              id={titleInputId}
-                              type="text"
-                              value={newMeetingTitle}
-                              onChange={(e) => setNewMeetingTitle(e.target.value)}
-                              placeholder="Ví dụ: Chương 5 - Cây nhị phân tìm kiếm"
-                              className="w-full rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface-muted)] px-3 py-2 text-sm text-[var(--lms-text)] placeholder:text-[var(--lms-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--lms-primary)]"
-                            />
+                    {canManageMeetings &&
+                      ((selectedCourse.status || 'ACTIVE').toUpperCase() === 'ACTIVE' ? (
+                        <form
+                          onSubmit={(e) => void handleStartMeeting(e)}
+                          className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-4 shadow-sm space-y-3"
+                        >
+                          <h3 className="text-sm font-semibold text-[var(--lms-text)]">
+                            Mở buổi học trực tuyến mới cho {selectedCourse.courseCode || selectedCourse.code}
+                          </h3>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <div className="flex-1">
+                              <label htmlFor={titleInputId} className="sr-only">
+                                Tiêu đề buổi học trực tuyến
+                              </label>
+                              <input
+                                id={titleInputId}
+                                type="text"
+                                value={newMeetingTitle}
+                                onChange={(e) => setNewMeetingTitle(e.target.value)}
+                                placeholder="Ví dụ: Chương 5 - Cây nhị phân tìm kiếm"
+                                className="w-full rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface-muted)] px-3 py-2 text-sm text-[var(--lms-text)] placeholder:text-[var(--lms-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--lms-primary)]"
+                              />
+                            </div>
+                            <button
+                              type="submit"
+                              disabled={startingMeeting || !newMeetingTitle.trim()}
+                              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--lms-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                            >
+                              <Plus className="w-4 h-4" />
+                              {startingMeeting ? 'Đang khởi tạo...' : 'Bắt đầu buổi học'}
+                            </button>
                           </div>
-                          <button
-                            type="submit"
-                            disabled={startingMeeting || !newMeetingTitle.trim()}
-                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--lms-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 cursor-pointer"
-                          >
-                            <Plus className="w-4 h-4" />
-                            {startingMeeting ? 'Đang khởi tạo...' : 'Bắt đầu buổi học'}
-                          </button>
+                        </form>
+                      ) : (
+                        <div
+                          role="status"
+                          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100"
+                        >
+                          {selectedCourse.status === 'ARCHIVED'
+                            ? 'Lớp học phần này đã kết thúc và ở chế độ lưu trữ (chỉ đọc). Không thể khởi tạo phòng học trực tuyến mới.'
+                            : 'Lớp học phần đang ở trạng thái Bản nháp (DRAFT). Cần chuyển trạng thái sang Đang hoạt động (ACTIVE) trước khi mở buổi học trực tuyến.'}
                         </div>
-                      </form>
-                    )}
+                      ))}
 
                     {/* Meeting History */}
                     <section className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-4 shadow-sm space-y-3">
@@ -746,7 +764,7 @@ export function VirtualClassroomPage() {
               )}
             </>
           )}
-        </main>
+        </div>
       </div>
     </div>
   );

@@ -300,14 +300,19 @@ export const CourseStudentsTab: React.FC<CourseStudentsTabProps> = ({
               Hoàn thành
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => void handleRemove(row)}
-            title="Hủy ghi danh"
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--lms-border)] text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => void handleRemove(row)}
+              title="Hủy ghi danh"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--lms-border)] text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          )}
+          {!isAdmin && row.status !== 'ACTIVE' && (
+            <span className="text-xs text-[var(--lms-text-muted)]">--</span>
+          )}
         </div>
       ),
     },
@@ -344,7 +349,6 @@ export const CourseStudentsTab: React.FC<CourseStudentsTabProps> = ({
             <option value="ALL">Tất cả trạng thái ({enrollments.length})</option>
             <option value="ACTIVE">Đang học</option>
             <option value="COMPLETED">Hoàn thành</option>
-            <option value="DROPPED">Đã rút</option>
           </select>
         </div>
 

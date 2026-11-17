@@ -93,7 +93,11 @@ export const CourseClassroomTab: React.FC<CourseClassroomTabProps> = ({
       setCreateOpen(false);
       navigate(`/classroom?courseId=${encodeURIComponent(course.courseId)}`);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        err.detail.includes('replaceActive')
+      ) {
         const replace = await confirm({
           title: 'Đã có buổi học đang diễn ra',
           message:
@@ -135,12 +139,13 @@ export const CourseClassroomTab: React.FC<CourseClassroomTabProps> = ({
   }
 
   const liveMeeting = meetings.find((m) => m.status === 'LIVE');
+  const isCourseActive = (course.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
 
   return (
     <div className="space-y-5">
       <div className="bg-[var(--lms-surface)] border border-[var(--lms-border)] rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-bold text-[var(--lms-text)]">
               Phòng học & Thảo luận trực tuyến
             </h2>
@@ -149,16 +154,25 @@ export const CourseClassroomTab: React.FC<CourseClassroomTabProps> = ({
                 Đang LIVE
               </Badge>
             )}
+            {!isCourseActive && (
+              <Badge variant="neutral" size="sm">
+                {course.status === 'ARCHIVED' ? 'Đã lưu trữ (Chỉ đọc)' : 'Bản nháp'}
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-[var(--lms-text-muted)]">
             {liveMeeting
               ? `Buổi học "${liveMeeting.title}" đang mở với mã phòng ${liveMeeting.roomCode}.`
-              : 'Tham gia lớp học trực tuyến với bảng trắng cộng tác, giơ tay phát biểu và chat theo thời gian thực.'}
+              : !isCourseActive
+                ? course.status === 'ARCHIVED'
+                  ? 'Học phần đã lưu trữ ở chế độ chỉ đọc. Bạn có thể xem lại lịch sử buổi học và thảo luận nhưng không thể mở buổi học mới.'
+                  : 'Học phần đang ở trạng thái Bản nháp. Cần kích hoạt học phần trước khi mở phòng học trực tuyến.'
+                : 'Tham gia lớp học trực tuyến với bảng trắng cộng tác, giơ tay phát biểu và chat theo thời gian thực.'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {canManage && (
+          {canManage && isCourseActive && (
             <button
               type="button"
               onClick={() => {

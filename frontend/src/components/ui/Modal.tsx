@@ -74,9 +74,9 @@ export function Modal({
       aria-describedby={subtitle ? subtitleId : undefined}
       onCancel={handleCancel}
       onClick={handleBackdropClick}
-      className={`m-auto w-[calc(100%-2rem)] ${SIZE_CLASSES[size]} rounded-2xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-0 text-[var(--lms-text)] shadow-2xl animate-slideUp open:flex open:flex-col`}
+      className={`m-auto w-[calc(100%-2rem)] max-h-[92vh] overflow-hidden ${SIZE_CLASSES[size]} rounded-2xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-0 text-[var(--lms-text)] shadow-2xl animate-fadeIn open:flex open:flex-col`}
     >
-      <div className="flex items-start justify-between gap-4 border-b border-[var(--lms-border)] px-6 py-4">
+      <div className="relative z-10 flex shrink-0 items-start justify-between gap-4 border-b border-[var(--lms-border)] bg-[var(--lms-surface)] px-6 py-4">
         <div className="min-w-0">
           <h2 id={titleId} className="text-lg font-semibold leading-6 text-[var(--lms-text)]">
             {title}
@@ -103,7 +103,7 @@ export function Modal({
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
 
       {footer && (
-        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/40 px-6 py-4">
+        <div className="relative z-10 flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-[var(--lms-border)] bg-[var(--lms-surface)] px-6 py-4">
           {footer}
         </div>
       )}

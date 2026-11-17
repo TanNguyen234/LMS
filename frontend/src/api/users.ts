@@ -115,6 +115,28 @@ export async function listUsers(params: ListUsersParams = {}): Promise<Paginated
   return { ...res, items: res.items.map(normalizeUser) };
 }
 
+export async function listAllUsers(role?: UserRole, activeOnly = false): Promise<User[]> {
+  const collected: User[] = [];
+  let page = 1;
+  let total = Number.POSITIVE_INFINITY;
+
+  while (collected.length < total) {
+    const res = await listUsers({
+      page,
+      pageSize: 100,
+      role,
+      status: activeOnly ? 'ACTIVE' : undefined,
+    });
+    total = res.total;
+    if (res.items.length === 0) break;
+    collected.push(...res.items);
+    if (collected.length >= total) break;
+    page += 1;
+  }
+
+  return collected;
+}
+
 export async function getUser(userId: string): Promise<User> {
   return normalizeUser(await httpGet<ApiUser>(`/users/${encodeURIComponent(userId)}`));
 }

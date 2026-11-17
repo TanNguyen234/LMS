@@ -9,11 +9,8 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { ApiError } from '../api/http';
-import {
-  getNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-} from '../api/realtime';
+import { getNotifications, markAllNotificationsRead, markNotificationRead } from '../api/realtime';
+import { useAuth } from '../auth/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { Notification } from '../types';
 import { formatDateTimeVi, formatNotificationType } from '../utils/formatters';
@@ -23,17 +20,22 @@ import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { useToast } from '../components/ui/Toast';
 
 export function NotificationsPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
 
+  const activeUserId = user?.userId ?? '';
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const [loading, setLoading] = useState(true);
+  const [manualLoading, setManualLoading] = useState(false);
+  const [loadedUserId, setLoadedUserId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
 
+  const loading = manualLoading || (Boolean(activeUserId) && loadedUserId !== activeUserId);
+
   const loadNotifications = useCallback(async () => {
-    setLoading(true);
+    setManualLoading(true);
     try {
       const list = await getNotifications();
       setNotifications(list);
@@ -41,11 +43,15 @@ export function NotificationsPage() {
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : 'Không thể tải danh sách thông báo.');
     } finally {
-      setLoading(false);
+      setManualLoading(false);
+      if (activeUserId) {
+        setLoadedUserId(activeUserId);
+      }
     }
-  }, []);
+  }, [activeUserId]);
 
   useEffect(() => {
+    if (!activeUserId) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -59,14 +65,14 @@ export function NotificationsPage() {
         }
       } finally {
         if (!cancelled) {
-          setLoading(false);
+          setLoadedUserId(activeUserId);
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeUserId]);
 
   const handleWsEvent = useCallback(
     (event: any) => {

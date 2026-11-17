@@ -32,7 +32,11 @@ function pickOnePerRole(accounts: DemoAccountItem[]): DemoAccountItem[] {
 }
 
 interface LocationState {
-  from?: { pathname?: string };
+  from?: {
+    pathname?: string;
+    search?: string;
+    hash?: string;
+  };
 }
 
 export const LoginPage: React.FC = () => {
@@ -53,7 +57,11 @@ export const LoginPage: React.FC = () => {
   const [demoAccounts, setDemoAccounts] = useState<DemoAccountItem[]>([]);
   const [demoLoadingEmail, setDemoLoadingEmail] = useState<string | null>(null);
 
-  const from = (location.state as LocationState | null)?.from?.pathname || '/dashboard';
+  const fromState = (location.state as LocationState | null)?.from;
+  const from =
+    fromState?.pathname && fromState.pathname !== '/login'
+      ? `${fromState.pathname}${fromState.search ?? ''}${fromState.hash ?? ''}`
+      : '/dashboard';
 
   useEffect(() => {
     if (user) {

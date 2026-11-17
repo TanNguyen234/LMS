@@ -20,12 +20,12 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
-import { api } from '../api/client';
 import {
   learningApi,
   type CourseCreatePayload,
   type CourseUpdatePayload,
 } from '../api/learning';
+import { listAllUsers } from '../api/users';
 import { useAuth } from '../auth/AuthContext';
 import { BulkCourseImportModal } from '../components/courses/BulkCourseImportModal';
 import { CloneCoursesModal } from '../components/courses/CloneCoursesModal';
@@ -208,7 +208,7 @@ export const CoursesPage: React.FC = () => {
     let active = true;
     const loadLecturers = async () => {
       try {
-        const list = await api.getUsers('LECTURER', true);
+        const list = await listAllUsers('LECTURER', true);
         if (!active) return;
         setLecturers(list);
         if (list.length > 0) {

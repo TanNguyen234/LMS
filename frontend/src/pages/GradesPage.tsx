@@ -84,11 +84,13 @@ function getSourceBadge(type: string): { label: string; variant: BadgeVariant; i
 function getCoursePassStatus(
   score10: number | null | undefined,
   gradesCount: number,
+  passed?: boolean | null,
 ): { label: string; variant: BadgeVariant } {
   if (gradesCount === 0 || score10 == null) {
     return { label: 'Chưa có điểm', variant: 'neutral' };
   }
-  if (score10 < 4.0) {
+  const isPassed = typeof passed === 'boolean' ? passed : score10 >= 5.0;
+  if (!isPassed) {
     return { label: 'Chưa đạt', variant: 'danger' };
   }
   return { label: 'Đạt', variant: 'success' };
@@ -472,7 +474,7 @@ export const GradesPage: React.FC = () => {
     if (isStudent) {
       if (studentTab === 'transcript' || studentTab === 'chart') {
         const rows = (transcript?.courses ?? []).map((c) => {
-          const st = getCoursePassStatus(c.finalScore10, c.gradesCount);
+          const st = getCoursePassStatus(c.finalScore10, c.gradesCount, c.passed);
           return [
             c.courseCode,
             c.title,
@@ -757,7 +759,7 @@ export const GradesPage: React.FC = () => {
       key: 'result',
       header: 'Kết quả',
       render: (row) => {
-        const st = getCoursePassStatus(row.finalScore10, row.gradesCount);
+        const st = getCoursePassStatus(row.finalScore10, row.gradesCount, row.passed);
         return <Badge variant={st.variant}>{st.label}</Badge>;
       },
     },
@@ -994,6 +996,7 @@ export const GradesPage: React.FC = () => {
   const selectedCourseStatus = getCoursePassStatus(
     currentCourseStats.finalScore10,
     currentCourseStats.gradesCount,
+    selectedTranscriptCourse?.passed,
   );
   const selectedCourseGpa =
     currentCourseStats.finalScore10 != null
@@ -1303,26 +1306,6 @@ export const GradesPage: React.FC = () => {
                         );
                       })}
 
-                      <line
-                        x1={plotLeft}
-                        y1={passLineY}
-                        x2={plotRight}
-                        y2={passLineY}
-                        stroke="#f59e0b"
-                        strokeDasharray="5 4"
-                        strokeWidth={1.5}
-                      />
-                      <text
-                        x={plotRight}
-                        y={passLineY - 5}
-                        textAnchor="end"
-                        fontSize={10}
-                        fontWeight={600}
-                        fill="#d97706"
-                      >
-                        Ngưỡng đạt 5.0
-                      </text>
-
                       {chartCourses.map((course, idx) => {
                         const slotWidth = (plotRight - plotLeft) / chartCourses.length;
                         const barWidth = Math.min(46, Math.max(24, slotWidth * 0.5));
@@ -1368,6 +1351,38 @@ export const GradesPage: React.FC = () => {
                           </g>
                         );
                       })}
+
+                      <line
+                        x1={plotLeft}
+                        y1={passLineY}
+                        x2={plotRight}
+                        y2={passLineY}
+                        stroke="#f59e0b"
+                        strokeDasharray="5 4"
+                        strokeWidth={1.5}
+                      />
+                      <g transform={`translate(${plotRight - 4}, ${passLineY - 10})`}>
+                        <rect
+                          x={-88}
+                          y={-8}
+                          width={92}
+                          height={16}
+                          rx={4}
+                          fill="#fef3c7"
+                          stroke="#f59e0b"
+                          strokeWidth={1}
+                        />
+                        <text
+                          x={-42}
+                          y={3}
+                          textAnchor="middle"
+                          fontSize={10}
+                          fontWeight={600}
+                          fill="#b45309"
+                        >
+                          Ngưỡng đạt 5.0
+                        </text>
+                      </g>
                     </svg>
                   </div>
                 </div>

@@ -1,5 +1,11 @@
-import { useId, useState, type FormEvent } from 'react';
-import { createQuiz, updateQuiz, type QuizSavePayload } from '../../api/learning';
+import { useEffect, useId, useState, type FormEvent } from 'react';
+import { Lock } from 'lucide-react';
+import {
+  createQuiz,
+  getQuizAttempts,
+  updateQuiz,
+  type QuizSavePayload,
+} from '../../api/learning';
 import type { Quiz, ScoreVisibility } from '../../types';
 import { formatScoreVisibility } from '../../utils/formatters';
 import { Modal } from '../ui/Modal';
@@ -72,6 +78,31 @@ function QuizFormModalInner({
 
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hasAttempts, setHasAttempts] = useState(false);
+
+  const initialStartInput = quiz ? toLocalDateTimeInput(quiz.startAt) : '';
+  const initialEndInput = quiz ? toLocalDateTimeInput(quiz.endAt) : '';
+  const initialDuration = quiz ? getQuizDurationMinutes(quiz) : 30;
+  const initialMaxAttempts = quiz ? (quiz.maxAttempts ?? 1) : 1;
+
+  useEffect(() => {
+    if (!quiz) return;
+    let cancelled = false;
+    void getQuizAttempts(getQuizId(quiz))
+      .then((list) => {
+        if (!cancelled) {
+          setHasAttempts(list.length > 0);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHasAttempts(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [quiz]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -131,24 +162,46 @@ function QuizFormModalInner({
       parsedWeight = numericWeight;
     }
 
-    const payload: QuizSavePayload = {
-      title: trimmedTitle,
-      description: description.trim() ? description.trim() : null,
-      startAt: startAtIso,
-      endAt: endAtIso,
-      timeLimitMinutes: parsedLimit,
-      maxAttempts: parsedAttempts,
-      passingScore: parsedPassing,
-      weightPercent: parsedWeight,
-      scoreVisibility,
-      isPublished,
-    };
-
     setSaving(true);
     try {
-      const saved = quiz
-        ? await updateQuiz(getQuizId(quiz), payload)
-        : await createQuiz(courseId, payload);
+      let saved: Quiz;
+      if (quiz) {
+        const updatePayload: Partial<QuizSavePayload> = {
+          title: trimmedTitle,
+          description: description.trim() ? description.trim() : null,
+          passingScore: parsedPassing,
+          weightPercent: parsedWeight,
+          scoreVisibility,
+          isPublished,
+        };
+        if (!hasAttempts && startAtInput !== initialStartInput) {
+          updatePayload.startAt = startAtIso;
+        }
+        if (!hasAttempts && endAtInput !== initialEndInput) {
+          updatePayload.endAt = endAtIso;
+        }
+        if (!hasAttempts && parsedLimit !== initialDuration) {
+          updatePayload.timeLimitMinutes = parsedLimit;
+        }
+        if (!hasAttempts && parsedAttempts !== initialMaxAttempts) {
+          updatePayload.maxAttempts = parsedAttempts;
+        }
+        saved = await updateQuiz(getQuizId(quiz), updatePayload);
+      } else {
+        const createPayload: QuizSavePayload = {
+          title: trimmedTitle,
+          description: description.trim() ? description.trim() : null,
+          startAt: startAtIso,
+          endAt: endAtIso,
+          timeLimitMinutes: parsedLimit,
+          maxAttempts: parsedAttempts,
+          passingScore: parsedPassing,
+          weightPercent: parsedWeight,
+          scoreVisibility,
+          isPublished,
+        };
+        saved = await createQuiz(courseId, createPayload);
+      }
       toast.success(
         isEdit
           ? 'Đã cập nhật cấu hình bài kiểm tra.'
@@ -210,6 +263,18 @@ function QuizFormModalInner({
           </div>
         )}
 
+        {hasAttempts && (
+          <div
+            role="status"
+            className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100"
+          >
+            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+            <span>
+              Đã có sinh viên bắt đầu làm bài: khung giờ mở/đóng, thời lượng và số lượt tối đa được khóa cố định. Bạn vẫn có thể chỉnh sửa tiêu đề, hướng dẫn, điểm đạt, trọng số và chính sách hiển thị đáp án.
+            </span>
+          </div>
+        )}
+
         <div>
           <label
             htmlFor={`${baseId}-title`}
@@ -259,9 +324,10 @@ function QuizFormModalInner({
               id={`${baseId}-start`}
               type="datetime-local"
               required
+              disabled={hasAttempts}
               value={startAtInput}
               onChange={(event) => setStartAtInput(event.target.value)}
-              className="tabular-nums w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3.5 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="tabular-nums w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3.5 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
@@ -277,9 +343,10 @@ function QuizFormModalInner({
               id={`${baseId}-end`}
               type="datetime-local"
               required
+              disabled={hasAttempts}
               value={endAtInput}
               onChange={(event) => setEndAtInput(event.target.value)}
-              className="tabular-nums w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3.5 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="tabular-nums w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3.5 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
         </div>
@@ -296,12 +363,13 @@ function QuizFormModalInner({
               id={`${baseId}-duration`}
               type="number"
               required
+              disabled={hasAttempts}
               min="1"
               max="300"
               step="1"
               value={timeLimitMinutes}
               onChange={(event) => setTimeLimitMinutes(event.target.value)}
-              className="tabular-nums w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="tabular-nums w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
@@ -316,12 +384,13 @@ function QuizFormModalInner({
               id={`${baseId}-attempts`}
               type="number"
               required
+              disabled={hasAttempts}
               min="1"
               max="10"
               step="1"
               value={maxAttempts}
               onChange={(event) => setMaxAttempts(event.target.value)}
-              className="tabular-nums w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="tabular-nums w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-sm text-[var(--lms-text)] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 

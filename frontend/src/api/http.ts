@@ -2,7 +2,16 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) |
 const TOKEN_STORAGE_KEY = 'lms_token';
 
 type UnauthorizedHandler = () => void;
+type TokenChangeListener = (token: string | null) => void;
 let unauthorizedHandler: UnauthorizedHandler | null = null;
+const tokenChangeListeners = new Set<TokenChangeListener>();
+
+export const subscribeAuthToken = (listener: TokenChangeListener): (() => void) => {
+  tokenChangeListeners.add(listener);
+  return () => {
+    tokenChangeListeners.delete(listener);
+  };
+};
 
 export class ApiError extends Error {
   status: number;
@@ -32,6 +41,7 @@ export const setAuthToken = (token: string): void => {
   } catch {
     // Ignore storage failures in restricted contexts
   }
+  tokenChangeListeners.forEach((listener) => listener(token));
 };
 
 export const clearAuthToken = (): void => {
@@ -40,6 +50,7 @@ export const clearAuthToken = (): void => {
   } catch {
     // Ignore storage failures in restricted contexts
   }
+  tokenChangeListeners.forEach((listener) => listener(null));
 };
 
 export const setUnauthorizedHandler = (handler: UnauthorizedHandler | null): void => {

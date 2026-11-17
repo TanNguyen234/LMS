@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { buildWsUrl, issueWsTicket } from '../api/realtime';
-import { getAuthToken } from '../api/http';
+import { getAuthToken, subscribeAuthToken } from '../api/http';
 
 export type WebSocketStatus = 'connecting' | 'open' | 'closed';
 
@@ -72,12 +72,15 @@ export function useWebSocket({
     setManualTrigger((n) => n + 1);
   }, []);
 
-  const hasToken = Boolean(getAuthToken());
-  const isActive = Boolean(enabled && path && hasToken);
+  const authToken = useSyncExternalStore(subscribeAuthToken, getAuthToken, () => null);
+  const isActive = Boolean(enabled && path && authToken);
 
   useEffect(() => {
-    const token = getAuthToken();
-    if (!enabled || !path || !token) {
+    attemptRef.current = 0;
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!enabled || !path || !authToken) {
       generationRef.current += 1;
       clearTimers();
       if (wsRef.current) {
@@ -199,7 +202,7 @@ export function useWebSocket({
         wsRef.current = null;
       }
     };
-  }, [path, enabled, reconnect, maxRetries, manualTrigger, clearTimers]);
+  }, [path, enabled, authToken, reconnect, maxRetries, manualTrigger, clearTimers]);
 
   const sendJson = useCallback((payload: unknown): boolean => {
     const socket = wsRef.current;

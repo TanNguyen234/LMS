@@ -330,6 +330,16 @@ export function FilePreviewModal({
   const previewKind = detectPreviewKind(effectiveMime, effectiveName);
   const safeExternalUrl = isSafeExternalUrl(externalUrl) ? externalUrl?.trim() || null : null;
   const [isExpandedModal, setIsExpandedModal] = useState(false);
+  const [pdfModeState, setPdfModeState] = useState<{ key: string; mode: 'reader' | 'native' }>({
+    key: '',
+    mode: 'reader',
+  });
+  const hasExtractedText = Boolean(metadata?.extractedTextPreview?.trim());
+  const pdfMode: 'reader' | 'native' = !hasExtractedText
+    ? 'native'
+    : pdfModeState.key === requestKey
+      ? pdfModeState.mode
+      : 'reader';
 
   const csvParsed = useMemo(() => {
     if (previewKind !== 'csv' || textContent === null) return null;
@@ -425,21 +435,74 @@ export function FilePreviewModal({
     }
 
     if (previewKind === 'pdf' && blobUrl) {
+      const pdfFrameHeightClass = isExpandedModal
+        ? 'h-[calc(92vh-14.5rem)] min-h-[18rem]'
+        : 'h-[calc(88vh-15.5rem)] min-h-[16rem] max-h-[58vh]';
       return (
         <div className="space-y-3">
-          <object
-            data={blobUrl}
-            type="application/pdf"
-            aria-label={effectiveName}
-            className={`${isExpandedModal ? 'h-[76vh]' : 'h-[70vh]'} w-full rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]`}
-          >
-            <iframe
-              title={effectiveName}
-              src={blobUrl}
-              sandbox="allow-same-origin"
-              className={`${isExpandedModal ? 'h-[76vh]' : 'h-[70vh]'} w-full rounded-xl border-0`}
-            />
-          </object>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/50 px-3 py-2">
+            {hasExtractedText ? (
+              <div className="inline-flex rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setPdfModeState({ key: requestKey, mode: 'reader' })}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
+                    pdfMode === 'reader'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-[var(--lms-text-muted)] hover:text-[var(--lms-text)]'
+                  }`}
+                >
+                  Chế độ đọc văn bản
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPdfModeState({ key: requestKey, mode: 'native' })}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
+                    pdfMode === 'native'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-[var(--lms-text-muted)] hover:text-[var(--lms-text)]'
+                  }`}
+                >
+                  Khung PDF gốc
+                </button>
+              </div>
+            ) : (
+              <span className="text-xs font-medium text-[var(--lms-text-muted)]">
+                Trình xem tài liệu PDF
+              </span>
+            )}
+            <a
+              href={blobUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-1.5 text-xs font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] transition-colors"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Mở PDF tab mới</span>
+            </a>
+          </div>
+
+          {pdfMode === 'reader' && metadata?.extractedTextPreview ? (
+            <div
+              className={`${pdfFrameHeightClass} overflow-y-auto rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-5 shadow-inner`}
+            >
+              <div className="mb-3 flex items-center gap-2 border-b border-[var(--lms-border)] pb-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--lms-text-muted)]">
+                <FileText className="h-4 w-4 text-blue-600" aria-hidden="true" />
+                <span>Nội dung văn bản trích xuất · {effectiveName}</span>
+              </div>
+              <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-[var(--lms-text)]">
+                {metadata.extractedTextPreview}
+              </pre>
+            </div>
+          ) : (
+            <div className="relative z-0 overflow-hidden rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]">
+              <iframe
+                title={effectiveName}
+                src={`${blobUrl}#toolbar=1&navpanes=0&view=FitH`}
+                className={`block ${pdfFrameHeightClass} w-full border-0 bg-white`}
+              />
+            </div>
+          )}
         </div>
       );
     }

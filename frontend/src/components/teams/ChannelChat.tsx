@@ -7,7 +7,6 @@ import {
   WifiOff,
   X,
 } from 'lucide-react';
-import { api } from '../../api/client';
 import { ApiError } from '../../api/http';
 import { downloadFile } from '../../api/files';
 import { getCourseMessages, sendCourseMessage } from '../../api/realtime';
@@ -510,6 +509,4 @@ export function ChannelChat({
   );
 }
 
-// Keep unused api reference avoided cleanly
-void api;
 export default ChannelChat;

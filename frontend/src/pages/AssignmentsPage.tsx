@@ -43,7 +43,7 @@ import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { SafeHtml } from '../components/ui/SafeHtml';
 import { SkeletonCard, SkeletonTable } from '../components/ui/Skeleton';
 import { useToast } from '../components/ui/Toast';
-import type { Assignment, Course, Submission } from '../types';
+import type { Assignment, Course, CourseStatus, Submission } from '../types';
 import {
   formatAssignmentStatus,
   formatDateTimeVi,
@@ -52,6 +52,7 @@ import {
 
 export interface AssignmentsPageProps {
   embeddedCourseId?: string;
+  embeddedCourseStatus?: CourseStatus;
 }
 
 type StatusFilterKey =
@@ -62,7 +63,10 @@ type StatusFilterKey =
   | 'CLOSED'
   | 'DRAFT';
 
-export function AssignmentsPage({ embeddedCourseId }: AssignmentsPageProps = {}) {
+export function AssignmentsPage({
+  embeddedCourseId,
+  embeddedCourseStatus,
+}: AssignmentsPageProps = {}) {
   const { user } = useAuth();
   const confirm = useConfirm();
   const toast = useToast();
@@ -83,6 +87,11 @@ export function AssignmentsPage({ embeddedCourseId }: AssignmentsPageProps = {})
     params.id ?? queryCourseId ?? '',
   );
   const selectedCourseId = embeddedCourseId ?? manualCourseId;
+  const selectedCourse = courses.find(
+    (c) => String(c.courseId ?? c.id) === selectedCourseId,
+  );
+  const isCourseArchived =
+    (embeddedCourseStatus ?? selectedCourse?.status ?? 'ACTIVE').toUpperCase() === 'ARCHIVED';
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [mySubmissions, setMySubmissions] = useState<Record<string, Submission | null>>({});
@@ -545,40 +554,50 @@ export function AssignmentsPage({ embeddedCourseId }: AssignmentsPageProps = {})
                 Đề bài
               </button>
             )}
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setSubmitTarget(row);
-              }}
-              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-            >
-              {isGraded ? (
-                <>
-                  <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                  Xem kết quả
-                </>
-              ) : sub ? (
-                <>
-                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                  Cập nhật bài
-                </>
-              ) : (
-                <>
-                  <Send className="h-3.5 w-3.5" aria-hidden="true" />
-                  Nộp bài
-                </>
-              )}
-            </button>
+            {isCourseArchived ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSubmitTarget(row);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]"
+              >
+                <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                {isGraded ? 'Xem kết quả' : sub ? 'Xem bài nộp' : 'Chi tiết (Chỉ đọc)'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSubmitTarget(row);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                {isGraded ? (
+                  <>
+                    <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                    Xem kết quả
+                  </>
+                ) : sub ? (
+                  <>
+                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                    Cập nhật bài
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                    Nộp bài
+                  </>
+                )}
+              </button>
+            )}
           </div>
         );
       },
     },
   ];
-
-  const selectedCourse = courses.find(
-    (c) => String(c.courseId ?? c.id) === selectedCourseId,
-  );
 
   return (
     <div className={isEmbedded ? 'space-y-4' : 'space-y-6'}>
@@ -862,6 +881,7 @@ export function AssignmentsPage({ embeddedCourseId }: AssignmentsPageProps = {})
           onClose={() => setSubmitTarget(null)}
           assignment={submitTarget}
           courseId={selectedCourseId}
+          courseArchived={isCourseArchived}
           existingSubmission={
             submitTarget ? mySubmissions[getAssignmentId(submitTarget)] ?? null : null
           }

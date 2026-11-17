@@ -15,8 +15,8 @@ import {
   CheckSquare,
   GraduationCap,
 } from 'lucide-react';
-import { api } from '../api/client';
 import { learningApi } from '../api/learning';
+import { listAllUsers } from '../api/users';
 import { useAuth } from '../auth/AuthContext';
 import { LecturerCombobox } from '../components/courses/LecturerCombobox';
 import { QuickScheduleModal } from '../components/schedule/QuickScheduleModal';
@@ -165,8 +165,7 @@ export const SchedulePage: React.FC = () => {
   useEffect(() => {
     if (!isAdmin) return;
     let active = true;
-    void api
-      .getUsers('LECTURER', true)
+    void listAllUsers('LECTURER', true)
       .then((list) => {
         if (active) setLecturers(list);
       })
@@ -638,14 +637,16 @@ export const SchedulePage: React.FC = () => {
                               <li key={`${ev.kind}-${ev.id}`}>
                                 <Link
                                   to={ev.relatedUrl}
-                                  className="block rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] p-2.5 hover:border-indigo-500 transition-colors space-y-1"
+                                  className="block rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] p-2 hover:border-indigo-500 transition-colors space-y-1.5"
                                 >
-                                  <div className="flex items-center justify-between gap-1">
-                                    <Badge variant={meta.variant} size="sm">
-                                      {meta.label}
-                                    </Badge>
-                                    <span className="text-[11px] font-medium tabular-nums text-[var(--lms-text-muted)] flex items-center gap-0.5">
-                                      <Clock className="w-3 h-3" aria-hidden="true" />
+                                  <div className="flex flex-wrap items-center justify-between gap-1">
+                                    <span className="shrink-0 whitespace-nowrap">
+                                      <Badge variant={meta.variant} size="sm">
+                                        {meta.label}
+                                      </Badge>
+                                    </span>
+                                    <span className="shrink-0 whitespace-nowrap text-[11px] font-medium tabular-nums text-[var(--lms-text-muted)] inline-flex items-center gap-0.5">
+                                      <Clock className="w-3 h-3 shrink-0" aria-hidden="true" />
                                       {timeStr}
                                     </span>
                                   </div>
@@ -665,14 +666,16 @@ export const SchedulePage: React.FC = () => {
                                       )}
                                     </div>
                                   )}
-                                  <div className="flex items-center justify-between gap-1 text-[11px] text-[var(--lms-text-muted)]">
-                                    <span className="truncate">
+                                  <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-[var(--lms-text-muted)]">
+                                    <span className="truncate font-medium">
                                       {ev.courseCode}
                                       {ev.sectionCode ? `·${ev.sectionCode}` : ''}
                                     </span>
-                                    <Badge variant={st.variant} size="sm">
-                                      {st.label}
-                                    </Badge>
+                                    <span className="shrink-0 whitespace-nowrap">
+                                      <Badge variant={st.variant} size="sm">
+                                        {st.label}
+                                      </Badge>
+                                    </span>
                                   </div>
                                 </Link>
                               </li>

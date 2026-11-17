@@ -82,6 +82,7 @@ export const AppRoutes: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route path="admin/users" element={<Navigate to="/users" replace />} />
 
           <Route path="courses" element={<CoursesPage />} />
           <Route path="courses/:id" element={<CourseDetailPage />} />
