@@ -1,5 +1,8 @@
 # Release gate — forensic fix 2026-10-21
 
+> [!NOTE]
+> **Historical milestone snapshot (2026-10-21):** This gate records acceptance evidence for commit `34d19a7f3b8fc7ce66a3d452d973f5e8bff8d7cd` (12-table MVP, 51 OpenAPI operations, Alembic `6f2d4db8312a`). Later November 2026 feature waves expanded the schema to 21 tables (`head = 20261117_02`) and added File Vault uploads, self-enrollment, semesters, timetable scheduling, virtual classroom, and AI tutoring; see root [README.md](../../../README.md) and [PROJECT.md](../../../PROJECT.md) for current architecture and verification commands.
+
 Evidence cut: 2026-10-21 10:43:45 UTC. Baseline SHA: `4fc2ead72d929ace0c3ed6ce85ae09dc4ac3fa6a`. Fix branch: `fix/lms-forensic-acceptance-20261021`, based on `821ddf21210f275b167b4345c176bc1ce525ffc3`. Verified source commit SHA: `34d19a7f3b8fc7ce66a3d452d973f5e8bff8d7cd`. Existing PR #1 is already merged at `3c722e0a46a7804b60232000d8115e492ef6978b`.
 
 ## Decision: PASS — local test acceptance scope

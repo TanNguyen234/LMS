@@ -1,5 +1,8 @@
 # PM reconciliation — 2026-10-21
 
+> [!NOTE]
+> **Historical milestone snapshot (2026-10-21):** Subsequent November 2026 refinements aligned `03_RACI_MATRIX.md` 1-to-1 with `04_SCOPE_BASELINE_WBS.md`, synchronized `M4`/`QG3`/Phase-3 Week 13 and `05_WBS_DICTIONARY.md` with `06_SCHEDULE_CPM_GANTT.md` (preserving the exact 20-week CPM math and 1.2B VND budget), and logged post-baseline prototype expansions (`CR-04`, `CR-05`) in `11_CHANGE_MANAGEMENT_PLAN.md`.
+
 ## Source inventory
 
 The source of truth is the actual 13-file set under docs/project-management, linked here:

@@ -58,7 +58,7 @@ Xây dựng kế hoạch quản lý toàn diện và phát triển prototype h�
 | **M1** | Project Charter được phê duyệt | Cuối Tuần 2 |
 | **M2** | Scope baseline & Requirements được phê duyệt | Cuối Tuần 4 |
 | **M3** | PM Plan, UX Design & Architecture/DB baseline phê duyệt | Cuối Tuần 6 |
-| **M4** | Prototype Feature Complete (Hoàn thiện chức năng) | Cuối Tuần 12 |
+| **M4** | Prototype Feature Complete (Hoàn thiện chức năng WBS 4.1–4.7) | Cuối Tuần 13 |
 | **M5** | System & Integration Testing hoàn thành | Cuối Tuần 15 |
 | **M6** | UAT (Nghiệm thu người dùng) phê duyệt | Cuối Tuần 16 |
 | **M7** | Demo Release / Go-live simulation | Tuần 18 |

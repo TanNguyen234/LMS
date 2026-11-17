@@ -18,7 +18,7 @@ Kế hoạch phân bổ nhân lực có tổng 8.5 FTE. Bảng chi phí gồm 9 
 |---|---:|:---:|---:|---:|---|
 | **Project Manager (PM)** | 1.0 FTE | 5 tháng (20 tuần) | 30.000.000 | 150.000.000 | Quản lý tổng thể phạm vi, tiến độ, chi phí, rủi ro, stakeholder |
 | **Business Analyst (BA)** | 1.0 FTE | 5 tháng (20 tuần) | 22.000.000 | 110.000.000 | Thu thập yêu cầu, viết SRS, thiết kế Use Cases và kịch bản UAT |
-| **UI/UX Designer** | 1.0 FTE | 3 tháng (Tuần 3-14) | 20.000.000 | 60.000.000 | Thiết kế Wireframe, Design System, Mockup và prototype trải nghiệm |
+| **UI/UX Designer** | 1.0 FTE | 3 tháng (12 tuần phân bổ trong W3-W17) | 20.000.000 | 60.000.000 | Thiết kế Wireframe, Design System, Mockup và minh họa tài liệu hướng dẫn (`ACT-16`) |
 | **Backend Developer 1 (Lead)** | 1.0 FTE | 5 tháng (20 tuần) | 25.000.000 | 125.000.000 | Thiết kế kiến trúc, CSDL SQL Server, FastAPI core, bảo mật & auth |
 | **Backend Developer 2** | 1.0 FTE | 4 tháng (Tuần 5-20) | 20.000.000 | 80.000.000 | Hiện thực API bài học, bài tập, trắc nghiệm, sổ điểm & thông báo |
 | **Frontend Developer 1 (Lead)** | 1.0 FTE | 5 tháng (20 tuần) | 25.000.000 | 125.000.000 | Kiến trúc React, TypeScript, Vite, định tuyến, state management |
@@ -80,9 +80,9 @@ Giai đoạn (Phase)                           Ngân sách giải ngân (VNĐ)  
 ───────────────────────────────────────────────────────────────────────────────────────
 Phase 1: Khởi tạo & Phạm vi (W1-W4)                  180.000.000              15,0%
 Phase 2: Thiết kế & Lập kế hoạch (W5-W6)             150.000.000              27,5%
-Phase 3: Phát triển Prototype (W7-W12)               450.000.000              65,0%
-Phase 4: Kiểm thử, UAT & Release (W13-W18)           240.000.000              85,0%
-Phase 5: Đóng dự án & Dự phòng (W19-W20)             180.000.000             100,0%
+Phase 3: Phát triển Prototype (W7-W13)               450.000.000              65,0%
+Phase 4: Kiểm thử, UAT & Release (W14-W18)           240.000.000              85,0%
+Phase 5: Vận hành thử, Đóng dự án & Dự phòng (W19-W20) 180.000.000           100,0%
 ───────────────────────────────────────────────────────────────────────────────────────
 TỔNG CỘNG                                          1.200.000.000             100,0%
 ```

@@ -15,19 +15,19 @@ Chỉ truy cập nội dung của course mà sinh viên có enrollment trạng t
 
 | Action | Admin | Lecturer | Student |
 |---|---:|---:|---:|
-| Manage users | ✅ | ❌ | ❌ |
-| Manage course metadata | ✅ | View assigned | View enrolled |
-| Enroll student | ✅ | ❌ | ❌ |
-| Manage modules/lessons | ❌ | ✅ own course | ❌ |
-| View published lessons | Optional | ✅ own | ✅ enrolled |
-| Manage assignments | ❌ | ✅ own | ❌ |
-| Submit assignment | ❌ | ❌ | ✅ enrolled |
-| Grade submission | ❌ | ✅ own | ❌ |
-| Manage quizzes/questions | ❌ | ✅ own | ❌ |
-| Attempt quiz | ❌ | ❌ | ✅ enrolled |
-| View own grades | ❌ | ❌ | ✅ |
-| View course gradebook | ❌ | ✅ own | ❌ |
-| Read own notifications | ✅ | ✅ | ✅ |
+| Manage users | Yes | No | No |
+| Manage course metadata | Yes | View assigned | View enrolled |
+| Enroll student | Yes | No | No |
+| Manage modules/lessons | No | Yes (own course) | No |
+| View published lessons | Optional | Yes (own) | Yes (enrolled) |
+| Manage assignments | No | Yes (own) | No |
+| Submit assignment | No | No | Yes (enrolled) |
+| Grade submission | No | Yes (own) | No |
+| Manage quizzes/questions | No | Yes (own) | No |
+| Attempt quiz | No | No | Yes (enrolled) |
+| View own grades | No | No | Yes |
+| View course gradebook | No | Yes (own) | No |
+| Read own notifications | Yes | Yes | Yes |
 
 ## 3. Main use cases
 

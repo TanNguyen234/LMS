@@ -1,44 +1,38 @@
-# Database Setup
+# Database Setup & Schema Guide
 
-Database target: **Microsoft SQL Server**.
+Database target: **Microsoft SQL Server** (`NVARCHAR` Unicode + `DATETIME2(0)` UTC).
 
-## Run order
+## Automated setup (recommended)
 
-1. Tạo database, ví dụ `UniversityLms`.
-2. Chạy `01_schema.sql`.
-3. Chạy `02_seed.sql`.
-4. Chạy `04_seed_validation.sql`.
-5. Dùng `03_demo_queries.sql` để kiểm tra/demo.
+From the repository root, initialize a fresh database (schema + seed + 21-table integrity check):
 
-## Seed guarantee
-
-Blueprint đặt mục tiêu **10 rows cho mỗi một trong 12 tables**. `04_seed_validation.sql` dùng để kiểm tra nhanh count/integrity trước demo.
-
-## Development password
-
-Seed không lưu plain-text password. Tất cả demo users có:
-
-```text
-PasswordHash = '__SET_ON_FIRST_RUN__'
+```powershell
+powershell -ExecutionPolicy Bypass -File database\setup_database.ps1 -Server "localhost\SQLEXPRESS" -Database "UniversityLms"
 ```
 
-FastAPI development initializer hoặc CLI bootstrap phải:
+After running `setup_database.ps1` on a brand-new database, stamp Alembic at `head` (`20261117_02`) and synchronize relative demo dates and sample File Vault assets:
 
-1. Query users có sentinel.
-2. Hash `Demo@123` bằng password hasher của backend.
-3. Update `PasswordHash`.
-4. Commit transaction.
-5. Chỉ chạy trong `APP_ENV=development` hoặc equivalent.
+```powershell
+backend\venv\Scripts\python.exe -m alembic -c backend\alembic.ini stamp head
+backend\venv\Scripts\python.exe -m backend.app.db.seed_demo
+```
 
-## SQLAlchemy + Alembic
+(`START_SYSTEM.bat` automates all of the steps above for local Windows startup.)
 
-- SQLAlchemy models phải tương thích key/datatype/constraint quan trọng trong `01_schema.sql`.
-- Alembic migration phục vụ source code lifecycle.
-- `01_schema.sql` vẫn là schema reference độc lập dùng cho bài báo cáo/demo database.
-- Không để Alembic model và SQL reference schema trôi khác nhau mà không ghi lại lý do.
+## Manual SQL run order
 
-## SQL Server driver
+1. Create an empty database (for example `UniversityLms` or disposable `UniversityLms_Test_<id>`).
+2. Execute `01_schema.sql` (creates all **21 tables**, constraints, and indexes).
+3. Execute `02_seed.sql` (inserts 10 rows into each of the 12 core tables plus baseline extended records).
+4. Execute `04_seed_validation.sql` (verifies all 21 tables exist, core row counts >= 10, and referential integrity).
+5. Optionally run `03_demo_queries.sql` for inspection queries.
 
-Backend dự kiến dùng `mssql+pyodbc` với Microsoft ODBC Driver 18 for SQL Server.
+## Development password initializer
 
-Connection string phải lấy từ environment, không commit credential thật.
+`02_seed.sql` never stores plain-text credentials; seeded accounts carry sentinel `PasswordHash = '__SET_ON_FIRST_RUN__'`. When `APP_ENV=development`, FastAPI startup (`backend/app/db/init_db.py`) hashes `Demo@123` with `bcrypt` for sentinel accounts and invokes `ensure_demo_seed` (`backend/app/db/seed_demo.py`).
+
+## SQLAlchemy + Alembic parity
+
+- `01_schema.sql` is the canonical 21-table SQL Server DDL reference (`Users`, `AcademicSemesters`, `Courses`, `Enrollments`, `Modules`, `Meetings`, `MeetingLogs`, `StoredFiles`, `Lessons`, `Assignments`, `Submissions`, `Quizzes`, `QuizQuestions`, `QuizAttempts`, `Grades`, `Notifications`, `CourseMessages`, `WhiteboardSnapshots`, `LessonProgress`, `AiInteractionLogs`, `CourseSessions`).
+- `backend/alembic/versions/` manages incremental upgrades through revision `20261117_02`.
+- `backend/app/core/config.py` automatically selects an installed Windows ODBC driver (`ODBC Driver 18 for SQL Server`, `ODBC Driver 17 for SQL Server`, or `SQL Server`) and honors `LMS_E2E_TEST_DATABASE=UniversityLms_Test_<id>` for isolated test runs.

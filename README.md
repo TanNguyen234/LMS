@@ -1,72 +1,96 @@
 # University Learning Management System (LMS)
 
-University LMS is an academic project prototype for course content, assignment text submissions, timed quizzes, grading and notifications. The project keeps a FastAPI backend, SQL Server database and React/Vite web frontend.
+University LMS is an academic modular-monolith platform built for the Software Project Management capstone course. It supports full teaching and learning workflows across three server-enforced roles (`ADMIN`, `LECTURER`, `STUDENT`), combining a FastAPI backend, Microsoft SQL Server (21 normalized Unicode tables), and a React 19 + TypeScript + Tailwind CSS v4 single-page frontend.
 
-## Current verification
+## Capabilities
 
-The dated forensic report is the source of truth for tested behavior, environment limits and release status: [docs/audit/2026-10-21/05_RELEASE_GATE.md](docs/audit/2026-10-21/05_RELEASE_GATE.md). The prior audit files in docs/audit are historical snapshots and are not current release evidence.
+- **Authentication & Role Governance:** JWT Bearer authentication via email, `StudentCode`, or `StaffCode`; server-side RBAC (`ADMIN`, `LECTURER`, `STUDENT`); development-only Demo Role Switcher and sentinel password bootstrap (`Demo@123`).
+- **Academic Semesters & Scaling Operations:** Semester lifecycle management (`UPCOMING`, `ACTIVE`, `ARCHIVED`) with grace-period auto-archiving and read-only archived-course enforcement, bulk course import, cross-semester course cloning, searchable lecturer assignment (`LecturerCombobox`), and CSV user import.
+- **Courses, Catalog & Enrollment:** Admin enrollment management plus configurable student self-enrollment and course join codes with automatic timetable conflict checks.
+- **Timetable & Smart Scheduler:** Course session scheduling (`CourseSessions`), multi-week quick schedule generation, and real-time lecturer, student-cohort, and room conflict detection.
+- **Course Content & Secure File Vault:** Structured modules and lessons (`TEXT`, `PDF`, `VIDEO`, `SLIDE`), student lesson completion tracking (`LessonProgress`), and an out-of-webroot File Vault (`StoredFiles`) with SHA-256 verification, PDF text extraction, inline preview, and HTTP 206 Range streaming.
+- **Assignments & Weighted Grading:** Published/Draft/Closed assignment lifecycle, text and file-vault submissions, rubric support, configurable `AllowLate` (`LATE` status) enforcement, weighted course gradebooks, and cumulative student transcripts.
+- **Timed Quizzes & Item Analytics:** Server-timed attempts (`SINGLE_CHOICE`, `TRUE_FALSE`, and `SHORT_TEXT` with lecturer manual review), debounced draft autosave, strict student DTO answer stripping (`CorrectAnswer` never leaves the server), score-visibility policies, and per-question analytics.
+- **Virtual Classroom & Realtime Collaboration:** Built-in WebRTC/WebSocket live classroom (`Meetings`, `MeetingLogs`) with MS Teams/Jitsi-style fullscreen controls, host moderation, live polls, collaborative canvas whiteboard (`WhiteboardSnapshots`), course/meeting chat (`CourseMessages`), and real-time notifications.
+- **AI Academic Assistant:** Lesson tutor, draft quiz question generator, and submission feedback assistant (`AiInteractionLogs`) backed by Google Gemini with deterministic local extractive fallback when `GEMINI_API_KEY` is unset.
 
-## Technology
+## Quick start (Windows one-click launcher)
 
-- Backend: Python 3.12, FastAPI, SQLAlchemy, Alembic, pyodbc.
-- Database: Microsoft SQL Server.
-- Frontend: React 19, TypeScript, Vite, React Router 7 and a fetch-based API client.
-- Roles: ADMIN, LECTURER and STUDENT. Authorization is enforced by the API.
-- Assignment submission MVP: text only. The frontend does not upload files.
+To validate prerequisites, initialize or upgrade SQL Server (`alembic upgrade head` -> `20261117_02`), synchronize relative-date demo seed data and sample vault files, build the React bundle, and serve both SPA and API on `http://127.0.0.1:8000`:
 
-## Repository guide
+```bat
+START_SYSTEM.bat
+```
 
-- backend/app: API routes, schemas, models, authentication and database session.
-- backend/tests: SQL Server integration suite and pure forensic contract tests.
-- database: schema, seed and validation SQL scripts.
-- frontend/src: API client, role-aware views and shared types.
-- docs/project-management: the 13 academic project-management documents.
-- docs/audit/2026-10-21: current forensic baseline, contracts, test matrix, reconciliation, release gate and runbook.
+Run a non-mutating environment and database preflight check without starting the server:
 
-## Safe local setup
+```bat
+START_SYSTEM.bat --check
+```
 
-Use a disposable SQL Server database named UniversityLms_Test_<id> for verification. Do not point test commands at a personal or shared UniversityLms database. Follow [the dated demo and test runbook](docs/audit/2026-10-21/06_DEMO_RUNBOOK.md) for schema, seed, Alembic and startup steps. Local secrets belong in an ignored .env file and must not be committed.
+## Safe local development & isolated verification
 
-Install backend dependencies from the repository root with:
+Local secrets belong in an untracked `backend/.env` (copied from `backend/.env.example`) and must never be committed.
 
-    python -m pip install -r backend/requirements.txt
+1. **Backend dependencies** (from repository root):
 
-Start the API from the repository root after configuring its DATABASE_URL for the disposable database:
+   ```powershell
+   python -m venv backend\venv
+   backend\venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+   ```
 
-    python -m uvicorn backend.app.main:app --reload --port 8000
+2. **Bootstrap an isolated disposable test database** (never run integration tests against a shared `UniversityLms` database):
 
-Install and start the frontend from frontend:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File database\setup_database.ps1 -Server "localhost\SQLEXPRESS" -Database "UniversityLms_Test_Dev"
+   $env:LMS_E2E_TEST_DATABASE = "UniversityLms_Test_Dev"
+   backend\venv\Scripts\python.exe -m alembic -c backend\alembic.ini stamp head
+   backend\venv\Scripts\python.exe -m backend.app.db.seed_demo
+   ```
 
-    npm ci
-    npm run dev
+3. **Run API and Vite dev server separately** (optional hot-reload workflow):
 
-The API docs are served at /docs, health at /health, and the local web app at http://localhost:5173.
+   ```powershell
+   backend\venv\Scripts\python.exe -m uvicorn backend.app.main:app --reload --port 8000
+   ```
+
+   In a second terminal from `frontend/`:
+
+   ```powershell
+   npm ci
+   npm run dev
+   ```
+
+   Swagger UI is served at `http://127.0.0.1:8000/docs`, health check at `http://127.0.0.1:8000/health`, and Vite dev UI at `http://localhost:5173`.
 
 ## Verification commands
 
-From frontend:
+From `frontend/`:
 
-    npm ci
-    npm run build
-    npm run lint
+```powershell
+npm ci
+npm run build
+npm run lint
+```
 
-From the repository root, after configuring an isolated SQL Server database:
+From repository root against an isolated `UniversityLms_Test_<id>` database:
 
-    backend\venv\Scripts\python.exe -m pytest backend/tests -q
+```powershell
+$env:LMS_E2E_TEST_DATABASE = "UniversityLms_Test_<id>"
+backend\venv\Scripts\python.exe -m pytest backend/tests -q
+```
 
-The pytest fixture refuses to run database integration tests unless the configured database name begins with UniversityLms_Test_. Pure contract tests can be run separately with:
+Pure contract checks without mutating `UniversityLms`:
 
-    backend\venv\Scripts\python.exe -m pytest backend/tests/test_forensic_contracts.py -q
+```powershell
+backend\venv\Scripts\python.exe -m pytest backend/tests/test_forensic_contracts.py -q
+```
 
-Do not interpret an unavailable database, a collected test count, a previous screenshot or a historical report as a passing integration or browser test.
-
-## Demo seed accounts
-
-The SQL seed defines demo accounts for each role; the development-only password initializer uses the demo password described in the seed. Use them only in a local disposable environment. Do not reuse demo credentials in a deployed environment.
+See [docs/audit/2026-10-21/06_DEMO_RUNBOOK.md](docs/audit/2026-10-21/06_DEMO_RUNBOOK.md) for the disposable-database Chrome DevTools E2E runbook, and [docs/audit/2026-10-21/05_RELEASE_GATE.md](docs/audit/2026-10-21/05_RELEASE_GATE.md) for the historical 2026-10-21 baseline audit record.
 
 ## Project-management documents
 
-The actual files are the numbered set under docs/project-management:
+The 13 academic project-management baseline artifacts are maintained under `docs/project-management`:
 
 1. [Project Charter](docs/project-management/01_PROJECT_CHARTER.md)
 2. [Stakeholder Register](docs/project-management/02_STAKEHOLDER_REGISTER.md)

@@ -38,7 +38,7 @@ def validate_test_database() -> None:
     from backend.app.core.config import settings
 
     test_url = make_url(settings.DATABASE_URL).set(database=EXPECTED_DATABASE)
-    engine = create_engine(test_url)
+    engine = create_engine(test_url, use_setinputsizes=False)
     try:
         with engine.connect() as connection:
             actual = connection.scalar(text("SELECT DB_NAME()"))
@@ -60,7 +60,7 @@ def lookup_test_database_marker() -> tuple[str, str]:
     from backend.app.core.config import settings
     from backend.app.models.models import Course, User
 
-    engine = create_engine(make_url(settings.DATABASE_URL).set(database=EXPECTED_DATABASE))
+    engine = create_engine(make_url(settings.DATABASE_URL).set(database=EXPECTED_DATABASE), use_setinputsizes=False)
     try:
         with Session(engine) as db:
             course = db.query(Course).filter(
@@ -472,9 +472,9 @@ def start_chrome_if_needed() -> None:
 async def fill_login(browser: DevTools, email: str) -> None:
     await browser.navigate(f"{FRONTEND_URL}/login")
     await browser.wait_text("Đăng nhập hệ thống")
-    await browser.fill('input[placeholder="name@university.edu.vn"]', email)
+    await browser.fill('input[name="username"], input[placeholder*="university.edu.vn"]', email)
     await browser.fill('input[type="password"]', PASSWORD)
-    await browser.click_button("Đăng nhập")
+    await browser.click_button("Đăng nhập", exact=False)
     await browser.wait_authenticated()
     expected_role = next((role for role, account_email in ACCOUNTS.items() if account_email == email), None)
     actual_role = await browser.evaluate("JSON.parse(localStorage.getItem('user') || 'null')?.role")
@@ -497,7 +497,7 @@ def create_expired_student_token() -> str:
     from backend.app.core.security import create_access_token
     from backend.app.models.models import User
 
-    engine = create_engine(make_url(settings.DATABASE_URL).set(database=EXPECTED_DATABASE))
+    engine = create_engine(make_url(settings.DATABASE_URL).set(database=EXPECTED_DATABASE), use_setinputsizes=False)
     try:
         with Session(engine) as db:
             student = db.query(User).filter(User.Email == ACCOUNTS["STUDENT"]).one()
@@ -547,7 +547,7 @@ def verify_persisted_results(names: dict) -> dict:
         QuizAttempt, QuizQuestion, Submission, User,
     )
 
-    engine = create_engine(make_url(settings.DATABASE_URL).set(database=EXPECTED_DATABASE))
+    engine = create_engine(make_url(settings.DATABASE_URL).set(database=EXPECTED_DATABASE), use_setinputsizes=False)
     try:
         with Session(engine) as db:
             edited_user = db.query(User).filter(User.Email == names["user_updated_email"]).one()
@@ -675,6 +675,38 @@ async def assert_card_action_absent(browser: DevTools, heading: str, action_text
         raise AssertionError(f"Card {heading!r} unexpectedly exposes action {action_text!r}.")
 
 
+async def select_lecturer_in_course_form(browser: DevTools, lecturer_email: str) -> None:
+    has_combobox = await browser.evaluate(
+        "!!document.querySelector('button[aria-haspopup=\"listbox\"]')"
+    )
+    if has_combobox:
+        await browser.click_selector('button[aria-haspopup="listbox"]')
+        end = time.time() + 12
+        while time.time() < end:
+            if await browser.evaluate("!!document.querySelector('[role=\"listbox\"]')"):
+                break
+            await asyncio.sleep(0.2)
+        has_search = await browser.evaluate(
+            "!!document.querySelector('input[placeholder*=\"Tìm theo mã GV\"]')"
+        )
+        if has_search:
+            await browser.fill('input[placeholder*="Tìm theo mã GV"]', lecturer_email)
+        end = time.time() + 12
+        while time.time() < end:
+            clicked = await browser.evaluate(
+                "(() => { const opts = [...document.querySelectorAll('[role=\"option\"] button, [role=\"option\"]')]; "
+                "const target = opts.find(el => el.getClientRects().length > 0 && el.innerText.includes("
+                + json.dumps(lecturer_email)
+                + ")); if (!target) return false; target.click(); return true; })()"
+            )
+            if clicked:
+                return
+            await asyncio.sleep(0.2)
+        raise AssertionError(f"LecturerCombobox did not expose an option for {lecturer_email!r}.")
+    await browser.wait_option("form select", lecturer_email)
+    await browser.choose_option("form select", lecturer_email)
+
+
 async def click_row_button(browser: DevTools, row_text: str, button_text: str) -> None:
     clicked = await browser.evaluate(
         "(() => { const row = [...document.querySelectorAll('tr')].find(e => e.innerText.includes("
@@ -732,8 +764,7 @@ async def main() -> None:
         await browser.fill('input[placeholder="CS101"]', names["course_code"])
         await browser.fill('input[placeholder="Nhập môn Lập trình Web"]', names["course_title"])
         await browser.fill('textarea[placeholder*="Mô tả mục tiêu"]', "Created and updated through the real browser workflow.")
-        await browser.wait_option("form select", ACCOUNTS["LECTURER"])
-        await browser.choose_option("form select", ACCOUNTS["LECTURER"])
+        await select_lecturer_in_course_form(browser, ACCOUNTS["LECTURER"])
         await browser.click_button("Lưu khóa học")
         await browser.wait_text(names["course_title"])
         operations.append("ADMIN course create")
@@ -949,12 +980,28 @@ async def main() -> None:
             or attempt_start["private_fields"]
         ):
             raise AssertionError(f"Actual quiz start response violated the student-safe contract: {attempt_start}")
-        question_id = await browser.evaluate("document.querySelector('input[type=radio]')?.name")
-        if not question_id:
+        selected_choice = await browser.evaluate(
+            "(() => { const radios = [...document.querySelectorAll('input[type=\"radio\"]')].filter(r => r.getClientRects().length > 0); "
+            "const target = radios.find(r => r.value === 'A' || (r.id && r.id.endsWith('-A'))) || radios[0]; "
+            "if (!target) return false; target.click(); return true; })()"
+        )
+        if not selected_choice:
             raise AssertionError("The student quiz attempt did not render real answer controls.")
-        await browser.click_selector(f'input[name="{question_id}"][value="A"]')
         await browser.click_button("Nộp bài", exact=False)
-        await browser.wait_text("Kết quả bài làm của bạn")
+        await asyncio.sleep(0.3)
+        has_confirm = await browser.evaluate(
+            "(() => [...document.querySelectorAll('button')].some(b => b.getClientRects().length > 0 && b.innerText.trim() === 'Nộp bài ngay'))()"
+        )
+        if has_confirm:
+            await browser.click_button("Nộp bài ngay")
+        end_result = time.time() + 12
+        while time.time() < end_result:
+            body_txt = await browser.evaluate("document.body ? document.body.innerText : ''")
+            if "Đã ghi nhận bài làm" in body_txt or "Kết quả bài làm của bạn" in body_txt:
+                break
+            await asyncio.sleep(0.2)
+        else:
+            raise AssertionError("Quiz submission result summary did not appear.")
         score_text = await browser.evaluate("document.body.innerText")
         if "2.5 / 2.5" not in score_text:
             raise AssertionError("The real quiz attempt did not render the expected score out of the computed maximum.")
@@ -966,7 +1013,13 @@ async def main() -> None:
         screenshots.append("student_quiz_result.png")
         operations.append("STUDENT quiz attempt, submit, score view")
         print("PHASE_STUDENT_SUBMISSION_PASS", flush=True)
-        await browser.click_button("Hoàn thành và Đóng")
+        has_hoan_tat = await browser.evaluate(
+            "(() => [...document.querySelectorAll('button')].some(b => b.getClientRects().length > 0 && b.innerText.trim() === 'Hoàn tất'))()"
+        )
+        if has_hoan_tat:
+            await browser.click_button("Hoàn tất")
+        else:
+            await browser.click_button("Hoàn thành và Đóng")
 
         await browser.click_selector('button[title="Đăng xuất"]')
         await browser.wait_text("Đăng nhập hệ thống")

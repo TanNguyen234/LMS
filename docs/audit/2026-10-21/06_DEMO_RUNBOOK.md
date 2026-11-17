@@ -4,26 +4,30 @@ This runbook describes the tested local workflow on the existing SQL Server and 
 
 ## 1. Create an isolated test database
 
-1. In SSMS, connect to the existing SQL Server instance and create a fresh database with a unique `UniversityLms_Test_<id>` name. Do not reuse `UniversityLms` or another shared database.
-2. Select the new database and run `database/01_schema.sql`, then `database/02_seed.sql`, then `database/04_seed_validation.sql`.
-3. Confirm that the seed validation reports all 12 business tables and passes the referential checks. Preserve the output as evidence. Do not run `database/03_reset.sql`.
+1. Connect to the local SQL Server instance and initialize a fresh disposable database with a unique `UniversityLms_Test_<id>` name (do not reuse `UniversityLms`):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File database\setup_database.ps1 -Server "localhost\SQLEXPRESS" -Database "UniversityLms_Test_<id>"
+   ```
+   Alternatively, in SSMS create `UniversityLms_Test_<id>` and run `database/01_schema.sql`, `database/02_seed.sql`, and `database/04_seed_validation.sql` in order.
+2. Confirm that `04_seed_validation.sql` passes the 21-table schema check, 12 core tables >= 10 rows check, and referential integrity checks. Do not run destructive reset/drop scripts against `UniversityLms`.
 
-The scripts use the existing SQL Server installation. This workflow does not require installing `sqlcmd` or an ODBC driver.
+The scripts use the existing SQL Server installation. This workflow does not require installing `sqlcmd`.
 
 ## 2. Select the test DB for Python commands
 
-In each PowerShell session that runs backend commands, select the exact test database by name:
+In each PowerShell session that runs backend, Alembic, or `pytest` commands, select the exact disposable test database by name (honored by `backend/app/core/config.py`, `scripts/serve_e2e_test_database.py`, and the E2E runners):
 
 ```powershell
 $env:LMS_E2E_TEST_DATABASE = 'UniversityLms_Test_<id>'
 ```
 
-The repository's local `.env` supplies the SQL Server connection settings; do not print, copy into tracked files, or include credentials in evidence. The test scripts reject a database name without the `UniversityLms_Test_` prefix. If `.env` points at the wrong SQL Server instance, stop and select the intended existing instance without changing the shared database.
+The repository's local `backend/.env` supplies the base SQL Server connection settings; do not print, copy into tracked files, or include credentials in evidence. The test fixtures reject any database name without the `UniversityLms_Test_` prefix.
 
-After schema, seed and validation succeed, stamp the fresh SQL schema at the current migration head:
+After schema, seed, and validation succeed, stamp the fresh SQL schema at the current migration head (`20261117_02`) and sync relative demo fixtures:
 
 ```powershell
 backend\venv\Scripts\python.exe -m alembic -c backend/alembic.ini stamp head
+backend\venv\Scripts\python.exe -m backend.app.db.seed_demo
 ```
 
 Then run the integration suite:
@@ -50,14 +54,15 @@ backend\venv\Scripts\python.exe scripts\serve_e2e_test_database.py
 
 The launcher enforces the `UniversityLms_Test_` prefix and serves the SQL Server-backed API on `127.0.0.1:8001`. Confirm `/health` reports HTTP 200 and a connected database before testing.
 
-Start Vite in another window:
+Start Vite in another window, explicitly pointing its `/api` and WebSocket proxy at port `8001` (`vite.config.ts` defaults `LMS_API_PROXY_TARGET` to `http://127.0.0.1:8000` when unset):
 
 ```powershell
 Set-Location frontend
+$env:LMS_API_PROXY_TARGET = 'http://127.0.0.1:8001'
 npm run dev -- --host 127.0.0.1 --port 5174
 ```
 
-The app is served at `http://127.0.0.1:5174`; its `/api` proxy points to the local API at port 8001.
+The app is served at `http://127.0.0.1:5174`; with `LMS_API_PROXY_TARGET` set above, its `/api` proxy points to the isolated API at port `8001`.
 
 ## 4. Run the real Chrome E2E journey
 

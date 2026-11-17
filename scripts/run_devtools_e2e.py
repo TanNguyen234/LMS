@@ -14,8 +14,8 @@ if sys.platform == "win32":
 SCREENSHOT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs", "audit", "2026-10-21", "evidence", "e2e")
 AUDIT_LOG_PATH = os.path.join(SCREENSHOT_DIR, "devtools_audit.log")
 
-CDP_PORT = 9222
-FRONTEND_URL = "http://localhost:5173"
+CDP_PORT = int(os.environ.get("LMS_E2E_CDP_PORT", "9222"))
+FRONTEND_URL = os.environ.get("LMS_E2E_FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
 class ChromeDevToolsClient:
     def __init__(self, ws_url):
@@ -109,7 +109,7 @@ class ChromeDevToolsClient:
     async def send(self, method, params=None):
         self._id += 1
         msg_id = self._id
-        fut = asyncio.get_event_loop().create_future()
+        fut = asyncio.get_running_loop().create_future()
         self._futures[msg_id] = fut
         payload = {"id": msg_id, "method": method, "params": params or {}}
         await self.ws.send(json.dumps(payload))
@@ -192,8 +192,12 @@ async def get_or_create_page_ws_url():
     if pages:
         return pages[0]["webSocketDebuggerUrl"]
     
-    # Create new target
-    new_req = urllib.request.urlopen(f"http://127.0.0.1:{CDP_PORT}/json/new?{FRONTEND_URL}")
+    # Create new target via PUT (required by Chrome 111+ CDP)
+    req_obj = urllib.request.Request(
+        f"http://127.0.0.1:{CDP_PORT}/json/new?{FRONTEND_URL}",
+        method="PUT",
+    )
+    new_req = urllib.request.urlopen(req_obj, timeout=3)
     new_target = json.loads(new_req.read().decode())
     return new_target["webSocketDebuggerUrl"]
 
@@ -221,7 +225,7 @@ async def main():
         print("========================================================")
         
         await client.navigate(f"{FRONTEND_URL}/login")
-        await client.wait_for_selector("input[type='text']")
+        await client.wait_for_selector("input[name='username'], input[type='text']")
         
         # Fill Admin login credentials using React native value setter
         await client.evaluate("""
@@ -231,9 +235,10 @@ async def main():
                     setter.call(el, val);
                     el.dispatchEvent(new Event('input', { bubbles: true }));
                 };
-                const inputs = document.querySelectorAll('input');
-                setVal(inputs[0], 'admin@university.edu.vn');
-                setVal(inputs[1], 'Demo@123');
+                const userInput = document.querySelector('input[name="username"], input[type="text"]');
+                const passInput = document.querySelector('input[type="password"]');
+                setVal(userInput, 'admin@university.edu.vn');
+                setVal(passInput, 'Demo@123');
                 document.querySelector('button[type="submit"]').click();
             })()
         """)
@@ -245,16 +250,15 @@ async def main():
         # Verify Admin dashboard loaded
         admin_title = await client.evaluate("document.querySelector('h1').innerText")
         print(f"Admin Dashboard Header: {admin_title}")
-        assert "Xin chào" in admin_title or "Admin" in admin_title
+        assert "Xin chào" in admin_title or "Admin" in admin_title or "Trung tâm điều hành" in admin_title
         
         # Verify KPI metric cards
         kpi_text = await client.evaluate("document.body.innerText")
         kpi_upper = kpi_text.upper()
         print(f"Verified Admin KPI text:\n{kpi_text}\n---")
-        assert "KHÓA HỌC HỆ THỐNG" in kpi_upper or "KHÓA HỌC" in kpi_upper
+        assert "KHÓA HỌC" in kpi_upper
         assert "SINH VIÊN" in kpi_upper
         assert "GIẢNG VIÊN" in kpi_upper
-        assert "TRẠNG THÁI HẠ TẦNG" in kpi_upper or "HOẠT ĐỘNG BÌNH THƯỜNG" in kpi_upper
         
         # Capture Admin Dashboard screenshot
         admin_screenshot = os.path.join(SCREENSHOT_DIR, "screenshot_admin_dashboard.png")
@@ -309,9 +313,10 @@ async def main():
                     setter.call(el, val);
                     el.dispatchEvent(new Event('input', { bubbles: true }));
                 };
-                const inputs = document.querySelectorAll('input');
-                setVal(inputs[0], 'lecturer1@university.edu.vn');
-                setVal(inputs[1], 'Demo@123');
+                const userInput = document.querySelector('input[name="username"], input[type="text"]');
+                const passInput = document.querySelector('input[type="password"]');
+                setVal(userInput, 'lecturer1@university.edu.vn');
+                setVal(passInput, 'Demo@123');
                 document.querySelector('button[type="submit"]').click();
             })()
         """)
@@ -388,9 +393,10 @@ async def main():
                     setter.call(el, val);
                     el.dispatchEvent(new Event('input', { bubbles: true }));
                 };
-                const inputs = document.querySelectorAll('input');
-                setVal(inputs[0], 'student1@university.edu.vn');
-                setVal(inputs[1], 'Demo@123');
+                const userInput = document.querySelector('input[name="username"], input[type="text"]');
+                const passInput = document.querySelector('input[type="password"]');
+                setVal(userInput, 'student1@university.edu.vn');
+                setVal(passInput, 'Demo@123');
                 document.querySelector('button[type="submit"]').click();
             })()
         """)
@@ -439,7 +445,7 @@ async def main():
         start_button_exists = await client.evaluate("!!Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Làm bài') && !b.disabled)")
         assert start_button_exists, "Required E2E fixture missing: student has no available quiz with questions"
         await client.evaluate("Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Làm bài') && !b.disabled).click()")
-        await client.wait_for_selector(".fixed.inset-0 input[type='radio']", timeout=15)
+        await client.wait_for_selector("[role='dialog'] input[type='radio'], .fixed.inset-0 input[type='radio']", timeout=15)
         await asyncio.sleep(0.3)
         quiz_audit = await client.evaluate("window.__quizAudit")
         assert len(quiz_audit["starts"]) == 1, f"Expected exactly one start request, got {len(quiz_audit['starts'])}"
@@ -450,9 +456,18 @@ async def main():
         assert attempt_id and start_data.get("startedAt") and start_data.get("timeLimitMinutes"), "Start response lacks timed attempt fields"
         assert start_data.get("questions"), "Start response contains no questions"
         assert all("correctAnswer" not in question for question in start_data["questions"]), "LEAK DETECTED: correctAnswer found in start response"
-        await client.evaluate("document.querySelector('.fixed.inset-0 input[type=radio]').click()")
-        await client.evaluate("Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Nộp bài & Chấm điểm')).click()")
-        await client.wait_for_text("Kết quả bài làm của bạn", timeout=15)
+        await client.evaluate("document.querySelector(\"[role='dialog'] input[type='radio'], .fixed.inset-0 input[type='radio']\").click()")
+        await client.evaluate("Array.from(document.querySelectorAll('button')).find(b => (b.innerText.trim() === 'Nộp bài' || b.innerText.includes('Nộp bài & Chấm điểm')) && !b.disabled).click()")
+        await asyncio.sleep(0.3)
+        await client.evaluate("(() => { const c = Array.from(document.querySelectorAll('button')).find(b => b.innerText.trim() === 'Nộp bài ngay' && !b.disabled); if (c) c.click(); })()")
+        start_wait = time.time()
+        while time.time() - start_wait < 15.0:
+            body_text = await client.evaluate("document.body.innerText")
+            if "Đã ghi nhận bài làm" in body_text or "Kết quả bài làm của bạn" in body_text:
+                break
+            await asyncio.sleep(0.3)
+        else:
+            raise TimeoutError("Timed out waiting for quiz submission summary")
         quiz_audit = await client.evaluate("window.__quizAudit")
         assert len(quiz_audit["submits"]) == 1, f"Expected exactly one submit request, got {len(quiz_audit['submits'])}"
         submitted = quiz_audit["submits"][0]

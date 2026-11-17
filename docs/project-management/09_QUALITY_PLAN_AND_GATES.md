@@ -3,7 +3,7 @@
 # 09 — Kế hoạch Quản lý Chất lượng & Cổng Kiểm soát (Quality Plan & Quality Gates)
 
 ## 1. Mục tiêu Chất lượng (Quality Objectives)
-1. **Tuân thủ chức năng:** 100% các yêu cầu nghiệp vụ bắt buộc (Must-have FR-01 đến FR-13) chạy chính xác theo kịch bản chấp nhận.
+1. **Tuân thủ chức năng:** 100% các yêu cầu nghiệp vụ bắt buộc (Must-have FR-01 đến FR-13 trong bộ 15 yêu cầu FR-01 đến FR-15 tại `docs/01_SCOPE_AND_REQUIREMENTS.md`) chạy chính xác theo kịch bản chấp nhận.
 2. **An toàn & Phân quyền:** Không có lỗ hổng rò rỉ dữ liệu trái quyền (RBAC, Course Isolation, Draft Protection, Quiz Secret Protection).
 3. **Mức độ khiếm khuyết:** Đạt **0 lỗi P0 và 0 lỗi P1** khi bước vào UAT và đóng dự án.
 4. **Tính nhất quán của dữ liệu:** Dữ liệu mẫu (Seed Data) nạp thành công 100%, vượt qua kiểm tra toàn vẹn `04_seed_validation.sql`.
@@ -29,7 +29,7 @@ Dự án áp dụng 5 cổng kiểm soát chất lượng nghiêm ngặt; không
 ```mermaid
 flowchart LR
     QG1["QG1: Scope Freeze (W4)"] --> QG2["QG2: Design Freeze (W6)"]
-    QG2 --> QG3["QG3: Feature Complete (W12)"]
+    QG2 --> QG3["QG3: Feature Complete (W13)"]
     QG3 --> QG4["QG4: UAT Readiness (W15)"]
     QG4 --> QG5["QG5: Project Closure (W20)"]
 ```
@@ -40,8 +40,8 @@ flowchart LR
 ### QG2: Đóng băng Thiết kế (Design Baseline Freeze — Cuối Tuần 6)
 - **Điều kiện vượt cổng:** Kiến trúc Modular Monolith, sơ đồ quan hệ 12 bảng CSDL SQL Server và hợp đồng API Spec được thẩm định; không có xung đột về khóa chính, khóa ngoại hay kiểu dữ liệu.
 
-### QG3: Hoàn thiện Tính năng có Kiểm thử Phân quyền (Feature Complete Gate — Cuối Tuần 12)
-- **Điều kiện vượt cổng:** Toàn bộ vertical slices chức năng (Auth, Course, Lesson, Assignment, Quiz, Grade) hoàn thành; các kịch bản chặn quyền (Principal Denial Paths) được kiểm tra tại server-side; không còn endpoint mở chưa xác thực.
+### QG3: Hoàn thiện Tính năng có Kiểm thử Phân quyền (Feature Complete Gate — Cuối Tuần 13)
+- **Điều kiện vượt cổng:** Toàn bộ vertical slices chức năng thuộc WBS 4.1–4.7 (Auth, Course, Lesson, Assignment, Quiz, Grade, Notification, Dashboard — kết thúc tại `ACT-12`) hoàn thành; các kịch bản chặn quyền (Principal Denial Paths) được kiểm tra tại server-side; không còn endpoint mở chưa xác thực.
 
 ### QG4: Sẵn sàng cho Nghiệm thu Người dùng (UAT Readiness Gate — Cuối Tuần 15)
 - **Điều kiện vượt cổng:** Bộ kiểm thử tự động Pytest bao phủ 10 kịch bản chấp nhận (AC-01 đến AC-10) pass 100%; số lỗi P0 và P1 bằng 0; dữ liệu seed mẫu được nạp sạch sẽ trên môi trường demo.

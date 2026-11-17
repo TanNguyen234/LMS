@@ -1,5 +1,8 @@
 # University LMS — Software Project Management Final Project Blueprint
 
+> [!NOTE]
+> **Frozen initial assignment specification:** This directory preserves the original 12-table course assignment blueprint and starter prompts; see the repository root ([README.md](../README.md) and [PROJECT.md](../PROJECT.md)) for the active 21-table implementation and operational documentation.
+
 > Đề tài: **Quản lý dự án xây dựng hệ thống quản lý học tập trực tuyến (LMS) cho trường đại học**
 
 Đây là bộ blueprint dành cho **đồ án cuối kỳ môn Quản lý dự án phần mềm**. Mục tiêu không phải xây một LMS enterprise hoàn chỉnh, mà tạo một case study quản lý dự án đầy đủ kèm prototype đủ mạnh để demo và nghiệm thu.

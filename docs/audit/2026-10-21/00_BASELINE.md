@@ -1,5 +1,8 @@
 # Baseline forensic 2026-10-21
 
+> [!NOTE]
+> **Historical milestone snapshot (2026-10-21):** This report records the forensic verification of the initial 12-table / 51-operation MVP baseline (`34d19a7f` / Alembic `6f2d4db8312a`). Subsequent November 2026 commits expanded the repository to 21 SQL Server tables, 113 HTTP operations, File Vault uploads, Academic Semesters, Smart Scheduler, Virtual Classroom, and AI Assistant; see root [README.md](../../../README.md) and [PROJECT.md](../../../PROJECT.md) for the current system inventory.
+
 ## Căn cứ và phạm vi
 
 - Repo: University LMS, working directory D:\Download\LMS.

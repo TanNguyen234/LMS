@@ -41,7 +41,7 @@
 - **Người phụ trách (Owner):** Project Manager (PM)
 - **Đầu vào (Inputs):** Scope Baseline (WBS), định mức tiền lương, phân bổ nguồn lực.
 - **Đầu ra / Kết quả bàn giao (Outputs):** Hồ sơ Kế hoạch Quản lý Dự án tích hợp đầy đủ các kế hoạch thành phần.
-- **Tiêu chí nghiệm thu (Acceptance Criteria):** Mọi số liệu (20 tuần, 1,2 tỷ VNĐ, 8 nhân sự/8.5 FTE) phải đối soát khớp nhau 100%, đường găng CPM được tính toán bằng công thức toán học.
+- **Tiêu chí nghiệm thu (Acceptance Criteria):** Mọi số liệu (20 tuần, 1,2 tỷ VNĐ, 9 dòng phân bổ nguồn lực / tổng 8.5 FTE; tổng đầu người không khóa cứng) phải đối soát khớp nhau 100%, đường găng CPM được tính toán bằng công thức toán học.
 - **Thời lượng & Công số (Duration/Effort):** 2 tuần (Tuần 5-6) / 80 giờ công.
 - **Ràng buộc phụ thuộc (Dependencies):** Hoàn thành WBS 2.2 và WBS 2.3 (Scope baseline).
 - **Rủi ro & Ghi chú:** Số liệu không nhất quán giữa các chương; cần dùng 1 baseline duy nhất.
@@ -146,42 +146,56 @@
 
 ---
 
+### Gói công việc: WBS 4.7 — Phân hệ Bổ trợ (Grades, Notifications & Dashboard)
+- **WBS ID:** 4.7
+- **Tên gói công việc:** Sổ điểm, Thông báo học vụ & Bảng điều khiển (Grades, Notifications & Dashboard)
+- **Mô tả:** Hiện thực sổ điểm tổng hợp cho giảng viên, bảng điểm cá nhân cho sinh viên, luồng thông báo học vụ (danh sách/đánh dấu đã đọc) và trang Dashboard thống kê KPI theo từng vai trò (`ADMIN`, `LECTURER`, `STUDENT`).
+- **Người phụ trách (Owner):** Backend Developer & Frontend Developer
+- **Đầu vào (Inputs):** Bảng `Grades`, `Notifications`, dữ liệu tổng hợp từ `Users`, `Courses`, `Enrollments`, `Submissions`, `QuizAttempts`.
+- **Đầu ra / Kết quả bàn giao (Outputs):** Giao diện và API Sổ điểm, Thông báo và Dashboard theo vai trò; hoàn tất mốc M4 (Prototype Feature Complete).
+- **Tiêu chí nghiệm thu (Acceptance Criteria):** Điểm bài tập/quiz đồng bộ nhất quán vào `Grades` không trùng nguồn (`UQ_Grades_Source_Learner`); thông báo đảm bảo quyền sở hữu cá nhân (AC-10); Dashboard phản ánh đúng số liệu từng vai trò.
+- **Thời lượng & Công số (Duration/Effort):** 1 tuần (Tuần 13, tương ứng `ACT-12`) / 60 giờ công.
+- **Ràng buộc phụ thuộc (Dependencies):** Hoàn thành WBS 4.6 (`ACT-11`).
+- **Rủi ro & Ghi chú:** Sai lệch nhãn nguồn điểm hoặc trùng bản ghi điểm khi chấm lại; kiểm soát bằng chỉ mục duy nhất có điều kiện trên CSDL.
+
+---
+
 ### Gói công việc: WBS 5.2 — Kiểm thử tự động (Automated Testing với Pytest)
 - **WBS ID:** 5.2
-- **Tên gói công việc:** Kiểm thử tự động Backend (Pytest Suite)
-- **Mô tả:** Xây dựng bộ test case tự động bao phủ toàn bộ 10 kịch bản chấp nhận quan trọng (AC-01 đến AC-10) và các quy tắc nghiệp vụ cốt lõi (BR-01 đến BR-12).
+- **Tên gói công việc:** Kiểm thử tự động Backend & Tích hợp (Pytest Suite)
+- **Mô tả:** Xây dựng bộ test case tự động bao phủ toàn bộ 10 kịch bản chấp nhận quan trọng (AC-01 đến AC-10) và các quy tắc nghiệp vụ cốt lõi (BR-01 đến BR-12), thực thi cùng WBS 5.1 trong hoạt động `ACT-13`.
 - **Người phụ trách (Owner):** QA Engineer & Backend Developer
-- **Đầu vào (Inputs):** Test Plan, API Endpoints, Fixtures CSDL kiểm thử.
-- **Đầu ra / Kết quả bàn giao (Outputs):** Thư mục `tests/` chứa các file test pytest chạy độc lập, báo cáo kết quả kiểm thử.
-- **Tiêu chí nghiệm thu (Acceptance Criteria):** 100% test cases pass, thời gian chạy < 30 giây, kiểm tra chặt chẽ các trường hợp chặn quyền (Forbidden/Unauthorized).
-- **Thời lượng & Công số (Duration/Effort):** 2 tuần (Tuần 13-14) / 60 giờ công.
-- **Ràng buộc phụ thuộc (Dependencies):** Hoàn thành WBS 4.6 (Mốc M4 Feature Complete).
-- **Rủi ro & Ghi chú:** Dữ liệu test làm bẩn CSDL chính; sử dụng transaction rollback hoặc test database tách biệt.
+- **Đầu vào (Inputs):** Test Plan, API Endpoints, Fixtures CSDL kiểm thử cô lập.
+- **Đầu ra / Kết quả bàn giao (Outputs):** Thư mục `backend/tests/` chứa các file kiểm thử `pytest` chạy độc lập, báo cáo kết quả kiểm thử đạt mốc M5.
+- **Tiêu chí nghiệm thu (Acceptance Criteria):** 100% test cases pass trên CSDL kiểm thử cô lập `UniversityLms_Test_<id>`, kiểm tra chặt chẽ các trường hợp chặn quyền (Forbidden/Unauthorized).
+- **Thời lượng & Công số (Duration/Effort):** 2 tuần (Tuần 14-15, tương ứng `ACT-13`) / 60 giờ công.
+- **Ràng buộc phụ thuộc (Dependencies):** Hoàn thành WBS 4.7 (`ACT-12` — Mốc M4 Feature Complete cuối Tuần 13).
+- **Rủi ro & Ghi chú:** Dữ liệu test làm bẩn CSDL chính; bắt buộc sử dụng test database tách biệt `UniversityLms_Test_<id>`.
 
 ---
 
 ### Gói công việc: WBS 6.2 — Thực thi Nghiệm thu người dùng (UAT)
 - **WBS ID:** 6.2
 - **Tên gói công việc:** Nghiệm thu Người dùng (User Acceptance Testing)
-- **Mô tả:** Tổ chức buổi kiểm thử chấp nhận với đại diện 3 bên (Admin, Giảng viên, Sinh viên), thực hiện các kịch bản thực tế end-to-end từ đăng nhập, tạo khóa, giảng dạy, nộp bài đến chấm điểm.
+- **Mô tả:** Tổ chức buổi kiểm thử chấp nhận với đại diện 3 bên (Admin, Giảng viên, Sinh viên), thực hiện các kịch bản thực tế end-to-end từ đăng nhập, tạo khóa, giảng dạy, nộp bài đến chấm điểm (`ACT-15`).
 - **Người phụ trách (Owner):** Business Analyst (BA) & QA Engineer
-- **Đầu vào (Inputs):** Bộ kịch bản UAT, hệ thống chạy demo trên seed data chuẩn.
-- **Đầu ra / Kết quả bàn giao (Outputs):** Biên bản UAT có chữ ký đại diện, nhật ký lỗi UAT (nếu có).
-- **Tiêu chí nghiệm thu (Acceptance Criteria):** 100% kịch bản UAT thành công, 0 lỗi P0/P1 còn tồn tại, được Business Owner ký phê duyệt tại mốc M6 (Tuần 16).
-- **Thời lượng & Công số (Duration/Effort):** 1 tuần (Tuần 16) / 40 giờ công.
-- **Ràng buộc phụ thuộc (Dependencies):** Hoàn thành WBS 5.3 (System Testing đạt Quality Gate 4).
-- **Rủi ro & Ghi chú:** Người dùng phát hiện tính năng thiếu ngoài phạm vi; giải thích rõ scope baseline và ghi nhận vào Future Enhancements.
+- **Đầu vào (Inputs):** Bộ kịch bản UAT (WBS 6.1), hệ thống chạy demo trên seed data chuẩn.
+- **Đầu ra / Kết quả bàn giao (Outputs):** Biên bản UAT mẫu có xác nhận đại diện, nhật ký lỗi UAT (nếu có).
+- **Tiêu chí nghiệm thu (Acceptance Criteria):** 100% kịch bản UAT mục tiêu được đối chiếu, 0 lỗi P0/P1 còn mở khi khép cổng, hoàn tất mốc M6 (Cuối Tuần 16).
+- **Thời lượng & Công số (Duration/Effort):** 1 tuần (Tuần 16, tương ứng `ACT-15`, thực hiện song song với nhánh Triage `ACT-14` / WBS 5.3 trước khi hội tụ vào `ACT-17`) / 40 giờ công.
+- **Ràng buộc phụ thuộc (Dependencies):** Hoàn thành WBS 5.1 & 5.2 (`ACT-13` — System & Integration Testing đạt Quality Gate 4 cuối Tuần 15).
+- **Rủi ro & Ghi chú:** Người dùng đề xuất tính năng ngoài phạm vi; giải thích rõ Scope Baseline và xử lý qua quy trình Change Control (`11_CHANGE_MANAGEMENT_PLAN.md`).
 
 ---
 
 ### Gói công việc: WBS 8.1 — Hoàn thiện Báo cáo & Đóng dự án (Project Closure)
 - **WBS ID:** 8.1
 - **Tên gói công việc:** Tổng kết Dự án & Hồ sơ Quản lý (Project Closure & Final Report)
-- **Mô tả:** Tổng hợp toàn bộ hồ sơ quản lý dự án thành báo cáo chính thức theo 10 chương chuẩn mực, phân tích độ lệch chi phí/tiến độ, rút ra bài học kinh nghiệm và tổ chức bàn giao.
+- **Mô tả:** Tổng hợp toàn bộ hồ sơ quản lý dự án thành báo cáo chính thức theo 10 chương chuẩn mực (`docs/11_REPORT_OUTLINE.md`), kết hợp cùng WBS 8.2 và WBS 8.3 trong hoạt động đóng dự án `ACT-19`.
 - **Người phụ trách (Owner):** Project Manager (PM)
-- **Đầu vào (Inputs):** Bằng chứng nghiệm thu UAT, số liệu thực tế tiến độ và chi phí, mã nguồn và tài liệu kỹ thuật.
-- **Đầu ra / Kết quả bàn giao (Outputs):** Báo cáo đồ án môn học hoàn chỉnh, Slide thuyết trình, Bảng kiểm đóng dự án (Closure Checklist), Biên bản bàn giao.
-- **Tiêu chí nghiệm thu (Acceptance Criteria):** Báo cáo đầy đủ 10 chương và phụ lục, số liệu nhất quán 100%, sẵn sàng bảo vệ trước hội đồng.
-- **Thời lượng & Công số (Duration/Effort):** 2 tuần (Tuần 19-20) / 80 giờ công.
-- **Ràng buộc phụ thuộc (Dependencies):** Hoàn thành WBS 7.2 (Demo Release).
+- **Đầu vào (Inputs):** Bằng chứng kiểm thử và nghiệm thu, số liệu đối soát tiến độ và ngân sách, mã nguồn và tài liệu kỹ thuật.
+- **Đầu ra / Kết quả bàn giao (Outputs):** Báo cáo đồ án môn học hoàn chỉnh, Slide thuyết trình, Bảng kiểm đóng dự án (Closure Checklist), Biên bản bàn giao mẫu.
+- **Tiêu chí nghiệm thu (Acceptance Criteria):** Báo cáo đầy đủ 10 chương và phụ lục, số liệu nhất quán 100% với CPM 20 tuần và ngân sách 1,2 tỷ VNĐ, sẵn sàng bảo vệ tại mốc M8.
+- **Thời lượng & Công số (Duration/Effort):** 1 tuần (Tuần 20, thuộc `ACT-19` / WBS 8.0) / 40 giờ công.
+- **Ràng buộc phụ thuộc (Dependencies):** Hoàn thành WBS 6.3 (`ACT-16` — Đào tạo & tài liệu hướng dẫn) và WBS 7.2 (`ACT-18` — Vận hành thử nghiệm & thu thập bằng chứng tại Tuần 19).
 - **Rủi ro & Ghi chú:** Thiếu bằng chứng thực thi; đính kèm log kiểm thử, kết quả seed validation và ảnh chụp màn hình các luồng nghiệp vụ.

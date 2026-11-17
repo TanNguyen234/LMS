@@ -22,12 +22,12 @@ Các tính năng sau đây mặc định bị **TỪ CHỐI hoặc HOÃN (REJECT
 
 ```mermaid
 flowchart TD
-    A["1. Đề xuất Thay đổi\n(Gửi phiếu Change Request - CR)"] --> B["2. Đăng ký & Sơ loại\n(PM ghi nhận vào Change Log)"]
-    B --> C["3. Phân tích Tác động (Impact Analysis)\n(Đánh giá Scope, Schedule, Cost, Quality, Risk)"]
-    C --> D{"4. Hội đồng Phê duyệt (CCB)\nThẩm định quyết định"}
-    D -->|Phê duyệt (Approved)| E["5. Cập nhật Kế hoạch & Thực thi\n(Điều chỉnh Baseline, WBS, Code)"]
-    D -->|Hoãn lại (Deferred)| F["6. Chuyển vào Backlog Tương lai\n(Ghi nhận vào FUTURE_ENHANCEMENTS.md)"]
-    D -->|Từ chối (Rejected)| G["7. Thông báo lý do cho Người đề xuất\n(Đóng yêu cầu CR)"]
+    A["1. Đề xuất Thay đổi (Gửi phiếu Change Request - CR)"] --> B["2. Đăng ký & Sơ loại (PM ghi nhận vào Change Log)"]
+    B --> C["3. Phân tích Tác động (Scope, Schedule, Cost, Quality, Risk)"]
+    C --> D{"4. Hội đồng Phê duyệt (CCB) thẩm định"}
+    D -->|"Phê duyệt (Approved)"| E["5. Cập nhật Kế hoạch & Thực thi (Baseline, WBS, Code)"]
+    D -->|"Hoãn lại (Deferred)"| F["6. Chuyển vào Backlog Tương lai (FUTURE_ENHANCEMENTS.md)"]
+    D -->|"Từ chối (Rejected)"| G["7. Thông báo lý do cho Người đề xuất & Đóng CR"]
 ```
 
 ### Thành phần Hội đồng Kiểm soát Thay đổi (Change Control Board - CCB):
@@ -81,3 +81,5 @@ Mã yêu cầu (CR ID): CR-[NĂM]-[SỐ THỨ TỰ] (Ví dụ: CR-2026-001)
 | **CR-01** | Tuần 5 | Đại diện Giảng viên | Thêm tính năng chat thảo luận trực tiếp giữa sinh viên và giảng viên trong khóa học. | Scope: Thêm module chat; Schedule: +3 tuần; Cost: +60 triệu VNĐ. Làm trễ đường găng. | **DEFERRED (Hoãn)** | Ghi nhận vào `FUTURE_ENHANCEMENTS.md` cho giai đoạn 2; giữ nguyên baseline prototype. |
 | **CR-02** | Tuần 8 | Phòng Đào tạo | Bổ sung trường thông tin `StudentCode` (MSSV) và `StaffCode` (Mã GV) trong tài khoản người dùng để phục vụ quản lý học vụ. | Scope: Nhỏ; Schedule: 0 ngày (lồng vào thiết kế bảng Users); Cost: 0 VNĐ; Không lệch đường găng. | **APPROVED (Duyệt)** | Đã cập nhật vào schema CSDL `01_schema.sql` và model Pydantic tương ứng. |
 | **CR-03** | Tuần 11 | Đại diện Sinh viên | Tích hợp cổng thanh toán trực tuyến tiền mua giáo trình học tập. | Scope: Lớn; Schedule: +4 tuần; Rủi ro bảo mật tài chính cao; Out-of-scope đồ án. | **REJECTED (Từ chối)** | Bác bỏ vì vi phạm Scope baseline môn học; hướng dẫn sinh viên thanh toán qua kênh kế toán trường. |
+| **CR-04** | Sau Baseline (Đợt mở rộng học thuật 1) | Hội đồng chuyên môn & Nhóm kỹ thuật | Nâng cấp Prototype từ 12 bảng lên 19 bảng: bổ sung Kho tệp an toàn (`StoredFiles`), Tự ghi danh/Mã lớp, Phòng học trực tuyến & Bảng trắng/Chat (`Meetings`, `CourseMessages`, `WhiteboardSnapshots`), Tiến độ bài học (`LessonProgress`) và Trợ lý AI (`AiInteractionLogs`). | Không làm thay đổi Baseline 20 tuần / 1,2 tỷ VNĐ của Giai đoạn 1; triển khai như nhánh nâng cấp nguyên mẫu sau nghiệm thu baseline (`20261113_01`). | **APPROVED (Mở rộng sau Baseline)** | Giữ nguyên các văn kiện kế hoạch gốc (`01..10`) làm hồ sơ đối chứng baseline; cập nhật DDL `01_schema.sql` và `PROJECT.md`. |
+| **CR-05** | Sau Baseline (Đợt mở rộng học thuật 2) | Phòng Đào tạo (Mô phỏng) | Bổ sung quản lý vòng đời Học kỳ (`AcademicSemesters`), mã lớp học phần (`SectionCode`), nhập/nhân bản khóa học hàng loạt và Thời khóa biểu chống trùng lịch (`CourseSessions`). | Mở rộng CSDL lên 21 bảng (`20261117_01`, `20261117_02`); bảo toàn toàn bộ hợp đồng API cốt lõi và bộ kiểm thử hồi quy. | **APPROVED (Mở rộng sau Baseline)** | Phản ánh đầy đủ trong `01_schema.sql`, `START_SYSTEM.bat`, `README.md` và `PROJECT.md`. |

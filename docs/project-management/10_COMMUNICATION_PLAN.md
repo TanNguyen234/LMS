@@ -9,7 +9,7 @@
 
 ---
 
-## 2. Ma trận Ma trận Kế hoạch Truyền thông (Communication Matrix)
+## 2. Ma trận Kế hoạch Truyền thông (Communication Matrix)
 
 | Đối tượng tiếp nhận (Audience) | Nội dung thông tin (Content) | Tần suất (Frequency) | Hình thức / Kênh truyền thông (Channel) | Người chịu trách nhiệm (Owner) | Đầu ra / Bằng chứng (Deliverable) |
 |---|---|---|---|---|---|
@@ -29,12 +29,12 @@ Khi xuất hiện sự cố kỹ thuật hoặc tranh chấp vượt quá thẩm
 
 ```mermaid
 flowchart TD
-    L1["Cấp độ 1: Trưởng nhóm Kỹ thuật / Chức năng\n(Backend Lead, Frontend Lead, QA Lead)\nThời hạn xử lý: Trong vòng 4 giờ làm việc"]
-    L2["Cấp độ 2: Giám đốc Dự án (Project Manager)\nThời hạn xử lý: Trong vòng 24 giờ làm việc"]
-    L3["Cấp độ 3: Ban Chỉ đạo Dự án (Project Sponsor & Phòng Đào tạo)\nThời hạn xử lý: Trong vòng 48 giờ làm việc"]
+    L1["Cấp độ 1: Trưởng nhóm Kỹ thuật (BE, FE, QA Lead) - Xử lý trong 4 giờ"]
+    L2["Cấp độ 2: Giám đốc Dự án (Project Manager) - Xử lý trong 24 giờ"]
+    L3["Cấp độ 3: Ban Chỉ đạo Dự án (Sponsor & Phòng Đào tạo) - Xử lý trong 48 giờ"]
 
-    L1 -->|Nếu vượt quá năng lực kỹ thuật\nhoặc ảnh hưởng tiến độ Sprint| L2
-    L2 -->|Nếu ảnh hưởng Ngân sách, Phạm vi\nhoặc Đường găng 20 tuần| L3
+    L1 -->|"Vượt năng lực kỹ thuật hoặc ảnh hưởng tiến độ Sprint"| L2
+    L2 -->|"Ảnh hưởng Ngân sách, Phạm vi hoặc Đường găng 20 tuần"| L3
 ```
 
 - **Cấp độ 1 (Level 1 - Technical Level):** Các vấn đề về code bug, cấu hình môi trường cục bộ, xung đột API giữa FE và BE. Người giải quyết: Backend Lead / Frontend Lead / QA Lead trong vòng 4 giờ.

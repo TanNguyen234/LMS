@@ -1,38 +1,35 @@
-# University LMS — Project Status
+# University LMS — Project Status & Architecture Inventory
 
 ## System boundary
 
-- Backend: FastAPI on Python 3.12, SQLAlchemy 2.x and pyodbc.
-- Database: Microsoft SQL Server.
-- Frontend: React 19, TypeScript, Vite, React Router 7, fetch-based API client.
-- Roles: ADMIN, LECTURER and STUDENT; server-side dependencies enforce permissions.
-- Assignment submission is text-only in this MVP. No upload endpoint or public uploads directory is part of the current UI contract.
-- Student self-enrollment is outside scope.
-
-## Status for the 2026-10-21 forensic fix
-
-This branch addresses assignment status and submission contracts, timed quiz start/submit identity, question option and max-score contracts, user/course filters, role-gated controls, grading source labels, quiz grade consistency, SQL uniqueness, test database safety and public-file/path handling.
-
-Implementation status does not equal release acceptance. SQL Server integration, seed validation and browser journeys require a separate disposable UniversityLms_Test_<id> database. The current release decision and exact evidence are maintained in [the dated release gate](docs/audit/2026-10-21/05_RELEASE_GATE.md).
+- **Backend:** FastAPI on Python 3.12, SQLAlchemy 2.x, Alembic (`head = 20261117_02`), Pydantic v2, and `pyodbc` (`use_setinputsizes=False` with automatic installed Windows ODBC driver selection).
+- **Database:** Microsoft SQL Server — **21 normalized Unicode (`NVARCHAR` / `DATETIME2(0)`) tables** defined in [01_schema.sql](database/01_schema.sql) and incremental migrations under `backend/alembic/versions/`.
+- **Frontend:** React 19, TypeScript, Tailwind CSS v4, Vite, React Router 7, `lucide-react`, `dompurify`, and typed domain API clients (`frontend/src/api/`).
+- **Unified Launcher:** [START_SYSTEM.bat](START_SYSTEM.bat) performs prerequisite checks, SQL Server bootstrap/Alembic migration, idempotent demo seed sync (`backend.app.db.seed_demo`), Vite production build, and single-port SPA + API hosting on `http://127.0.0.1:8000`.
+- **Security & Isolation:** Server-side RBAC (`ADMIN`, `LECTURER`, `STUDENT`), course ownership/enrollment checks, archived-semester/archived-course write guards, out-of-webroot File Vault (`backend/storage/vault`) with authenticated HTTP 206 Range streaming, and strict stripping of `CorrectAnswer` from student quiz payloads.
 
 ## Feature inventory
 
 | Area | Implementation state | Verification boundary |
 |---|---|---|
-| Authentication and JWT | Implemented; rejects the default demo signing key outside development/test | Pure contract checks; startup integration still requires database config |
-| RBAC and course isolation | Implemented server-side | API integration tests not run without isolated SQL Server |
-| Users and activation | Implemented; message response and active filter/pagination aligned | API integration not run |
-| Courses and enrollment | Implemented; status/lecturer filters supported; UI actions role-gated | API integration not run |
-| Modules and lessons | Implemented | API integration not run |
-| Assignment and grading | Published/Draft/Closed status contract; text-only submission; UTC due date handling | API integration not run |
-| Quiz and attempts | Start creates or resumes a timed attempt; submit requires that attempt ID; students receive safe question DTOs and server max score | API integration/E2E not run |
-| Grades and notifications | Source titles and quiz grade tuple are aligned | API integration not run |
-| SQL schema and Alembic | Canonical SQL bootstrap documented; incremental migration added for existing baseline schemas | No database migration executed |
-| Frontend | TypeScript/Vite build and lint evidence are in the dated evidence report | Build/lint must be rerun after final source changes |
-| PM coursework | Corrected filenames, schedule network, budget labels and simulated UAT/closure evidence | Academic figures remain planned/simulated, not measured |
-| MS Teams & Online Learning | Implemented video meetings, live canvas whiteboard, course channel chat, anti-cheat attendance audits | Verified via 32/32 automated test suite |
+| Authentication, codes & Demo Switcher | JWT Bearer login via email, `StudentCode`, or `StaffCode`; rejects placeholder secrets outside `development`/`test`; dev-only demo account switcher | Covered by `test_acceptance.py`, `test_auth_users_demo.py`, `test_forensic_contracts.py` |
+| Users & CSV bulk import | Admin CRUD, activation toggle, search/role/status pagination, and CSV batch user import (`POST /api/users/import-csv`) | Covered by `test_auth_users_demo.py` and `test_challenger_recon.py` |
+| Academic semesters & lifecycle | `AcademicSemesters` CRUD, current-term tracking, automatic expiration archiving (`EndDate + GraceDays`), and read-only archived course protection | Covered by `test_semesters_and_scale.py` |
+| Courses, bulk import, clone & self-enroll | Section codes (`UQ_Courses_Code_Section_Term`), searchable `LecturerCombobox`, bulk course import, cross-semester course cloning, student catalog self-enrollment, and join codes | Covered by `test_semesters_and_scale.py` and `test_learning_flows.py` |
+| Timetable scheduler & conflict engine | `CourseSessions` CRUD, multi-week quick schedule generator, and lecturer/room/student-enrollment timetable conflict detection | Covered by `test_schedules_and_conflicts.py` |
+| Modules, lessons & progress | Ordered modules/lessons (`TEXT`, `PDF`, `VIDEO`, `SLIDE`), publish guards, sanitized HTML, and `LessonProgress` completion/time tracking | Covered by `test_files_and_content.py` and `test_learning_flows.py` |
+| Secure File Vault & preview | Authenticated upload/metadata/delete (`POST /api/files/upload`), SHA-256 hashing, `pypdf` text extraction, HTTP 206 Range streaming, `FileDropzone` & `FilePreviewModal` | Covered by `test_files_and_content.py` |
+| Assignments, rubrics & grading | Draft/Published/Closed lifecycle, text and File Vault submissions, JSON rubrics, `AllowLate` (`LATE` status) policy, split-view grading drawer | Covered by `test_acceptance.py`, `test_learning_flows.py`, `test_forensic_contracts.py` |
+| Quizzes, drafts, manual review & analytics | Timed attempt start/resume/submit, debounced draft autosave, `SINGLE_CHOICE`/`TRUE_FALSE` auto-grading + `SHORT_TEXT` manual grading, score visibility rules, and item analytics | Covered by `test_learning_flows.py`, `test_live_qa_regressions.py`, `test_challenger_recon.py` |
+| Weighted gradebook, transcript & notifications | Filtered unique assessment grades (`UQ_Grades_Source_Learner`), weighted final score sync, cross-course GPA transcript, and real-time WebSocket notification push | Covered by `test_learning_flows.py` and `test_acceptance.py` |
+| Virtual classroom & realtime hub | MS Teams/Jitsi-inspired fullscreen room (`MeetingRoom.tsx`), WebRTC signaling, host mute/moderation, live polls, collaborative `WhiteboardCanvas`, `ChannelChat`, and attendance logs | Covered by `test_meetings_and_teams.py`, `test_meeting_lifecycle.py`, `test_realtime_classroom.py` |
+| AI academic assistant | Lesson tutor, draft quiz generator, and grading feedback assistant (`POST /api/ai/*`) with Google Gemini + deterministic local extractive fallback | Covered by `test_ai_assistant.py` |
+| SQL Server schema & Alembic | 21-table canonical DDL (`01_schema.sql`), 21-table `04_seed_validation.sql`, idempotent `seed_demo.py`, and incremental migrations through `20261117_02` | Requires isolated `UniversityLms_Test_<id>` SQL Server DB for live integration runs |
+| Academic PM coursework | 13 PMI-aligned baseline artifacts under `docs/project-management/` with verified 20-week CPM network, 1.2B VND budget reconciliation, and post-baseline Change Requests | Academic dates, approvals, and EVM actuals remain explicitly simulated |
 
-## Authoritative reports
+## Historical forensic reports (2026-10-21 baseline snapshot)
+
+The reports under `docs/audit/2026-10-21/` preserve the verified 12-table / 51-operation baseline milestone prior to the November 2026 feature waves:
 
 - [Baseline and environment](docs/audit/2026-10-21/00_BASELINE.md)
 - [Findings and triage](docs/audit/2026-10-21/01_FINDINGS_AND_TRIAGE.md)
@@ -42,7 +39,8 @@ Implementation status does not equal release acceptance. SQL Server integration,
 - [Release gate](docs/audit/2026-10-21/05_RELEASE_GATE.md)
 - [Disposable database and demo runbook](docs/audit/2026-10-21/06_DEMO_RUNBOOK.md)
 
-Do not use the prior audit status labels as evidence for this branch. No deployment, production acceptance or live uptime check is claimed.
+ SQL Server integration suites and browser E2E runs must always target an isolated `UniversityLms_Test_<id>` database (`LMS_E2E_TEST_DATABASE`). No production cloud deployment or external uptime SLA is claimed.
 
 ## Project Governance & Coding Standards
-- Zero AI-Slop Emojis Policy: Absolutely no decorative or AI-slop emojis in any code, UI, comments, documentation, or conversation outputs. Use standard Markdown formatting and professional vector icons (lucide-react).
+
+- **Zero AI-Slop Emojis Policy:** Decorative or AI-slop emojis are strictly prohibited across all source code, UI components, comments, SQL scripts, and documentation (`.gemini/rules/no-ai-slop-emojis.md`). Use clean Markdown formatting and `lucide-react` vector icons.
