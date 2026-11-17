@@ -1,15 +1,45 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Award,
+  Flame,
   Hand,
+  Heart,
   Mic,
   MicOff,
   Minimize2,
   MonitorUp,
   Pin,
+  Smile,
+  Sparkles,
+  ThumbsUp,
   VolumeX,
 } from 'lucide-react';
 import type { MeetingPresenceParticipant } from '../../api/realtime';
 import { formatRole } from '../../utils/formatters';
+
+export function ClassroomReactionIcon({
+  reactionKey,
+  className = 'w-4 h-4',
+}: {
+  reactionKey: string;
+  className?: string;
+}) {
+  switch (reactionKey) {
+    case 'heart':
+      return <Heart className={`${className} text-rose-400`} aria-hidden="true" />;
+    case 'clap':
+      return <Award className={`${className} text-amber-400`} aria-hidden="true" />;
+    case 'smile':
+      return <Smile className={`${className} text-emerald-400`} aria-hidden="true" />;
+    case 'wow':
+      return <Sparkles className={`${className} text-violet-400`} aria-hidden="true" />;
+    case 'flame':
+      return <Flame className={`${className} text-orange-400`} aria-hidden="true" />;
+    case 'like':
+    default:
+      return <ThumbsUp className={`${className} text-sky-400`} aria-hidden="true" />;
+  }
+}
 
 export interface StageVideoTileProps {
   participant: MeetingPresenceParticipant;
@@ -122,8 +152,8 @@ export function StageVideoTile({
             </span>
           )}
           {recentEmoji && (
-            <span className="inline-flex items-center rounded-full bg-slate-950/85 px-2 py-0.5 text-base shadow-lg animate-bounce">
-              {recentEmoji}
+            <span className="inline-flex items-center justify-center rounded-full bg-slate-950/85 p-1.5 shadow-lg animate-bounce">
+              <ClassroomReactionIcon reactionKey={recentEmoji} className="w-3.5 h-3.5" />
             </span>
           )}
         </div>

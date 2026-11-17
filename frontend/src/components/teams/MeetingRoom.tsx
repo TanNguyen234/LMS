@@ -45,6 +45,7 @@ import { useExpandableView } from '../../hooks/useExpandableView';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import type { CourseMessage, Meeting } from '../../types';
 import {
+  CLASSROOM_REACTIONS,
   createBackgroundEffectTrack,
   formatElapsedSeconds,
   VIDEO_QUALITY_PRESETS,
@@ -59,7 +60,7 @@ import { useToast } from '../ui/Toast';
 import { ChannelChat } from './ChannelChat';
 import { DeviceSettingsModal } from './DeviceSettingsModal';
 import { RoomPollsPanel, type RoomPoll } from './RoomPollsPanel';
-import { StageVideoTile } from './StageVideoTile';
+import { ClassroomReactionIcon, StageVideoTile } from './StageVideoTile';
 import { WhiteboardCanvas, type WhiteboardOpEvent } from './WhiteboardCanvas';
 
 export interface MeetingRoomProps {
@@ -125,8 +126,6 @@ interface SpeechRecognitionLike {
 const RTC_ICE_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 };
-
-const REACTION_EMOJIS = ['👍', '❤️', '👏', '😂', '😮', '🔥'];
 
 export function MeetingRoom({
   meeting,
@@ -217,10 +216,13 @@ export function MeetingRoom({
 
   // Refs
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const makingOfferRef = useRef<Set<string>>(new Set());
   const localStreamRef = useRef<MediaStream | null>(null);
+  const displayStreamRef = useRef<MediaStream | null>(null);
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   const cameraTrackHandleRef = useRef<ProcessedTrackHandle | null>(null);
   const selfPeerIdRef = useRef<string | null>(null);
+  const handRaisedRef = useRef(handRaised);
   const wbSeqRef = useRef(0);
   const drawerTabRef = useRef<DrawerTab>(drawerTab);
   const mediaStateRef = useRef<MeetingMediaState>(mediaState);
@@ -235,6 +237,10 @@ export function MeetingRoom({
   useEffect(() => {
     selfPeerIdRef.current = selfPeerId;
   }, [selfPeerId]);
+
+  useEffect(() => {
+    handRaisedRef.current = handRaised;
+  }, [handRaised]);
 
   useEffect(() => {
     drawerTabRef.current = drawerTab;
@@ -285,6 +291,23 @@ export function MeetingRoom({
     }
   }, []);
 
+  const stopDisplayStreamOnly = useCallback(() => {
+    if (displayStreamRef.current) {
+      for (const track of displayStreamRef.current.getTracks()) {
+        track.onended = null;
+        track.stop();
+        localStreamRef.current?.removeTrack(track);
+      }
+      displayStreamRef.current = null;
+    }
+    if (screenTrackRef.current) {
+      screenTrackRef.current.onended = null;
+      screenTrackRef.current.stop();
+      localStreamRef.current?.removeTrack(screenTrackRef.current);
+      screenTrackRef.current = null;
+    }
+  }, []);
+
   const stopCameraTrackOnly = useCallback(() => {
     if (cameraTrackHandleRef.current) {
       const activeCamTrack = cameraTrackHandleRef.current.track;
@@ -297,10 +320,7 @@ export function MeetingRoom({
   }, []);
 
   const stopAllLocalMedia = useCallback(() => {
-    if (screenTrackRef.current) {
-      screenTrackRef.current.stop();
-      screenTrackRef.current = null;
-    }
+    stopDisplayStreamOnly();
     stopCameraTrackOnly();
     if (localStreamRef.current) {
       for (const track of localStreamRef.current.getTracks()) {
@@ -325,7 +345,7 @@ export function MeetingRoom({
     }
     setLocalStream(null);
     setMediaState({ audio: false, video: false, screen: false });
-  }, [stopCameraTrackOnly]);
+  }, [stopCameraTrackOnly, stopDisplayStreamOnly]);
 
   const closeAllPeerConnections = useCallback(() => {
     for (const pc of peersRef.current.values()) {
@@ -336,6 +356,7 @@ export function MeetingRoom({
       }
     }
     peersRef.current.clear();
+    makingOfferRef.current.clear();
     setRemoteStreams({});
   }, []);
 
@@ -391,6 +412,10 @@ export function MeetingRoom({
     const maxBitrate = VIDEO_QUALITY_PRESETS[videoQuality].maxBitrate;
 
     for (const [remotePeerId, pc] of peersRef.current.entries()) {
+      if (pc.signalingState !== 'stable' || makingOfferRef.current.has(remotePeerId)) {
+        continue;
+      }
+      makingOfferRef.current.add(remotePeerId);
       try {
         for (const sender of pc.getSenders()) {
           if (sender.track?.kind === 'video') {
@@ -402,6 +427,7 @@ export function MeetingRoom({
           }
         }
         const offer = await pc.createOffer();
+        if (pc.signalingState !== 'stable') continue;
         await pc.setLocalDescription(offer);
         sendJsonRef.current({
           type: 'rtc.offer',
@@ -410,23 +436,38 @@ export function MeetingRoom({
         });
       } catch {
         // ignore transient negotiation errors
+      } finally {
+        makingOfferRef.current.delete(remotePeerId);
       }
     }
   }, [videoQuality]);
 
   const syncLocalStreamToPeers = useCallback(
     async (stream: MediaStream | null) => {
+      let needsNegotiation = false;
+      const tracks = stream ? stream.getTracks() : [];
+      const nextVideoTrack = tracks.find((t) => t.kind === 'video') ?? null;
+
       for (const pc of peersRef.current.values()) {
         const senders = pc.getSenders();
-        const tracks = stream ? stream.getTracks() : [];
+        const videoSender = senders.find((s) => s.track?.kind === 'video');
 
-        for (const sender of senders) {
+        if (videoSender && nextVideoTrack && videoSender.track?.id !== nextVideoTrack.id) {
+          try {
+            await videoSender.replaceTrack(nextVideoTrack);
+          } catch {
+            needsNegotiation = true;
+          }
+        }
+
+        for (const sender of pc.getSenders()) {
           const matching = sender.track
             ? tracks.find((t) => t.id === sender.track?.id)
             : undefined;
           if (!matching && sender.track) {
             try {
               pc.removeTrack(sender);
+              needsNegotiation = true;
             } catch {
               // ignore
             }
@@ -438,11 +479,15 @@ export function MeetingRoom({
             const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id);
             if (!alreadySending) {
               pc.addTrack(track, stream);
+              needsNegotiation = true;
             }
           }
         }
       }
-      await renegotiateWithPeers();
+
+      if (needsNegotiation) {
+        await renegotiateWithPeers();
+      }
     },
     [renegotiateWithPeers]
   );
@@ -454,7 +499,11 @@ export function MeetingRoom({
 
   const forceMuteLocalMic = useCallback(async () => {
     if (localStreamRef.current) {
+      const displayAudioIds = new Set(
+        displayStreamRef.current?.getAudioTracks().map((t) => t.id) ?? []
+      );
       for (const track of localStreamRef.current.getAudioTracks()) {
+        if (displayAudioIds.has(track.id)) continue;
         track.stop();
         localStreamRef.current.removeTrack(track);
       }
@@ -489,20 +538,32 @@ export function MeetingRoom({
 
       if (data.type === 'presence.state') {
         const myPeer = String(data.selfPeerId || '');
+        const prevPeer = selfPeerIdRef.current;
         const list = Array.isArray(data.participants)
           ? (data.participants as MeetingPresenceParticipant[])
           : [];
+        if (prevPeer && myPeer && prevPeer !== myPeer) {
+          closeAllPeerConnections();
+        }
+        selfPeerIdRef.current = myPeer;
         setSelfPeerId(myPeer);
         setParticipants(list);
 
         const me = list.find((p) => p.peerId === myPeer);
-        if (me) setHandRaised(me.handRaised);
+        if (me) {
+          if (prevPeer && prevPeer !== myPeer && handRaisedRef.current) {
+            sendJsonRef.current({ type: 'hand.raise' });
+          } else {
+            setHandRaised(me.handRaised);
+          }
+        }
 
         const activePeerIds = new Set(list.map((p) => p.peerId));
         for (const [peerId, pc] of Array.from(peersRef.current.entries())) {
           if (!activePeerIds.has(peerId)) {
             pc.close();
             peersRef.current.delete(peerId);
+            makingOfferRef.current.delete(peerId);
             setRemoteStreams((prev) => {
               const copy = { ...prev };
               delete copy[peerId];
@@ -516,16 +577,21 @@ export function MeetingRoom({
           const isNewPeer = !peersRef.current.has(p.peerId);
           const pc = ensurePeerConnection(p.peerId);
           if (isNewPeer && myPeer && myPeer < p.peerId) {
+            makingOfferRef.current.add(p.peerId);
             try {
               const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              sendJsonRef.current({
-                type: 'rtc.offer',
-                targetPeerId: p.peerId,
-                sdp: pc.localDescription,
-              });
+              if (pc.signalingState === 'stable') {
+                await pc.setLocalDescription(offer);
+                sendJsonRef.current({
+                  type: 'rtc.offer',
+                  targetPeerId: p.peerId,
+                  sdp: pc.localDescription,
+                });
+              }
             } catch {
               // ignore signaling retry
+            } finally {
+              makingOfferRef.current.delete(p.peerId);
             }
           }
         }
@@ -560,7 +626,7 @@ export function MeetingRoom({
         triggerReactionVisual(
           String(data.peerId || ''),
           String(data.userName || 'Thành viên'),
-          String(data.emoji || '👍')
+          String(data.emoji || 'like')
         );
       } else if (data.type === 'caption.event') {
         const line: CaptionLine = {
@@ -610,8 +676,23 @@ export function MeetingRoom({
       } else if (data.type === 'rtc.offer' && data.fromPeerId && data.sdp) {
         const fromPeerId = String(data.fromPeerId);
         const pc = ensurePeerConnection(fromPeerId);
+        const myPeer = selfPeerIdRef.current;
+        const isPolite = !myPeer || myPeer > fromPeerId;
+        const offerCollision =
+          makingOfferRef.current.has(fromPeerId) || pc.signalingState !== 'stable';
+        if (offerCollision && !isPolite) {
+          return;
+        }
         try {
-          await pc.setRemoteDescription(new RTCSessionDescription(data.sdp as RTCSessionDescriptionInit));
+          const remoteDesc = new RTCSessionDescription(data.sdp as RTCSessionDescriptionInit);
+          if (offerCollision) {
+            await Promise.all([
+              pc.setLocalDescription({ type: 'rollback' }),
+              pc.setRemoteDescription(remoteDesc),
+            ]);
+          } else {
+            await pc.setRemoteDescription(remoteDesc);
+          }
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           sendJsonRef.current({
@@ -669,6 +750,15 @@ export function MeetingRoom({
   const { status: wsStatus, sendJson } = useWebSocket({
     path: meeting.status === 'LIVE' ? `/ws/meetings/${meeting.meetingId}` : null,
     enabled: meeting.status === 'LIVE',
+    onOpen: () => {
+      const currentMedia = mediaStateRef.current;
+      if (currentMedia.audio || currentMedia.video || currentMedia.screen) {
+        sendJsonRef.current({ type: 'media.state', ...currentMedia });
+      }
+      if (handRaisedRef.current) {
+        sendJsonRef.current({ type: 'hand.raise' });
+      }
+    },
     onMessage: (payload) => {
       void handleWsEvent(payload);
     },
@@ -806,7 +896,11 @@ export function MeetingRoom({
           audio: chosenAudio ? { deviceId: { exact: chosenAudio } } : true,
         });
         const combined = localStreamRef.current ?? new MediaStream();
+        const displayAudioIds = new Set(
+          displayStreamRef.current?.getAudioTracks().map((t) => t.id) ?? []
+        );
         for (const oldTrack of combined.getAudioTracks()) {
+          if (displayAudioIds.has(oldTrack.id)) continue;
           oldTrack.stop();
           combined.removeTrack(oldTrack);
         }
@@ -828,7 +922,11 @@ export function MeetingRoom({
 
   const stopMicrophone = useCallback(async () => {
     if (localStreamRef.current) {
+      const displayAudioIds = new Set(
+        displayStreamRef.current?.getAudioTracks().map((t) => t.id) ?? []
+      );
       for (const track of localStreamRef.current.getAudioTracks()) {
+        if (displayAudioIds.has(track.id)) continue;
         track.stop();
         localStreamRef.current.removeTrack(track);
       }
@@ -853,7 +951,6 @@ export function MeetingRoom({
         deviceId?: string;
         quality?: VideoQualityPreset;
         bgMode?: BackgroundEffectMode;
-        mirror?: boolean;
       } = {}
     ) => {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -864,7 +961,6 @@ export function MeetingRoom({
       const qualityKey = overrides.quality ?? videoQuality;
       const spec = VIDEO_QUALITY_PRESETS[qualityKey];
       const bg = overrides.bgMode ?? backgroundMode;
-      const mirror = overrides.mirror ?? mirrorSelfVideo;
 
       try {
         const videoStream = await navigator.mediaDevices.getUserMedia({
@@ -879,11 +975,13 @@ export function MeetingRoom({
         if (!rawTrack) return false;
 
         stopCameraTrackOnly();
-        const handle = createBackgroundEffectTrack(rawTrack, bg, { mirror });
+        const handle = createBackgroundEffectTrack(rawTrack, bg);
         cameraTrackHandleRef.current = handle;
 
         const combined = localStreamRef.current ?? new MediaStream();
-        combined.addTrack(handle.track);
+        if (!screenTrackRef.current) {
+          combined.addTrack(handle.track);
+        }
         localStreamRef.current = combined;
         setLocalStream(new MediaStream(combined.getTracks()));
         emitMediaState({ ...mediaStateRef.current, video: true });
@@ -897,7 +995,6 @@ export function MeetingRoom({
     [
       backgroundMode,
       emitMediaState,
-      mirrorSelfVideo,
       stopCameraTrackOnly,
       syncLocalStreamToPeers,
       toast,
@@ -907,15 +1004,17 @@ export function MeetingRoom({
   );
 
   const toggleCamera = useCallback(async () => {
-    if (mediaStateRef.current.video && localStreamRef.current) {
+    if (mediaStateRef.current.video) {
       stopCameraTrackOnly();
-      for (const track of localStreamRef.current.getVideoTracks()) {
-        if (screenTrackRef.current && track.id === screenTrackRef.current.id) continue;
-        track.stop();
-        localStreamRef.current.removeTrack(track);
+      if (localStreamRef.current) {
+        for (const track of localStreamRef.current.getVideoTracks()) {
+          if (screenTrackRef.current && track.id === screenTrackRef.current.id) continue;
+          track.stop();
+          localStreamRef.current.removeTrack(track);
+        }
+        const remaining = localStreamRef.current.getTracks();
+        setLocalStream(remaining.length > 0 ? new MediaStream(remaining) : null);
       }
-      const remaining = localStreamRef.current.getTracks();
-      setLocalStream(remaining.length > 0 ? new MediaStream(remaining) : null);
       emitMediaState({ ...mediaStateRef.current, video: false });
       await syncLocalStreamToPeers(localStreamRef.current);
       return;
@@ -923,15 +1022,29 @@ export function MeetingRoom({
     await startCamera();
   }, [emitMediaState, startCamera, stopCameraTrackOnly, syncLocalStreamToPeers]);
 
+  const finishScreenShare = useCallback(async () => {
+    stopDisplayStreamOnly();
+    const combined = localStreamRef.current ?? new MediaStream();
+    if (
+      mediaStateRef.current.video &&
+      cameraTrackHandleRef.current &&
+      cameraTrackHandleRef.current.track.readyState === 'live'
+    ) {
+      const camTrack = cameraTrackHandleRef.current.track;
+      if (!combined.getVideoTracks().some((t) => t.id === camTrack.id)) {
+        combined.addTrack(camTrack);
+      }
+    }
+    const remaining = combined.getTracks();
+    localStreamRef.current = remaining.length > 0 ? combined : null;
+    setLocalStream(remaining.length > 0 ? new MediaStream(remaining) : null);
+    emitMediaState({ ...mediaStateRef.current, screen: false });
+    await syncLocalStreamToPeers(localStreamRef.current);
+  }, [emitMediaState, stopDisplayStreamOnly, syncLocalStreamToPeers]);
+
   const toggleScreenShare = useCallback(async () => {
-    if (mediaStateRef.current.screen && screenTrackRef.current && localStreamRef.current) {
-      screenTrackRef.current.stop();
-      localStreamRef.current.removeTrack(screenTrackRef.current);
-      screenTrackRef.current = null;
-      const remaining = localStreamRef.current.getTracks();
-      setLocalStream(remaining.length > 0 ? new MediaStream(remaining) : null);
-      emitMediaState({ ...mediaStateRef.current, screen: false });
-      await syncLocalStreamToPeers(localStreamRef.current);
+    if (mediaStateRef.current.screen) {
+      await finishScreenShare();
       return;
     }
 
@@ -946,11 +1059,29 @@ export function MeetingRoom({
         audio: true,
       });
       const screenTrack = displayStream.getVideoTracks()[0];
-      if (!screenTrack) return;
+      if (!screenTrack) {
+        for (const t of displayStream.getTracks()) t.stop();
+        return;
+      }
 
+      stopDisplayStreamOnly();
+      displayStreamRef.current = displayStream;
       screenTrackRef.current = screenTrack;
+
       const combined = localStreamRef.current ?? new MediaStream();
+      if (cameraTrackHandleRef.current) {
+        combined.removeTrack(cameraTrackHandleRef.current.track);
+      }
+      for (const oldVideo of combined.getVideoTracks()) {
+        if (oldVideo.id !== screenTrack.id) {
+          combined.removeTrack(oldVideo);
+        }
+      }
       combined.addTrack(screenTrack);
+      for (const displayAudioTrack of displayStream.getAudioTracks()) {
+        combined.addTrack(displayAudioTrack);
+      }
+
       localStreamRef.current = combined;
       setLocalStream(new MediaStream(combined.getTracks()));
       emitMediaState({ ...mediaStateRef.current, screen: true });
@@ -961,19 +1092,12 @@ export function MeetingRoom({
       await syncLocalStreamToPeers(combined);
 
       screenTrack.onended = () => {
-        if (localStreamRef.current && screenTrackRef.current) {
-          localStreamRef.current.removeTrack(screenTrackRef.current);
-          screenTrackRef.current = null;
-          const rest = localStreamRef.current.getTracks();
-          setLocalStream(rest.length > 0 ? new MediaStream(rest) : null);
-          emitMediaState({ ...mediaStateRef.current, screen: false });
-          void syncLocalStreamToPeers(localStreamRef.current);
-        }
+        void finishScreenShare();
       };
     } catch {
       toast.info('Đã hủy thao tác chia sẻ màn hình.');
     }
-  }, [emitMediaState, syncLocalStreamToPeers, toast]);
+  }, [emitMediaState, finishScreenShare, stopDisplayStreamOnly, syncLocalStreamToPeers, toast]);
 
   const toggleRaiseHand = useCallback(() => {
     const nextRaised = !handRaised;
@@ -1141,7 +1265,6 @@ export function MeetingRoom({
           deviceId: next.videoInputId,
           quality: next.videoQuality,
           bgMode: next.backgroundMode,
-          mirror: next.mirrorSelfVideo,
         });
       }
       toast.success('Đã cập nhật thiết bị và hiệu ứng phòng học.');
@@ -1633,9 +1756,9 @@ export function MeetingRoom({
               {reactions.map((rx) => (
                 <div
                   key={rx.id}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/85 border border-slate-700/70 px-3 py-1 text-xs text-white shadow-lg animate-bounce"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/85 border border-slate-700/70 px-3 py-1.5 text-xs text-white shadow-lg animate-bounce"
                 >
-                  <span className="text-base">{rx.emoji}</span>
+                  <ClassroomReactionIcon reactionKey={rx.emoji} className="w-4 h-4" />
                   <span className="font-medium">{rx.userName}</span>
                 </div>
               ))}
@@ -2008,14 +2131,16 @@ export function MeetingRoom({
             </button>
             {showReactionPicker && (
               <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1.5 shadow-2xl">
-                {REACTION_EMOJIS.map((emoji) => (
+                {CLASSROOM_REACTIONS.map((reaction) => (
                   <button
-                    key={emoji}
+                    key={reaction.key}
                     type="button"
-                    onClick={() => sendReaction(emoji)}
-                    className="rounded-full p-1 text-lg hover:scale-125 hover:bg-slate-800 transition cursor-pointer"
+                    title={reaction.label}
+                    aria-label={reaction.label}
+                    onClick={() => sendReaction(reaction.key)}
+                    className="rounded-full p-1.5 hover:scale-125 hover:bg-slate-800 transition cursor-pointer"
                   >
-                    {emoji}
+                    <ClassroomReactionIcon reactionKey={reaction.key} className="w-4 h-4" />
                   </button>
                 ))}
               </div>

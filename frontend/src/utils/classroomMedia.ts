@@ -1,5 +1,21 @@
 export type BackgroundEffectMode = 'none' | 'blur-light' | 'blur-strong' | 'studio-gradient';
 
+export type ClassroomReactionKey = 'like' | 'heart' | 'clap' | 'smile' | 'wow' | 'flame';
+
+export interface ClassroomReactionOption {
+  key: ClassroomReactionKey;
+  label: string;
+}
+
+export const CLASSROOM_REACTIONS: readonly ClassroomReactionOption[] = [
+  { key: 'like', label: 'Thích' },
+  { key: 'heart', label: 'Yêu thích' },
+  { key: 'clap', label: 'Tán thưởng' },
+  { key: 'smile', label: 'Vui vẻ' },
+  { key: 'wow', label: 'Ấn tượng' },
+  { key: 'flame', label: 'Sôi nổi' },
+];
+
 export type VideoQualityPreset = '360p' | '720p' | '1080p';
 
 export interface VideoQualitySpec {
@@ -45,8 +61,7 @@ export interface ProcessedTrackHandle {
  */
 export function createBackgroundEffectTrack(
   rawTrack: MediaStreamTrack,
-  mode: BackgroundEffectMode,
-  options: { mirror?: boolean } = {}
+  mode: BackgroundEffectMode
 ): ProcessedTrackHandle {
   if (mode === 'none') {
     return {
@@ -80,10 +95,6 @@ export function createBackgroundEffectTrack(
 
     if (video.readyState >= 2) {
       ctx.save();
-      if (options.mirror) {
-        ctx.translate(width, 0);
-        ctx.scale(-1, 1);
-      }
 
       if (mode === 'studio-gradient') {
         const grad = ctx.createLinearGradient(0, 0, width, height);
