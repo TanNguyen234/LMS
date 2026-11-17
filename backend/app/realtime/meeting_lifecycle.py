@@ -22,7 +22,7 @@ _pending_cleanups: Dict[uuid.UUID, Any] = {}
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
 
 
 def close_open_logs_for_meeting(meeting_id: uuid.UUID, db: Session, now: datetime) -> int:
@@ -60,7 +60,7 @@ def end_meeting_if_empty(meeting_id: uuid.UUID, db: Optional[Session] = None) ->
         session.commit()
 
         course_id = meeting.CourseId
-        realtime_hub.broadcast_meeting_sync(
+        realtime_hub.close_meeting_room_sync(
             meeting.MeetingId,
             {
                 "type": "meeting.ended",
@@ -150,6 +150,7 @@ def schedule_empty_meeting_cleanup(
 ) -> None:
     """Schedule closing the meeting if it remains empty after delay_seconds."""
     cancel_empty_meeting_cleanup(meeting_id)
+    handle_holder: list[Any] = [None]
 
     async def _delayed_cleanup() -> None:
         try:
@@ -160,7 +161,9 @@ def schedule_empty_meeting_cleanup(
             return
         finally:
             with _cleanup_lock:
-                _pending_cleanups.pop(meeting_id, None)
+                current_handle = handle_holder[0]
+                if current_handle is not None and _pending_cleanups.get(meeting_id) is current_handle:
+                    _pending_cleanups.pop(meeting_id, None)
 
     try:
         running_loop = asyncio.get_running_loop()
@@ -168,13 +171,15 @@ def schedule_empty_meeting_cleanup(
         running_loop = None
 
     if running_loop is not None and not running_loop.is_closed():
-        task = running_loop.create_task(_delayed_cleanup())
         with _cleanup_lock:
+            task = running_loop.create_task(_delayed_cleanup())
+            handle_holder[0] = task
             _pending_cleanups[meeting_id] = task
         return
 
     hub_loop = realtime_hub.get_loop()
     if hub_loop is not None and not hub_loop.is_closed() and hub_loop.is_running():
-        fut = asyncio.run_coroutine_threadsafe(_delayed_cleanup(), hub_loop)
         with _cleanup_lock:
+            fut = asyncio.run_coroutine_threadsafe(_delayed_cleanup(), hub_loop)
+            handle_holder[0] = fut
             _pending_cleanups[meeting_id] = fut

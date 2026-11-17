@@ -29,7 +29,7 @@ router = APIRouter(prefix="/meetings", tags=["Meetings"])
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
 
 
 def _meeting_query_with_relations(db: Session):
@@ -63,7 +63,11 @@ def format_meeting_response(meeting: Meeting, viewer_role: str) -> MeetingRespon
     course = meeting.course
     host = meeting.host
     open_logs = [log for log in (meeting.logs or []) if log.LeftAt is None]
-    ws_presence_count = len(realtime_hub.get_meeting_presence(meeting.MeetingId))
+    ws_presence_count = (
+        0
+        if meeting.Status == "ENDED"
+        else len(realtime_hub.get_meeting_presence(meeting.MeetingId))
+    )
     participant_count = max(len(open_logs), ws_presence_count)
 
     # Students must NEVER receive detailed activeLogs PII of other participants
@@ -129,7 +133,7 @@ def create_or_start_meeting(
             old_meeting.Status = "ENDED"
             old_meeting.EndedAt = now
             _close_open_logs_for_meeting(old_meeting.MeetingId, db, now)
-            realtime_hub.broadcast_meeting_sync(
+            realtime_hub.close_meeting_room_sync(
                 old_meeting.MeetingId,
                 {
                     "type": "meeting.ended",
@@ -398,7 +402,7 @@ def end_meeting(
     _close_open_logs_for_meeting(meeting.MeetingId, db, now)
     db.commit()
 
-    realtime_hub.broadcast_meeting_sync(
+    realtime_hub.close_meeting_room_sync(
         meeting.MeetingId,
         {
             "type": "meeting.ended",

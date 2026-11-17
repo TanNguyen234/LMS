@@ -131,15 +131,61 @@ class RealtimeHub:
             return [c for c in conns if str(c.user_id) == str(target_user_id)]
         return conns
 
-    async def _send_batch(self, targets: Iterable[ConnectionInfo], payload: Dict[str, Any]) -> None:
-        dead: List[ConnectionInfo] = []
-        for conn in targets:
-            try:
-                await conn.websocket.send_json(payload)
-            except Exception:
-                dead.append(conn)
-        for conn in dead:
+    async def _safe_send(
+        self,
+        conn: ConnectionInfo,
+        payload: Dict[str, Any],
+        timeout: float = 3.0,
+    ) -> bool:
+        try:
+            await asyncio.wait_for(conn.websocket.send_json(payload), timeout=timeout)
+            return True
+        except Exception:
             self.unregister(conn)
+            return False
+
+    async def _send_batch(self, targets: Iterable[ConnectionInfo], payload: Dict[str, Any]) -> None:
+        target_list = list(targets)
+        if not target_list:
+            return
+        await asyncio.gather(
+            *(self._safe_send(conn, payload) for conn in target_list),
+            return_exceptions=True,
+        )
+
+    def evict_meeting_room(self, meeting_id: uuid.UUID) -> List[ConnectionInfo]:
+        """Atomically clear polls and active presence for an ended meeting, returning evicted sockets."""
+        with self._lock:
+            self._meeting_polls.pop(meeting_id, None)
+            bucket = self._meeting_channels.pop(meeting_id, None)
+            return list(bucket.values()) if bucket else []
+
+    async def _notify_and_close_sockets(
+        self,
+        conns: List[ConnectionInfo],
+        end_payload: Optional[Dict[str, Any]],
+    ) -> None:
+        if end_payload is not None and conns:
+            await asyncio.gather(
+                *(self._safe_send(c, end_payload) for c in conns),
+                return_exceptions=True,
+            )
+        for conn in conns:
+            try:
+                await asyncio.wait_for(conn.websocket.close(), timeout=1.5)
+            except Exception:
+                pass
+
+    def close_meeting_room_sync(
+        self,
+        meeting_id: uuid.UUID,
+        end_payload: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Evict room presence & polls immediately and schedule final meeting.ended delivery + socket close."""
+        conns = self.evict_meeting_room(meeting_id)
+        if not conns:
+            return
+        self._schedule_coro(lambda: self._notify_and_close_sockets(conns, end_payload))
 
     def lower_all_meeting_hands(self, meeting_id: uuid.UUID) -> int:
         with self._lock:
@@ -246,12 +292,7 @@ class RealtimeHub:
             return self._serialize_poll(poll)
 
     async def send_to_connection(self, conn: ConnectionInfo, payload: Dict[str, Any]) -> bool:
-        try:
-            await conn.websocket.send_json(payload)
-            return True
-        except Exception:
-            self.unregister(conn)
-            return False
+        return await self._safe_send(conn, payload)
 
     async def send_to_user(self, user_id: uuid.UUID, payload: Dict[str, Any]) -> None:
         targets = self._snapshot("user", user_id)
@@ -285,21 +326,21 @@ class RealtimeHub:
         if not conns:
             return
         participants = self.get_meeting_presence(meeting_id)
-        dead: List[ConnectionInfo] = []
-        for conn in conns:
-            try:
-                await conn.websocket.send_json(
+        await asyncio.gather(
+            *(
+                self._safe_send(
+                    conn,
                     {
                         "type": "presence.state",
                         "meetingId": str(meeting_id),
                         "selfPeerId": conn.connection_id,
                         "participants": participants,
-                    }
+                    },
                 )
-            except Exception:
-                dead.append(conn)
-        for conn in dead:
-            self.unregister(conn)
+                for conn in conns
+            ),
+            return_exceptions=True,
+        )
 
     def _schedule_coro(self, coro_factory) -> None:
         with self._lock:

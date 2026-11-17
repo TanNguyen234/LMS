@@ -17,7 +17,7 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
 
 
 def create_and_push_notification(

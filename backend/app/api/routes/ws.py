@@ -1,4 +1,5 @@
 """Realtime WebSocket hub routes, one-time tickets, and whiteboard snapshot fallback."""
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
@@ -57,7 +58,7 @@ class _WsUser:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
 
 
 def _parse_uuid(raw: str) -> Optional[uuid.UUID]:
@@ -287,8 +288,13 @@ def _persist_ws_chat_message(
 
     attachment_url_raw = payload.get("attachmentUrl")
     attachment_url = str(attachment_url_raw).strip() if attachment_url_raw else None
-    if attachment_url and not (
-        attachment_url.startswith("/") or attachment_url.startswith("https://") or attachment_url.startswith("http://")
+    if attachment_url and (
+        attachment_url.startswith("//")
+        or not (
+            attachment_url.startswith("/")
+            or attachment_url.startswith("https://")
+            or attachment_url.startswith("http://")
+        )
     ):
         return None, "URL tệp đính kèm không hợp lệ."
 
@@ -317,6 +323,8 @@ def _persist_ws_chat_message(
             meeting = db.query(Meeting).filter(Meeting.MeetingId == meeting_uuid).first()
             if not meeting or meeting.CourseId != course_id:
                 return None, "Phiên học trực tuyến không thuộc lớp học này."
+            if meeting.Status == "ENDED":
+                return None, "Phiên học trực tuyến đã kết thúc, không thể gửi tin nhắn mới."
 
         if attachment_file_uuid is not None:
             stored = db.query(StoredFile).filter(StoredFile.FileId == attachment_file_uuid).first()
@@ -387,19 +395,25 @@ def _apply_whiteboard_op_db(
     meeting_id: Optional[uuid.UUID],
     user: _WsUser,
     op: Dict[str, Any],
-) -> Optional[str]:
+) -> Tuple[Optional[str], List[uuid.UUID]]:
     action = str(op.get("action") or "").lower()
     if action not in {"add", "remove", "delete", "undo", "clear", "replace"}:
-        return "Thao tác bảng vẽ không hợp lệ."
+        return "Thao tác bảng vẽ không hợp lệ.", []
 
     db = SessionLocal()
     try:
-        course = db.query(Course).filter(Course.CourseId == course_id).first()
+        course = (
+            db.query(Course)
+            .with_hint(Course, "WITH (UPDLOCK, ROWLOCK)", dialect_name="mssql")
+            .filter(Course.CourseId == course_id)
+            .first()
+        )
         if not course or not _has_course_write(db, course, user.user_id, user.role):
-            return "Bạn không có quyền chỉnh sửa bảng vẽ."
+            return "Bạn không có quyền chỉnh sửa bảng vẽ.", []
 
         snapshot = (
             db.query(WhiteboardSnapshot)
+            .with_hint(WhiteboardSnapshot, "WITH (UPDLOCK, ROWLOCK)", dialect_name="mssql")
             .filter(WhiteboardSnapshot.CourseId == course_id)
             .order_by(WhiteboardSnapshot.UpdatedAt.desc())
             .first()
@@ -425,7 +439,7 @@ def _apply_whiteboard_op_db(
         if action == "add":
             stroke = op.get("stroke")
             if not isinstance(stroke, dict) or not stroke.get("id"):
-                return "Dữ liệu nét vẽ không hợp lệ."
+                return "Dữ liệu nét vẽ không hợp lệ.", []
             stroke_copy = dict(stroke)
             stroke_copy.setdefault("authorId", str(user.user_id))
             stroke_copy.setdefault("authorName", user.full_name)
@@ -437,7 +451,7 @@ def _apply_whiteboard_op_db(
         elif action in ("remove", "delete"):
             target_id = str(op.get("strokeId") or "")
             if not target_id:
-                return "Thiếu strokeId để xóa."
+                return "Thiếu strokeId để xóa.", []
             strokes = [s for s in strokes if not (isinstance(s, dict) and str(s.get("id")) == target_id)]
         elif action == "undo":
             target_id = str(op.get("strokeId") or "")
@@ -462,20 +476,26 @@ def _apply_whiteboard_op_db(
         elif action == "replace":
             replacement = op.get("strokes")
             if not isinstance(replacement, list) or len(replacement) > MAX_WHITEBOARD_STROKES:
-                return "Danh sách nét vẽ không hợp lệ."
+                return "Danh sách nét vẽ không hợp lệ.", []
             strokes = replacement
 
         encoded = json.dumps(strokes)
         if len(encoded.encode("utf-8")) > MAX_WHITEBOARD_BYTES:
-            return "Dữ liệu bảng vẽ vượt quá dung lượng cho phép."
+            return "Dữ liệu bảng vẽ vượt quá dung lượng cho phép.", []
 
         snapshot.StrokesJson = encoded
         snapshot.UpdatedBy = user.user_id
         snapshot.UpdatedAt = _utcnow()
         if meeting_id is not None:
             snapshot.MeetingId = meeting_id
+        live_meeting_ids = [
+            mid
+            for (mid,) in db.query(Meeting.MeetingId)
+            .filter(Meeting.CourseId == course_id, Meeting.Status == "LIVE")
+            .all()
+        ]
         db.commit()
-        return None
+        return None, live_meeting_ids
     finally:
         db.close()
 
@@ -550,6 +570,7 @@ def save_course_whiteboard(
     now = _utcnow()
     snapshot = (
         db.query(WhiteboardSnapshot)
+        .with_hint(WhiteboardSnapshot, "WITH (UPDLOCK, ROWLOCK)", dialect_name="mssql")
         .filter(WhiteboardSnapshot.CourseId == course.CourseId)
         .order_by(WhiteboardSnapshot.UpdatedAt.desc())
         .first()
@@ -582,8 +603,15 @@ def save_course_whiteboard(
         "updatedAt": to_utc_iso(snapshot.UpdatedAt),
     }
     realtime_hub.broadcast_course_sync(course.CourseId, broadcast_payload)
-    if snapshot.MeetingId:
-        realtime_hub.broadcast_meeting_sync(snapshot.MeetingId, broadcast_payload)
+    target_meeting_ids = {snapshot.MeetingId} if snapshot.MeetingId else set()
+    for (live_mid,) in (
+        db.query(Meeting.MeetingId)
+        .filter(Meeting.CourseId == course.CourseId, Meeting.Status == "LIVE")
+        .all()
+    ):
+        target_meeting_ids.add(live_mid)
+    for mid in target_meeting_ids:
+        realtime_hub.broadcast_meeting_sync(mid, {**broadcast_payload, "meetingId": str(mid)})
 
     return _snapshot_to_response(snapshot, course, current_user.UserId)
 
@@ -594,7 +622,7 @@ async def notifications_ws(
     ticket: Optional[str] = Query(default=None),
 ):
     """Kênh WebSocket đẩy thông báo theo thời gian thực cho từng người dùng."""
-    ws_user = _authenticate_ws_ticket(ticket)
+    ws_user = await asyncio.to_thread(_authenticate_ws_ticket, ticket)
     if not ws_user:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
@@ -612,7 +640,7 @@ async def notifications_ws(
     realtime_hub.register(conn)
 
     try:
-        unread = _get_unread_count(ws_user.user_id)
+        unread = await asyncio.to_thread(_get_unread_count, ws_user.user_id)
         await realtime_hub.send_to_connection(
             conn,
             {
@@ -643,8 +671,13 @@ async def course_ws(
 ):
     """Kênh WebSocket thảo luận lớp học (chat, typing, whiteboard op)."""
     course_uuid = _parse_uuid(course_id)
-    ws_user = _authenticate_ws_ticket(ticket)
-    if course_uuid is None or not ws_user or not _check_course_read_access_ws(course_uuid, ws_user):
+    ws_user = await asyncio.to_thread(_authenticate_ws_ticket, ticket)
+    has_access = (
+        await asyncio.to_thread(_check_course_read_access_ws, course_uuid, ws_user)
+        if course_uuid is not None and ws_user is not None
+        else False
+    )
+    if course_uuid is None or not ws_user or not has_access:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
@@ -692,7 +725,7 @@ async def course_ws(
                     exclude_connection_id=conn.connection_id,
                 )
             elif msg_type == "chat.send":
-                saved, err = _persist_ws_chat_message(course_uuid, ws_user, data)
+                saved, err = await asyncio.to_thread(_persist_ws_chat_message, course_uuid, ws_user, data)
                 if err or not saved:
                     await realtime_hub.send_to_connection(
                         conn, {"type": "error", "detail": err or "Không thể gửi tin nhắn."}
@@ -713,21 +746,21 @@ async def course_ws(
                 op = data.get("op")
                 if not isinstance(op, dict):
                     continue
-                err = _apply_whiteboard_op_db(course_uuid, None, ws_user, op)
+                err, live_mids = await asyncio.to_thread(_apply_whiteboard_op_db, course_uuid, None, ws_user, op)
                 if err:
                     await realtime_hub.send_to_connection(conn, {"type": "error", "detail": err})
                     continue
-                await realtime_hub.broadcast_course(
-                    course_uuid,
-                    {
-                        "type": "whiteboard.op",
-                        "courseId": str(course_uuid),
-                        "fromPeerId": conn.connection_id,
-                        "userId": str(ws_user.user_id),
-                        "userName": ws_user.full_name,
-                        "op": op,
-                    },
-                )
+                wb_event = {
+                    "type": "whiteboard.op",
+                    "courseId": str(course_uuid),
+                    "fromPeerId": conn.connection_id,
+                    "userId": str(ws_user.user_id),
+                    "userName": ws_user.full_name,
+                    "op": op,
+                }
+                await realtime_hub.broadcast_course(course_uuid, wb_event)
+                for mid in live_mids:
+                    await realtime_hub.broadcast_meeting(mid, {**wb_event, "meetingId": str(mid)})
     except WebSocketDisconnect:
         pass
     finally:
@@ -742,9 +775,9 @@ async def meeting_ws(
 ):
     """Kênh WebSocket phòng học trực tuyến: điểm danh, giơ tay, chat, bảng vẽ, WebRTC signaling."""
     meeting_uuid = _parse_uuid(meeting_id)
-    ws_user = _authenticate_ws_ticket(ticket)
+    ws_user = await asyncio.to_thread(_authenticate_ws_ticket, ticket)
     course_uuid = (
-        _check_meeting_access_ws(meeting_uuid, ws_user)
+        await asyncio.to_thread(_check_meeting_access_ws, meeting_uuid, ws_user)
         if meeting_uuid is not None and ws_user is not None
         else None
     )
@@ -764,7 +797,7 @@ async def meeting_ws(
     )
     realtime_hub.register(conn)
     cancel_empty_meeting_cleanup(meeting_uuid)
-    _open_meeting_session_log(meeting_uuid, ws_user.user_id)
+    await asyncio.to_thread(_open_meeting_session_log, meeting_uuid, ws_user.user_id)
 
     try:
         await realtime_hub.broadcast_meeting_presence(meeting_uuid)
@@ -806,7 +839,7 @@ async def meeting_ws(
                 was_raised = conn.hand_raised
                 conn.hand_raised = raised
                 if raised and not was_raised:
-                    _increment_meeting_counts(meeting_uuid, ws_user.user_id, hand_delta=1)
+                    await asyncio.to_thread(_increment_meeting_counts, meeting_uuid, ws_user.user_id, hand_delta=1)
                 await realtime_hub.broadcast_meeting(
                     meeting_uuid,
                     {
@@ -836,11 +869,13 @@ async def meeting_ws(
                     exclude_connection_id=conn.connection_id,
                 )
             elif msg_type == "chat.send":
-                saved, err = _persist_ws_chat_message(
-                    course_uuid,
-                    ws_user,
-                    data,
-                    forced_meeting_id=meeting_uuid,
+                saved, err = await asyncio.to_thread(
+                    lambda: _persist_ws_chat_message(
+                        course_uuid,
+                        ws_user,
+                        data,
+                        forced_meeting_id=meeting_uuid,
+                    )
                 )
                 if err or not saved:
                     await realtime_hub.send_to_connection(
@@ -859,7 +894,7 @@ async def meeting_ws(
                 op = data.get("op")
                 if not isinstance(op, dict):
                     continue
-                err = _apply_whiteboard_op_db(course_uuid, meeting_uuid, ws_user, op)
+                err, _ = await asyncio.to_thread(_apply_whiteboard_op_db, course_uuid, meeting_uuid, ws_user, op)
                 if err:
                     await realtime_hub.send_to_connection(conn, {"type": "error", "detail": err})
                     continue
@@ -1033,7 +1068,7 @@ async def meeting_ws(
     finally:
         remaining = realtime_hub.unregister(conn)
         if remaining == 0:
-            _close_meeting_session_log(meeting_uuid, ws_user.user_id)
+            await asyncio.to_thread(_close_meeting_session_log, meeting_uuid, ws_user.user_id)
         if len(realtime_hub.get_meeting_presence(meeting_uuid)) == 0:
             schedule_empty_meeting_cleanup(meeting_uuid)
         await realtime_hub.broadcast_meeting_presence(meeting_uuid)

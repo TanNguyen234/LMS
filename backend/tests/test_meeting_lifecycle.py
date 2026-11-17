@@ -171,10 +171,10 @@ def test_meeting_ws_reactions_moderation_and_live_poll(
                 assert ws_lec.receive_json()["type"] == "presence.state"
 
                 # 1. Reaction broadcast
-                ws_stu.send_json({"type": "reaction.send", "emoji": "👏"})
+                ws_stu.send_json({"type": "reaction.send", "emoji": "clap"})
                 rx_lec = ws_lec.receive_json()
                 assert rx_lec["type"] == "reaction.event"
-                assert rx_lec["emoji"] == "👏"
+                assert rx_lec["emoji"] == "clap"
                 rx_stu = ws_stu.receive_json()
                 assert rx_stu["type"] == "reaction.event"
 

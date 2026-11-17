@@ -21,7 +21,7 @@ router = APIRouter(tags=["Messages"])
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
 
 
 def _to_message_response(msg: CourseMessage, sender: Optional[User]) -> CourseMessageResponse:
@@ -97,12 +97,20 @@ def post_course_message(
         meeting = db.query(Meeting).filter(Meeting.MeetingId == payload.meetingId).first()
         if not meeting or meeting.CourseId != course.CourseId:
             raise HTTPException(status_code=400, detail="Phiên học trực tuyến không thuộc lớp học này.")
+        if meeting.Status == "ENDED":
+            raise HTTPException(
+                status_code=409,
+                detail="Phiên học trực tuyến đã kết thúc, không thể gửi tin nhắn mới.",
+            )
 
     attachment_url = payload.attachmentUrl.strip() if payload.attachmentUrl else None
-    if attachment_url and not (
-        attachment_url.startswith("/")
-        or attachment_url.startswith("https://")
-        or attachment_url.startswith("http://")
+    if attachment_url and (
+        attachment_url.startswith("//")
+        or not (
+            attachment_url.startswith("/")
+            or attachment_url.startswith("https://")
+            or attachment_url.startswith("http://")
+        )
     ):
         raise HTTPException(status_code=400, detail="URL tệp đính kèm không hợp lệ.")
 
