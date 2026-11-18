@@ -45,6 +45,7 @@ export interface StudentSubmitDrawerProps {
   assignment: Assignment | null;
   courseId: string;
   courseArchived?: boolean;
+  enrollmentCompleted?: boolean;
   existingSubmission: Submission | null;
   onSubmitted: (submission: Submission) => void;
 }
@@ -54,6 +55,7 @@ function StudentSubmitInner({
   assignment,
   courseId,
   courseArchived = false,
+  enrollmentCompleted = false,
   existingSubmission,
   onSubmitted,
 }: {
@@ -61,6 +63,7 @@ function StudentSubmitInner({
   assignment: Assignment;
   courseId: string;
   courseArchived?: boolean;
+  enrollmentCompleted?: boolean;
   existingSubmission: Submission | null;
   onSubmitted: (submission: Submission) => void;
 }) {
@@ -103,6 +106,7 @@ function StudentSubmitInner({
   const isPastDue = !Number.isNaN(dueTimestamp) && openedAtMs > dueTimestamp;
   const isLocked =
     courseArchived ||
+    enrollmentCompleted ||
     assignmentStatus !== 'PUBLISHED' ||
     (isPastDue && !assignment.allowLate);
 
@@ -399,14 +403,20 @@ function StudentSubmitInner({
               <Lock className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
               <div>
                 <p className="font-semibold">
-                  {courseArchived ? 'Học phần đã lưu trữ (Chỉ đọc)' : 'Cổng nộp bài đã đóng'}
+                  {courseArchived
+                    ? 'Học phần đã lưu trữ (Chỉ đọc)'
+                    : enrollmentCompleted
+                      ? 'Bạn đã hoàn thành học phần (Chỉ đọc)'
+                      : 'Cổng nộp bài đã đóng'}
                 </p>
                 <p className="mt-0.5 text-xs">
                   {courseArchived
                     ? 'Học phần này đã kết thúc và chuyển sang chế độ lưu trữ chỉ đọc. Bạn vẫn có thể xem lại đề bài và bài đã nộp.'
-                    : assignmentStatus === 'CLOSED'
-                      ? 'Giảng viên đã đóng bài tập này.'
-                      : 'Đã quá hạn nộp bài và bài tập không cho phép nộp muộn.'}
+                    : enrollmentCompleted
+                      ? 'Ghi danh của bạn trong học phần này đã chốt hoàn thành. Bạn vẫn có thể xem lại đề bài, kết quả chấm điểm và bài đã nộp.'
+                      : assignmentStatus === 'CLOSED'
+                        ? 'Giảng viên đã đóng bài tập này.'
+                        : 'Đã quá hạn nộp bài và bài tập không cho phép nộp muộn.'}
                 </p>
               </div>
             </div>
@@ -581,6 +591,7 @@ export function StudentSubmitDrawer(props: StudentSubmitDrawerProps) {
       assignment={props.assignment}
       courseId={props.courseId}
       courseArchived={props.courseArchived}
+      enrollmentCompleted={props.enrollmentCompleted}
       existingSubmission={props.existingSubmission}
       onSubmitted={props.onSubmitted}
     />

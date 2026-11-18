@@ -4,11 +4,13 @@ import {
   BookOpen,
   ClipboardCheck,
   FileText,
+  Lock,
   Users,
   Video,
 } from 'lucide-react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getCourseModules } from '../api/content';
+import { ApiError } from '../api/http';
 import { getCourseDetail, getCourseProgress } from '../api/learning';
 import { useAuth } from '../auth/AuthContext';
 import { CourseClassroomTab } from '../components/courses/CourseClassroomTab';
@@ -16,6 +18,7 @@ import { CourseContentTab } from '../components/courses/CourseContentTab';
 import { CourseGradebookTab } from '../components/courses/CourseGradebookTab';
 import { CourseHeader } from '../components/courses/CourseHeader';
 import { CourseStudentsTab } from '../components/courses/CourseStudentsTab';
+import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { Skeleton, SkeletonCard } from '../components/ui/Skeleton';
 import { TabPanel, Tabs, type TabItem } from '../components/ui/Tabs';
@@ -59,8 +62,12 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ initialTab }
   const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(new Set());
   const [progressPercent, setProgressPercent] = useState<number | null>(null);
   const [progressLabel, setProgressLabel] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [loadedWorkspaceKey, setLoadedWorkspaceKey] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
+
+  const workspaceKey = `${user?.userId ?? ''}:${courseId ?? ''}`;
+  const loading = loadedWorkspaceKey !== workspaceKey;
 
   const canManage = useMemo(() => {
     if (!user || !course) return false;
@@ -72,9 +79,17 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ initialTab }
   }, [user, course]);
 
   const isStudent = user?.role === 'STUDENT';
+  const isStudentReadOnly =
+    isStudent &&
+    Boolean(
+      course &&
+        (course.status.toUpperCase() !== 'ACTIVE' ||
+          (course.myEnrollmentStatus &&
+            course.myEnrollmentStatus.toUpperCase() !== 'ACTIVE')),
+    );
 
   const fetchCourseWorkspace = useCallback(async () => {
-    if (!courseId) return;
+    if (!courseId || !user?.userId) return;
     const [courseDetail, moduleList, progressRes] = await Promise.all([
       getCourseDetail(courseId),
       getCourseModules(courseId),
@@ -82,6 +97,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ initialTab }
     ]);
     setCourse(courseDetail);
     setModules(moduleList);
+    setAccessDenied(false);
+    setError(null);
 
     if (progressRes) {
       if ('completedLessons' in progressRes) {
@@ -105,40 +122,58 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ initialTab }
           `${target.length} học viên · ${progressRes.totalLessons} bài giảng`,
         );
       }
+    } else {
+      setCompletedLessonIds(new Set());
+      setProgressPercent(null);
+      setProgressLabel('');
     }
-  }, [courseId]);
+  }, [courseId, user?.userId]);
 
   const loadCourseWorkspace = useCallback(async () => {
-    setLoading(true);
+    const key = `${user?.userId ?? ''}:${courseId ?? ''}`;
+    setLoadedWorkspaceKey('');
     setError(null);
+    setAccessDenied(false);
     try {
       await fetchCourseWorkspace();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể tải thông tin khóa học.');
+      if (err instanceof ApiError && err.status === 403) {
+        setCourse(null);
+        setAccessDenied(true);
+      } else {
+        setError(err instanceof Error ? err.message : 'Không thể tải thông tin khóa học.');
+      }
     } finally {
-      setLoading(false);
+      setLoadedWorkspaceKey(key);
     }
-  }, [fetchCourseWorkspace]);
+  }, [courseId, fetchCourseWorkspace, user?.userId]);
 
   useEffect(() => {
     let active = true;
+    const key = `${user?.userId ?? ''}:${courseId ?? ''}`;
     void Promise.resolve()
       .then(() => {
         if (!active) return;
         return fetchCourseWorkspace();
       })
       .catch((err) => {
-        if (active) {
+        if (!active) return;
+        if (err instanceof ApiError && err.status === 403) {
+          setCourse(null);
+          setAccessDenied(true);
+          setError(null);
+        } else {
+          setAccessDenied(false);
           setError(err instanceof Error ? err.message : 'Không thể tải thông tin khóa học.');
         }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) setLoadedWorkspaceKey(key);
       });
     return () => {
       active = false;
     };
-  }, [fetchCourseWorkspace]);
+  }, [courseId, fetchCourseWorkspace, user?.userId]);
 
   const refreshModulesOnly = useCallback(async () => {
     if (!courseId) return;
@@ -264,6 +299,39 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ initialTab }
     );
   }
 
+  if (accessDenied) {
+    return (
+      <div className="rounded-2xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-8 shadow-xs">
+        <EmptyState
+          icon={<Lock className="w-6 h-6" aria-hidden="true" />}
+          title="Chưa có quyền truy cập học phần này"
+          description={
+            isStudent
+              ? 'Tài khoản sinh viên hiện tại chưa ghi danh vào học phần này hoặc học phần đang ở trạng thái nháp chưa mở cho học viên.'
+              : 'Học phần này thuộc giảng viên khác. Hãy chuyển sang danh sách khóa học bạn phụ trách.'
+          }
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
+              <Link
+                to="/courses"
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-95 transition"
+              >
+                <BookOpen className="w-4 h-4" aria-hidden="true" />
+                {isStudent ? 'Khám phá & Ghi danh học phần' : 'Danh sách khóa học'}
+              </Link>
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-4 py-2 text-sm font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] transition"
+              >
+                Về tổng quan
+              </Link>
+            </div>
+          }
+        />
+      </div>
+    );
+  }
+
   if (error || !course) {
     return (
       <ErrorBanner
@@ -298,6 +366,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ initialTab }
           modules={modules}
           canManage={canManage}
           isStudent={isStudent}
+          readOnlyProgress={isStudentReadOnly}
           completedLessonIds={completedLessonIds}
           onRefreshContent={refreshModulesOnly}
           onToggleLessonCompletedLocally={handleToggleLessonCompletedLocally}
@@ -305,11 +374,19 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ initialTab }
       </TabPanel>
 
       <TabPanel id="assignments" activeId={activeTab} idPrefix="course-workspace">
-        <AssignmentsPage embeddedCourseId={course.courseId} embeddedCourseStatus={course.status} />
+        <AssignmentsPage
+          embeddedCourseId={course.courseId}
+          embeddedCourseStatus={course.status}
+          embeddedEnrollmentStatus={course.myEnrollmentStatus}
+        />
       </TabPanel>
 
       <TabPanel id="quizzes" activeId={activeTab} idPrefix="course-workspace">
-        <QuizzesPage embeddedCourseId={course.courseId} embeddedCourseStatus={course.status} />
+        <QuizzesPage
+          embeddedCourseId={course.courseId}
+          embeddedCourseStatus={course.status}
+          embeddedEnrollmentStatus={course.myEnrollmentStatus}
+        />
       </TabPanel>
 
       <TabPanel id="gradebook" activeId={activeTab} idPrefix="course-workspace">

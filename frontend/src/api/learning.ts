@@ -327,6 +327,7 @@ function normalizeCourse(raw: Course): Course {
     lecturer_id: raw.lecturerId ?? raw.lecturer_id,
     lecturer_name: raw.lecturerName ?? raw.lecturer_name,
     created_at: raw.createdAt ?? raw.created_at,
+    myEnrollmentStatus: raw.myEnrollmentStatus ?? null,
   };
 }
 

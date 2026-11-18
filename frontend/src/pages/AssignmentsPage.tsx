@@ -43,7 +43,13 @@ import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { SafeHtml } from '../components/ui/SafeHtml';
 import { SkeletonCard, SkeletonTable } from '../components/ui/Skeleton';
 import { useToast } from '../components/ui/Toast';
-import type { Assignment, Course, CourseStatus, Submission } from '../types';
+import type {
+  Assignment,
+  Course,
+  CourseStatus,
+  EnrollmentStatus,
+  Submission,
+} from '../types';
 import {
   formatAssignmentStatus,
   formatDateTimeVi,
@@ -53,6 +59,7 @@ import {
 export interface AssignmentsPageProps {
   embeddedCourseId?: string;
   embeddedCourseStatus?: CourseStatus;
+  embeddedEnrollmentStatus?: EnrollmentStatus | null;
 }
 
 type StatusFilterKey =
@@ -63,10 +70,16 @@ type StatusFilterKey =
   | 'CLOSED'
   | 'DRAFT';
 
-export function AssignmentsPage({
+export function AssignmentsPage(props: AssignmentsPageProps = {}) {
+  const { user } = useAuth();
+  return <AssignmentsPageBody key={user?.userId ?? 'anon'} {...props} />;
+}
+
+function AssignmentsPageBody({
   embeddedCourseId,
   embeddedCourseStatus,
-}: AssignmentsPageProps = {}) {
+  embeddedEnrollmentStatus,
+}: AssignmentsPageProps) {
   const { user } = useAuth();
   const confirm = useConfirm();
   const toast = useToast();
@@ -76,22 +89,46 @@ export function AssignmentsPage({
 
   const isInstructor = user?.role === 'LECTURER' || user?.role === 'ADMIN';
   const isEmbedded = Boolean(embeddedCourseId);
+  const currentUserId = user?.userId ?? '';
 
   const queryCourseId = searchParams.get('courseId') ?? '';
   const deepLinkAssignmentId =
     params.assignmentId ?? searchParams.get('assignmentId') ?? '';
 
+  const coursesScopeKey = isEmbedded
+    ? 'embedded'
+    : `${currentUserId}:${params.id ?? ''}:${queryCourseId}`;
   const [courses, setCourses] = useState<Course[]>([]);
-  const [coursesReady, setCoursesReady] = useState(isEmbedded);
+  const [loadedCoursesScopeKey, setLoadedCoursesScopeKey] = useState<string>(
+    isEmbedded ? 'embedded' : '',
+  );
+  const coursesReady = isEmbedded || loadedCoursesScopeKey === coursesScopeKey;
   const [manualCourseId, setManualCourseId] = useState<string>(
     params.id ?? queryCourseId ?? '',
   );
-  const selectedCourseId = embeddedCourseId ?? manualCourseId;
+  const candidateCourseId = embeddedCourseId ?? manualCourseId;
   const selectedCourse = courses.find(
-    (c) => String(c.courseId ?? c.id) === selectedCourseId,
+    (c) => String(c.courseId ?? c.id) === candidateCourseId,
   );
-  const isCourseArchived =
-    (embeddedCourseStatus ?? selectedCourse?.status ?? 'ACTIVE').toUpperCase() === 'ARCHIVED';
+  const selectedCourseId = isEmbedded
+    ? (embeddedCourseId ?? '')
+    : coursesReady && selectedCourse
+      ? candidateCourseId
+      : '';
+  const effectiveCourseStatus = (
+    embeddedCourseStatus ??
+    selectedCourse?.status ??
+    'ACTIVE'
+  ).toUpperCase();
+  const myEnrollmentStatus = (
+    embeddedEnrollmentStatus ??
+    selectedCourse?.myEnrollmentStatus ??
+    'ACTIVE'
+  ).toUpperCase();
+  const isCourseArchived = effectiveCourseStatus === 'ARCHIVED';
+  const isEnrollmentCompleted = !isInstructor && myEnrollmentStatus === 'COMPLETED';
+  const isStudentReadOnly =
+    !isInstructor && (effectiveCourseStatus !== 'ACTIVE' || myEnrollmentStatus !== 'ACTIVE');
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [mySubmissions, setMySubmissions] = useState<Record<string, Submission | null>>({});
@@ -116,7 +153,9 @@ export function AssignmentsPage({
 
   const deepLinkHandledRef = useRef<string>('');
 
-  const activeFetchKey = selectedCourseId ? `${selectedCourseId}:${reloadNonce}` : '';
+  const activeFetchKey = selectedCourseId
+    ? `${currentUserId}:${selectedCourseId}:${reloadNonce}`
+    : '';
   const coursesLoading = !isEmbedded && !coursesReady;
   const loading =
     coursesLoading || (Boolean(selectedCourseId) && loadedKey !== activeFetchKey);
@@ -125,10 +164,12 @@ export function AssignmentsPage({
     if (embeddedCourseId) return;
 
     let cancelled = false;
+    const scopeKey = `${user?.userId ?? ''}:${params.id ?? ''}:${queryCourseId}`;
     void getCourses()
       .then((list) => {
         if (cancelled) return;
         setCourses(list);
+        setError(null);
         const preferred = params.id || queryCourseId;
         if (preferred && list.some((c) => String(c.courseId ?? c.id) === preferred)) {
           setManualCourseId(preferred);
@@ -140,6 +181,8 @@ export function AssignmentsPage({
           );
         } else {
           setManualCourseId('');
+          setAssignments([]);
+          setMySubmissions({});
         }
       })
       .catch((err) => {
@@ -148,18 +191,18 @@ export function AssignmentsPage({
         }
       })
       .finally(() => {
-        if (!cancelled) setCoursesReady(true);
+        if (!cancelled) setLoadedCoursesScopeKey(scopeKey);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [embeddedCourseId, params.id, queryCourseId]);
+  }, [embeddedCourseId, params.id, queryCourseId, user?.userId]);
 
   useEffect(() => {
     if (!selectedCourseId) return;
     let cancelled = false;
-    const currentKey = `${selectedCourseId}:${reloadNonce}`;
+    const currentKey = `${user?.userId ?? ''}:${selectedCourseId}:${reloadNonce}`;
 
     const run = async () => {
       try {
@@ -189,7 +232,7 @@ export function AssignmentsPage({
         }
 
         if (deepLinkAssignmentId) {
-          const handleKey = `${selectedCourseId}:${deepLinkAssignmentId}`;
+          const handleKey = `${user?.userId ?? ''}:${selectedCourseId}:${deepLinkAssignmentId}`;
           if (deepLinkHandledRef.current !== handleKey) {
             const match = list.find(
               (item) => getAssignmentId(item) === deepLinkAssignmentId,
@@ -218,7 +261,7 @@ export function AssignmentsPage({
     return () => {
       cancelled = true;
     };
-  }, [deepLinkAssignmentId, isInstructor, reloadNonce, selectedCourseId]);
+  }, [deepLinkAssignmentId, isInstructor, reloadNonce, selectedCourseId, user?.userId]);
 
   const handleRetry = () => {
     setError(null);
@@ -554,7 +597,7 @@ export function AssignmentsPage({
                 Đề bài
               </button>
             )}
-            {isCourseArchived ? (
+            {isStudentReadOnly ? (
               <button
                 type="button"
                 onClick={(event) => {
@@ -882,6 +925,7 @@ export function AssignmentsPage({
           assignment={submitTarget}
           courseId={selectedCourseId}
           courseArchived={isCourseArchived}
+          enrollmentCompleted={isEnrollmentCompleted}
           existingSubmission={
             submitTarget ? mySubmissions[getAssignmentId(submitTarget)] ?? null : null
           }

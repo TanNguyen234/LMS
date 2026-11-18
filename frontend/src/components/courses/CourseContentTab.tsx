@@ -79,6 +79,7 @@ export interface CourseContentTabProps {
   modules: Module[];
   canManage: boolean;
   isStudent: boolean;
+  readOnlyProgress?: boolean;
   completedLessonIds: Set<string>;
   onRefreshContent: () => Promise<void>;
   onToggleLessonCompletedLocally?: (lessonId: string, isCompleted: boolean) => void;
@@ -89,6 +90,7 @@ export const CourseContentTab: React.FC<CourseContentTabProps> = ({
   modules,
   canManage,
   isStudent,
+  readOnlyProgress = false,
   completedLessonIds,
   onRefreshContent,
   onToggleLessonCompletedLocally,
@@ -655,7 +657,7 @@ export const CourseContentTab: React.FC<CourseContentTabProps> = ({
                   Hỏi Trợ lý AI
                 </button>
 
-                {isStudent && (
+                {isStudent && !readOnlyProgress && (
                   <button
                     type="button"
                     disabled={togglingProgressId === activeLesson.lessonId}
@@ -671,6 +673,11 @@ export const CourseContentTab: React.FC<CourseContentTabProps> = ({
                       ? 'Đã hoàn thành'
                       : 'Đánh dấu hoàn thành'}
                   </button>
+                )}
+                {isStudent && readOnlyProgress && completedLessonIds.has(activeLesson.lessonId) && (
+                  <Badge variant="success" size="sm">
+                    Đã hoàn thành
+                  </Badge>
                 )}
               </div>
             </div>

@@ -85,6 +85,7 @@ export interface Course {
   updated_at?: string;
   enrolled_count?: number;
   modules_count?: number;
+  myEnrollmentStatus?: EnrollmentStatus | null;
 }
 
 export interface CourseCatalogItem extends Course {

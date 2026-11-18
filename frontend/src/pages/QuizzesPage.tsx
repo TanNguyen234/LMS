@@ -42,20 +42,33 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { SkeletonCard, SkeletonTable } from '../components/ui/Skeleton';
 import { useToast } from '../components/ui/Toast';
-import type { Course, CourseStatus, Quiz, QuizAttempt } from '../types';
+import type {
+  Course,
+  CourseStatus,
+  EnrollmentStatus,
+  Quiz,
+  QuizAttempt,
+} from '../types';
 import { formatDateTimeVi, formatScoreVisibility } from '../utils/formatters';
 
 export interface QuizzesPageProps {
   embeddedCourseId?: string;
   embeddedCourseStatus?: CourseStatus;
+  embeddedEnrollmentStatus?: EnrollmentStatus | null;
 }
 
 type QuizFilterKey = 'ALL' | 'OPEN' | 'UPCOMING' | 'CLOSED' | 'DRAFT';
 
-export function QuizzesPage({
+export function QuizzesPage(props: QuizzesPageProps = {}) {
+  const { user } = useAuth();
+  return <QuizzesPageBody key={user?.userId ?? 'anon'} {...props} />;
+}
+
+function QuizzesPageBody({
   embeddedCourseId,
   embeddedCourseStatus,
-}: QuizzesPageProps = {}) {
+  embeddedEnrollmentStatus,
+}: QuizzesPageProps) {
   const { user } = useAuth();
   const confirm = useConfirm();
   const toast = useToast();
@@ -65,21 +78,45 @@ export function QuizzesPage({
 
   const isInstructor = user?.role === 'LECTURER' || user?.role === 'ADMIN';
   const isEmbedded = Boolean(embeddedCourseId);
+  const currentUserId = user?.userId ?? '';
 
   const queryCourseId = searchParams.get('courseId') ?? '';
   const deepLinkQuizId = params.quizId ?? searchParams.get('quizId') ?? '';
 
+  const coursesScopeKey = isEmbedded
+    ? 'embedded'
+    : `${currentUserId}:${params.id ?? ''}:${queryCourseId}`;
   const [courses, setCourses] = useState<Course[]>([]);
-  const [coursesReady, setCoursesReady] = useState(isEmbedded);
+  const [loadedCoursesScopeKey, setLoadedCoursesScopeKey] = useState<string>(
+    isEmbedded ? 'embedded' : '',
+  );
+  const coursesReady = isEmbedded || loadedCoursesScopeKey === coursesScopeKey;
   const [manualCourseId, setManualCourseId] = useState<string>(
     params.id ?? queryCourseId ?? '',
   );
-  const selectedCourseId = embeddedCourseId ?? manualCourseId;
+  const candidateCourseId = embeddedCourseId ?? manualCourseId;
   const selectedCourse = courses.find(
-    (c) => String(c.courseId ?? c.id) === selectedCourseId,
+    (c) => String(c.courseId ?? c.id) === candidateCourseId,
   );
-  const isCourseArchived =
-    (embeddedCourseStatus ?? selectedCourse?.status ?? 'ACTIVE').toUpperCase() === 'ARCHIVED';
+  const selectedCourseId = isEmbedded
+    ? (embeddedCourseId ?? '')
+    : coursesReady && selectedCourse
+      ? candidateCourseId
+      : '';
+  const effectiveCourseStatus = (
+    embeddedCourseStatus ??
+    selectedCourse?.status ??
+    'ACTIVE'
+  ).toUpperCase();
+  const myEnrollmentStatus = (
+    embeddedEnrollmentStatus ??
+    selectedCourse?.myEnrollmentStatus ??
+    'ACTIVE'
+  ).toUpperCase();
+  const isCourseArchived = effectiveCourseStatus === 'ARCHIVED';
+  const isEnrollmentCompleted = !isInstructor && myEnrollmentStatus === 'COMPLETED';
+  const isStudentReadOnly =
+    !isInstructor && (effectiveCourseStatus !== 'ACTIVE' || myEnrollmentStatus !== 'ACTIVE');
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [myAttemptsMap, setMyAttemptsMap] = useState<Record<string, QuizAttempt[]>>({});
@@ -100,7 +137,9 @@ export function QuizzesPage({
 
   const deepLinkHandledRef = useRef<string>('');
 
-  const activeFetchKey = selectedCourseId ? `${selectedCourseId}:${reloadNonce}` : '';
+  const activeFetchKey = selectedCourseId
+    ? `${currentUserId}:${selectedCourseId}:${reloadNonce}`
+    : '';
   const coursesLoading = !isEmbedded && !coursesReady;
   const loading =
     coursesLoading || (Boolean(selectedCourseId) && loadedKey !== activeFetchKey);
@@ -109,10 +148,12 @@ export function QuizzesPage({
     if (embeddedCourseId) return;
 
     let cancelled = false;
+    const scopeKey = `${user?.userId ?? ''}:${params.id ?? ''}:${queryCourseId}`;
     void getCourses()
       .then((list) => {
         if (cancelled) return;
         setCourses(list);
+        setError(null);
         const preferred = params.id || queryCourseId;
         if (preferred && list.some((c) => String(c.courseId ?? c.id) === preferred)) {
           setManualCourseId(preferred);
@@ -124,6 +165,8 @@ export function QuizzesPage({
           );
         } else {
           setManualCourseId('');
+          setQuizzes([]);
+          setMyAttemptsMap({});
         }
       })
       .catch((err) => {
@@ -132,18 +175,18 @@ export function QuizzesPage({
         }
       })
       .finally(() => {
-        if (!cancelled) setCoursesReady(true);
+        if (!cancelled) setLoadedCoursesScopeKey(scopeKey);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [embeddedCourseId, params.id, queryCourseId]);
+  }, [embeddedCourseId, params.id, queryCourseId, user?.userId]);
 
   useEffect(() => {
     if (!selectedCourseId) return;
     let cancelled = false;
-    const currentKey = `${selectedCourseId}:${reloadNonce}`;
+    const currentKey = `${user?.userId ?? ''}:${selectedCourseId}:${reloadNonce}`;
 
     const run = async () => {
       try {
@@ -174,7 +217,7 @@ export function QuizzesPage({
         }
 
         if (deepLinkQuizId) {
-          const key = `${selectedCourseId}:${deepLinkQuizId}`;
+          const key = `${user?.userId ?? ''}:${selectedCourseId}:${deepLinkQuizId}`;
           if (deepLinkHandledRef.current !== key) {
             const match = list.find((q) => getQuizId(q) === deepLinkQuizId);
             if (match) {
@@ -185,7 +228,7 @@ export function QuizzesPage({
                 const attempts = nextAttemptsMap[deepLinkQuizId] ?? [];
                 if (attempts.length > 0) {
                   setAttemptsTarget(match);
-                } else if (!isCourseArchived && getQuizWindowMeta(match).key === 'OPEN') {
+                } else if (!isStudentReadOnly && getQuizWindowMeta(match).key === 'OPEN') {
                   setRunnerTarget(match);
                 }
               }
@@ -206,7 +249,7 @@ export function QuizzesPage({
     return () => {
       cancelled = true;
     };
-  }, [deepLinkQuizId, isCourseArchived, isInstructor, reloadNonce, selectedCourseId]);
+  }, [deepLinkQuizId, isInstructor, isStudentReadOnly, reloadNonce, selectedCourseId, user?.userId]);
 
   const handleRetry = () => {
     setError(null);
@@ -511,8 +554,8 @@ export function QuizzesPage({
           (a) => (a.status || '').toUpperCase() === 'IN_PROGRESS',
         );
         const canStartNew =
-          !isCourseArchived && win.key === 'OPEN' && attempts.length < maxAttempts;
-        const canResume = !isCourseArchived && win.key === 'OPEN' && Boolean(inProgress);
+          !isStudentReadOnly && win.key === 'OPEN' && attempts.length < maxAttempts;
+        const canResume = !isStudentReadOnly && win.key === 'OPEN' && Boolean(inProgress);
 
         return (
           <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -554,9 +597,13 @@ export function QuizzesPage({
                 <Play className="h-3.5 w-3.5" aria-hidden="true" />
                 Bắt đầu làm bài
               </button>
-            ) : isCourseArchived && attempts.length === 0 ? (
+            ) : isStudentReadOnly && attempts.length === 0 ? (
               <Badge variant="neutral" size="sm">
-                Đã lưu trữ (Chỉ đọc)
+                {isCourseArchived
+                  ? 'Đã lưu trữ (Chỉ đọc)'
+                  : isEnrollmentCompleted
+                    ? 'Đã hoàn thành học phần'
+                    : 'Chỉ đọc'}
               </Badge>
             ) : null}
           </div>
@@ -810,7 +857,7 @@ export function QuizzesPage({
               const hasInProgress = attempts.some(
                 (a) => (a.status || '').toUpperCase() === 'IN_PROGRESS',
               );
-              if (!isCourseArchived && win.key === 'OPEN' && (hasInProgress || attempts.length === 0)) {
+              if (!isStudentReadOnly && win.key === 'OPEN' && (hasInProgress || attempts.length === 0)) {
                 setRunnerTarget(row);
               } else if (attempts.length > 0) {
                 setAttemptsTarget(row);
