@@ -223,36 +223,39 @@ def create_manual_grade(
     db.flush()
     sync_enrollment_final_score(db, course_id, g_in.studentId)
 
+    should_notify_student = course.Status != "DRAFT"
     notif_id = uuid.uuid4()
     related_url = f"/courses/{course_id}/grades"
     notif_title = f"Cap nhat diem: '{new_grade.ItemTitle}'"
     notif_msg = f"Ban nhan duoc {g_in.score}/{g_in.maxScore} diem cho muc '{new_grade.ItemTitle}'."
-    db.add(
-        Notification(
-            NotificationId=notif_id,
-            UserId=g_in.studentId,
-            Title=notif_title,
-            Message=notif_msg,
-            Type="GRADE",
-            IsRead=False,
-            RelatedUrl=related_url,
+    if should_notify_student:
+        db.add(
+            Notification(
+                NotificationId=notif_id,
+                UserId=g_in.studentId,
+                Title=notif_title,
+                Message=notif_msg,
+                Type="GRADE",
+                IsRead=False,
+                RelatedUrl=related_url,
+            )
         )
-    )
 
     db.commit()
     db.refresh(new_grade)
 
-    push_notification(
-        g_in.studentId,
-        {
-            "type": "notification.created",
-            "notificationId": str(notif_id),
-            "notificationType": "GRADE",
-            "title": notif_title,
-            "message": notif_msg,
-            "relatedUrl": related_url,
-        },
-    )
+    if should_notify_student:
+        push_notification(
+            g_in.studentId,
+            {
+                "type": "notification.created",
+                "notificationId": str(notif_id),
+                "notificationType": "GRADE",
+                "title": notif_title,
+                "message": notif_msg,
+                "relatedUrl": related_url,
+            },
+        )
 
     return _format_grade_list([new_grade], db)[0]
 

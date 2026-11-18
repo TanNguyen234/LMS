@@ -130,6 +130,7 @@ def format_course_response(
     lecturer_map: Optional[Dict[uuid.UUID, str]] = None,
     semester_map: Optional[Dict[uuid.UUID, AcademicSemester]] = None,
     mask_join_code: bool = False,
+    my_enrollment_status: Optional[str] = None,
 ) -> CourseResponse:
     if lecturer_map is not None:
         lecturer_name = lecturer_map.get(course.LecturerId, "Unknown")
@@ -166,6 +167,7 @@ def format_course_response(
         semesterStatus=sem_obj.Status if sem_obj else None,
         semesterEndDate=sem_obj.EndDate if sem_obj else None,
         archiveAfterDate=compute_archive_after_date(sem_obj) if sem_obj else None,
+        myEnrollmentStatus=my_enrollment_status,
     )
 
 
@@ -321,8 +323,29 @@ def get_courses(
     lecturer_map = _load_lecturer_names(courses, db)
     semester_map = _load_semester_map(courses, db)
     mask_code = current_user.Role == "STUDENT"
+    my_enroll_map: Dict[uuid.UUID, str] = {}
+    if current_user.Role == "STUDENT" and courses:
+        course_ids = [c.CourseId for c in courses]
+        my_enroll_map = {
+            cid: st
+            for cid, st in (
+                db.query(Enrollment.CourseId, Enrollment.Status)
+                .filter(
+                    Enrollment.StudentId == current_user.UserId,
+                    Enrollment.CourseId.in_(course_ids),
+                )
+                .all()
+            )
+        }
     return [
-        format_course_response(c, db, lecturer_map=lecturer_map, semester_map=semester_map, mask_join_code=mask_code)
+        format_course_response(
+            c,
+            db,
+            lecturer_map=lecturer_map,
+            semester_map=semester_map,
+            mask_join_code=mask_code,
+            my_enrollment_status=my_enroll_map.get(c.CourseId),
+        )
         for c in courses
     ]
 
@@ -385,7 +408,12 @@ def get_course_catalog(
     for c in courses:
         enr_status = my_enroll_map.get(c.CourseId)
         base = format_course_response(
-            c, db, lecturer_map=lecturer_map, semester_map=semester_map, mask_join_code=mask_code
+            c,
+            db,
+            lecturer_map=lecturer_map,
+            semester_map=semester_map,
+            mask_join_code=mask_code,
+            my_enrollment_status=enr_status,
         )
         results.append(
             CourseCatalogItemResponse(
@@ -422,7 +450,23 @@ def get_course_detail(
     db: Session = Depends(get_db),
 ):
     """Get single course detail (authorized read access)."""
-    return format_course_response(course, db, mask_join_code=(current_user.Role == "STUDENT"))
+    my_enrollment_status: Optional[str] = None
+    if current_user.Role == "STUDENT":
+        row = (
+            db.query(Enrollment.Status)
+            .filter(
+                Enrollment.CourseId == course.CourseId,
+                Enrollment.StudentId == current_user.UserId,
+            )
+            .first()
+        )
+        my_enrollment_status = row[0] if row else None
+    return format_course_response(
+        course,
+        db,
+        mask_join_code=(current_user.Role == "STUDENT"),
+        my_enrollment_status=my_enrollment_status,
+    )
 
 
 @router.post("", response_model=CourseResponse, status_code=status.HTTP_201_CREATED)

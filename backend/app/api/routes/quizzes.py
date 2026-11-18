@@ -1469,36 +1469,40 @@ def manual_grade_quiz_attempt(
         allow_lower_override=True,
     )
 
+    course_row = db.query(Course.Status).filter(Course.CourseId == q.CourseId).first()
+    should_notify_student = bool(course_row and course_row[0] != "DRAFT")
     notif_id = uuid.uuid4()
     related_url = f"/courses/{q.CourseId}/quizzes/{q.QuizId}"
     notif_title = f"Bai kiem tra '{q.Title}' da duoc cham diem"
     notif_msg = f"Tong diem cua ban: {attempt.Score}/{max_possible_score}. Nhan xet: {attempt_feedback}"
-    db.add(
-        Notification(
-            NotificationId=notif_id,
-            UserId=attempt.StudentId,
-            Title=notif_title,
-            Message=notif_msg,
-            Type="GRADE",
-            IsRead=False,
-            RelatedUrl=related_url,
+    if should_notify_student:
+        db.add(
+            Notification(
+                NotificationId=notif_id,
+                UserId=attempt.StudentId,
+                Title=notif_title,
+                Message=notif_msg,
+                Type="GRADE",
+                IsRead=False,
+                RelatedUrl=related_url,
+            )
         )
-    )
 
     db.commit()
     db.refresh(attempt)
 
-    push_notification(
-        attempt.StudentId,
-        {
-            "type": "notification.created",
-            "notificationId": str(notif_id),
-            "notificationType": "GRADE",
-            "title": notif_title,
-            "message": notif_msg,
-            "relatedUrl": related_url,
-        },
-    )
+    if should_notify_student:
+        push_notification(
+            attempt.StudentId,
+            {
+                "type": "notification.created",
+                "notificationId": str(notif_id),
+                "notificationType": "GRADE",
+                "title": notif_title,
+                "message": notif_msg,
+                "relatedUrl": related_url,
+            },
+        )
 
     student = db.query(User).filter(User.UserId == attempt.StudentId).first()
     return _format_attempt_response(attempt, student, for_student=False)

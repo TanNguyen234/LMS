@@ -308,6 +308,7 @@ def get_student_dashboard(
                 lecturer_map=lecturer_map,
                 semester_map=semester_map,
                 mask_join_code=True,
+                my_enrollment_status="ACTIVE",
             )
             for c in enrolled_courses
         ],

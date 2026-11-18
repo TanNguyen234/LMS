@@ -169,6 +169,9 @@ def _format_submission(sub: Submission, student: Optional[User]) -> SubmissionRe
 
 
 def _notify_course_students_published(a: Assignment, db: Session) -> List[tuple[uuid.UUID, dict]]:
+    course = db.query(Course.Status).filter(Course.CourseId == a.CourseId).first()
+    if not course or course[0] == "DRAFT":
+        return []
     student_ids = [
         row[0]
         for row in (
@@ -677,37 +680,41 @@ def grade_submission(
     db.flush()
     sync_enrollment_final_score(db, a.CourseId, sub.StudentId)
 
+    course_row = db.query(Course.Status).filter(Course.CourseId == a.CourseId).first()
+    should_notify_student = bool(course_row and course_row[0] != "DRAFT")
     notif_id = uuid.uuid4()
     related_url = f"/courses/{a.CourseId}/assignments/{a.AssignmentId}"
     notif_title = f"Bai tap '{a.Title}' da duoc cham diem"
     notif_msg = f"Diem so cua ban: {grade_in.score}/{float(a.MaxScore)}. Nhan xet: {normalized_feedback or 'Khong co'}"
-    db.add(
-        Notification(
-            NotificationId=notif_id,
-            UserId=sub.StudentId,
-            Title=notif_title,
-            Message=notif_msg,
-            Type="GRADE",
-            IsRead=False,
-            RelatedUrl=related_url,
+    if should_notify_student:
+        db.add(
+            Notification(
+                NotificationId=notif_id,
+                UserId=sub.StudentId,
+                Title=notif_title,
+                Message=notif_msg,
+                Type="GRADE",
+                IsRead=False,
+                RelatedUrl=related_url,
+            )
         )
-    )
 
     db.commit()
     db.refresh(sub)
     db.refresh(target_grade)
 
-    push_notification(
-        sub.StudentId,
-        {
-            "type": "notification.created",
-            "notificationId": str(notif_id),
-            "notificationType": "GRADE",
-            "title": notif_title,
-            "message": notif_msg,
-            "relatedUrl": related_url,
-        },
-    )
+    if should_notify_student:
+        push_notification(
+            sub.StudentId,
+            {
+                "type": "notification.created",
+                "notificationId": str(notif_id),
+                "notificationType": "GRADE",
+                "title": notif_title,
+                "message": notif_msg,
+                "relatedUrl": related_url,
+            },
+        )
 
     student = db.query(User).filter(User.UserId == sub.StudentId).first()
     base = _format_submission(sub, student)

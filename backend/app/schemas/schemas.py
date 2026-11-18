@@ -311,6 +311,7 @@ class CourseResponse(CourseBase):
     semesterStatus: Optional[str] = None
     semesterEndDate: Optional[UtcDateTime] = None
     archiveAfterDate: Optional[UtcDateTime] = None
+    myEnrollmentStatus: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

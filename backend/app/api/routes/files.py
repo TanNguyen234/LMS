@@ -95,11 +95,23 @@ def _verify_file_read_access(sf: StoredFile, current_user: User, db: Session) ->
             )
             .first()
         )
-        if not published_lesson:
+        if published_lesson:
+            return
+
+        assignment_query = db.query(Assignment).filter(
+            Assignment.AttachmentFileId == sf.FileId,
+            Assignment.Status.in_(["PUBLISHED", "CLOSED"]),
+        )
+        if sf.CourseId is not None:
+            assignment_query = assignment_query.filter(Assignment.CourseId == sf.CourseId)
+        published_assignment = assignment_query.first()
+        if not published_assignment:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Lesson file is not published for student access",
             )
+        if sf.CourseId is None:
+            verify_course_read_access(published_assignment.CourseId, current_user, db)
         return
 
     if sf.Scope == "ASSIGNMENT":
