@@ -120,19 +120,19 @@ const DeviceSettingsDialogBody: React.FC<Omit<DeviceSettingsModalProps, 'isOpen'
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs"
       role="dialog"
       aria-modal="true"
       aria-label="Cài đặt thiết bị và hiệu ứng"
     >
-      <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3.5">
+      <div className="w-full max-w-lg rounded-2xl border border-[var(--lms-border)] bg-[var(--lms-surface)] text-[var(--lms-text)] shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between border-b border-[var(--lms-border)] px-5 py-3.5">
           <h3 className="text-sm font-bold">Cài đặt âm thanh, hình ảnh &amp; nền ảo</h3>
           <button
             type="button"
             onClick={onClose}
             aria-label="Đóng cài đặt"
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer"
+            className="rounded-lg p-1 text-[var(--lms-text-muted)] hover:bg-[var(--lms-surface-muted)] hover:text-[var(--lms-text)] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -140,14 +140,14 @@ const DeviceSettingsDialogBody: React.FC<Omit<DeviceSettingsModalProps, 'isOpen'
 
         <form onSubmit={handleSave} className="p-5 space-y-4 text-xs">
           <div>
-            <label className="mb-1.5 flex items-center gap-1.5 font-semibold text-slate-200">
-              <Mic className="w-3.5 h-3.5 text-emerald-400" />
+            <label className="mb-1.5 flex items-center gap-1.5 font-semibold text-[var(--lms-text)]">
+              <Mic className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               Micro thu âm
             </label>
             <select
               value={draftAudioIn}
               onChange={(e) => setDraftAudioIn(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100"
+              className="w-full rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-[var(--lms-text)]"
             >
               <option value="">Thiết bị mặc định của hệ thống</option>
               {audioInputs.map((d, idx) => (
@@ -159,14 +159,14 @@ const DeviceSettingsDialogBody: React.FC<Omit<DeviceSettingsModalProps, 'isOpen'
           </div>
 
           <div>
-            <label className="mb-1.5 flex items-center gap-1.5 font-semibold text-slate-200">
-              <Camera className="w-3.5 h-3.5 text-blue-400" />
+            <label className="mb-1.5 flex items-center gap-1.5 font-semibold text-[var(--lms-text)]">
+              <Camera className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               Camera
             </label>
             <select
               value={draftVideoIn}
               onChange={(e) => setDraftVideoIn(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100"
+              className="w-full rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-[var(--lms-text)]"
             >
               <option value="">Camera mặc định</option>
               {videoInputs.map((d, idx) => (
@@ -179,14 +179,14 @@ const DeviceSettingsDialogBody: React.FC<Omit<DeviceSettingsModalProps, 'isOpen'
 
           {audioOutputs.length > 0 && (
             <div>
-              <label className="mb-1.5 flex items-center gap-1.5 font-semibold text-slate-200">
-                <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
+              <label className="mb-1.5 flex items-center gap-1.5 font-semibold text-[var(--lms-text)]">
+                <Volume2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                 Loa / Tai nghe phát âm
               </label>
               <select
                 value={draftAudioOut}
                 onChange={(e) => setDraftAudioOut(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100"
+                className="w-full rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-[var(--lms-text)]"
               >
                 <option value="">Loa mặc định của trình duyệt</option>
                 {audioOutputs.map((d, idx) => (
@@ -199,13 +199,13 @@ const DeviceSettingsDialogBody: React.FC<Omit<DeviceSettingsModalProps, 'isOpen'
           )}
 
           <div>
-            <label className="mb-1.5 block font-semibold text-slate-200">
+            <label className="mb-1.5 block font-semibold text-[var(--lms-text)]">
               Chất lượng truyền tải video
             </label>
             <select
               value={draftQuality}
               onChange={(e) => setDraftQuality(e.target.value as VideoQualityPreset)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100"
+              className="w-full rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-[var(--lms-text)]"
             >
               {(Object.keys(VIDEO_QUALITY_PRESETS) as VideoQualityPreset[]).map((key) => (
                 <option key={key} value={key}>
@@ -216,8 +216,8 @@ const DeviceSettingsDialogBody: React.FC<Omit<DeviceSettingsModalProps, 'isOpen'
           </div>
 
           <div>
-            <label className="mb-1.5 flex items-center gap-1.5 font-semibold text-slate-200">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <label className="mb-1.5 flex items-center gap-1.5 font-semibold text-[var(--lms-text)]">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
               Hiệu ứng nền ảo (tự xử lý cục bộ)
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -228,20 +228,20 @@ const DeviceSettingsDialogBody: React.FC<Omit<DeviceSettingsModalProps, 'isOpen'
                   onClick={() => setDraftBg(opt.id)}
                   className={`rounded-xl border p-2.5 text-left transition cursor-pointer ${
                     draftBg === opt.id
-                      ? 'border-indigo-500 bg-indigo-600/20 text-white'
-                      : 'border-slate-700 bg-slate-800/70 text-slate-300 hover:bg-slate-800'
+                      ? 'border-indigo-500 bg-indigo-500/10 text-[var(--lms-text)] dark:bg-indigo-600/20'
+                      : 'border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/55 text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]'
                   }`}
                 >
                   <div className="font-semibold">{opt.label}</div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">{opt.desc}</div>
+                  <div className="text-[11px] text-[var(--lms-text-muted)] mt-0.5">{opt.desc}</div>
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+          <div className="flex flex-col gap-2 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/45 p-3">
             <label className="flex items-center justify-between gap-2 cursor-pointer">
-              <span className="text-slate-200">Lật gương camera của tôi (Self-view)</span>
+              <span className="text-[var(--lms-text)]">Lật gương camera của tôi (Self-view)</span>
               <input
                 type="checkbox"
                 checked={draftMirror}
@@ -250,7 +250,7 @@ const DeviceSettingsDialogBody: React.FC<Omit<DeviceSettingsModalProps, 'isOpen'
               />
             </label>
             <label className="flex items-center justify-between gap-2 cursor-pointer">
-              <span className="text-slate-200">Âm báo khi có người giơ tay hoặc tin mới</span>
+              <span className="text-[var(--lms-text)]">Âm báo khi có người giơ tay hoặc tin mới</span>
               <input
                 type="checkbox"
                 checked={draftSoundAlerts}
@@ -264,7 +264,7 @@ const DeviceSettingsDialogBody: React.FC<Omit<DeviceSettingsModalProps, 'isOpen'
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-700 px-4 py-2 font-medium text-slate-300 hover:bg-slate-800 cursor-pointer"
+              className="rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-4 py-2 font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] cursor-pointer"
             >
               Hủy
             </button>

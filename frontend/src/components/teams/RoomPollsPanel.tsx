@@ -44,24 +44,24 @@ export const RoomPollsPanel: React.FC<RoomPollsPanelProps> = ({
   };
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-4 text-xs text-slate-200">
+    <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-4 text-xs text-[var(--lms-text)]">
       {poll ? (
-        <div className="rounded-xl border border-slate-700 bg-slate-800/70 p-3.5 space-y-3">
+        <div className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/55 p-3.5 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div>
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                   poll.isOpen
-                    ? 'bg-emerald-500/20 text-emerald-300'
-                    : 'bg-slate-700 text-slate-300'
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                    : 'bg-[var(--lms-surface-muted)] text-[var(--lms-text-muted)]'
                 }`}
               >
                 {poll.isOpen ? 'Đang mở bình chọn' : 'Đã đóng'}
               </span>
-              <h4 className="mt-1.5 text-sm font-bold text-white leading-snug">
+              <h4 className="mt-1.5 text-sm font-bold text-[var(--lms-text)] leading-snug">
                 {poll.question}
               </h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-[11px] text-[var(--lms-text-muted)] mt-0.5">
                 Tạo bởi {poll.createdByName} · {poll.totalVotes} lượt chọn
               </p>
             </div>
@@ -80,20 +80,20 @@ export const RoomPollsPanel: React.FC<RoomPollsPanelProps> = ({
                   onClick={() => onVote(poll.pollId, idx)}
                   className={`relative w-full overflow-hidden rounded-lg border p-2.5 text-left transition ${
                     selected
-                      ? 'border-indigo-500 bg-indigo-600/20'
-                      : 'border-slate-700 bg-slate-900/80 hover:border-slate-500'
+                      ? 'border-indigo-500 bg-indigo-500/10 dark:bg-indigo-600/20'
+                      : 'border-[var(--lms-border)] bg-[var(--lms-surface)] hover:border-indigo-400'
                   } ${poll.isOpen ? 'cursor-pointer' : 'cursor-default opacity-85'}`}
                 >
                   <div
-                    className="absolute inset-y-0 left-0 bg-indigo-500/20 transition-all duration-300"
+                    className="absolute inset-y-0 left-0 bg-indigo-500/15 dark:bg-indigo-500/20 transition-all duration-300"
                     style={{ width: `${pct}%` }}
                   />
                   <div className="relative z-10 flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 font-medium text-slate-100">
-                      {selected && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+                    <span className="flex items-center gap-1.5 font-medium text-[var(--lms-text)]">
+                      {selected && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />}
                       {opt}
                     </span>
-                    <span className="shrink-0 font-semibold tabular-nums text-slate-300">
+                    <span className="shrink-0 font-semibold tabular-nums text-[var(--lms-text-muted)]">
                       {count} ({pct}%)
                     </span>
                   </div>
@@ -106,7 +106,7 @@ export const RoomPollsPanel: React.FC<RoomPollsPanelProps> = ({
             <button
               type="button"
               onClick={() => onClosePoll(poll.pollId)}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/15 px-3 py-1.5 font-semibold text-red-300 hover:bg-red-500/25 cursor-pointer"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-1.5 font-semibold text-red-700 hover:bg-red-500/20 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-300 dark:hover:bg-red-500/25 cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />
               Đóng bình chọn này
@@ -114,10 +114,10 @@ export const RoomPollsPanel: React.FC<RoomPollsPanelProps> = ({
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/50 p-5 text-center space-y-2">
-          <BarChart2 className="w-6 h-6 text-indigo-400 mx-auto" />
-          <p className="font-semibold text-slate-200">Chưa có bình chọn trực tiếp nào</p>
-          <p className="text-[11px] text-slate-400">
+        <div className="rounded-xl border border-dashed border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/40 p-5 text-center space-y-2">
+          <BarChart2 className="w-6 h-6 text-indigo-600 dark:text-indigo-400 mx-auto" />
+          <p className="font-semibold text-[var(--lms-text)]">Chưa có bình chọn trực tiếp nào</p>
+          <p className="text-[11px] text-[var(--lms-text-muted)]">
             {canManage
               ? 'Tạo câu hỏi nhanh để kiểm tra mức độ hiểu bài hoặc điểm danh tức thời.'
               : 'Khi giảng viên mở bình chọn, phiếu chọn sẽ hiển thị ngay tại đây.'}
@@ -139,20 +139,20 @@ export const RoomPollsPanel: React.FC<RoomPollsPanelProps> = ({
       {canManage && creating && (
         <form
           onSubmit={handleSubmitCreate}
-          className="rounded-xl border border-slate-700 bg-slate-800/80 p-3.5 space-y-2.5"
+          className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/50 p-3.5 space-y-2.5"
         >
-          <label className="block font-semibold text-slate-200">Câu hỏi bình chọn</label>
+          <label className="block font-semibold text-[var(--lms-text)]">Câu hỏi bình chọn</label>
           <input
             type="text"
             required
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="Ví dụ: Lớp có muốn giải lao 5 phút không?"
-            className="w-full rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-2 text-white placeholder:text-slate-500"
+            className="w-full rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 py-2 text-[var(--lms-text)] placeholder:text-[var(--lms-text-muted)]"
           />
 
           <div className="space-y-1.5">
-            <span className="block font-semibold text-slate-300">Các lựa chọn</span>
+            <span className="block font-semibold text-[var(--lms-text-muted)]">Các lựa chọn</span>
             {options.map((opt, idx) => (
               <div key={idx} className="flex items-center gap-1.5">
                 <input
@@ -163,14 +163,14 @@ export const RoomPollsPanel: React.FC<RoomPollsPanelProps> = ({
                     setOptions((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))
                   }
                   placeholder={`Lựa chọn ${idx + 1}`}
-                  className="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-white"
+                  className="flex-1 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 py-1.5 text-[var(--lms-text)]"
                 />
                 {options.length > 2 && (
                   <button
                     type="button"
                     onClick={() => setOptions((prev) => prev.filter((_, i) => i !== idx))}
                     aria-label="Xóa lựa chọn"
-                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-700 hover:text-red-300 cursor-pointer"
+                    className="p-1.5 rounded-lg text-[var(--lms-text-muted)] hover:bg-[var(--lms-surface)] hover:text-red-600 dark:hover:text-red-300 cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -181,7 +181,7 @@ export const RoomPollsPanel: React.FC<RoomPollsPanelProps> = ({
               <button
                 type="button"
                 onClick={() => setOptions((prev) => [...prev, ''])}
-                className="text-[11px] font-medium text-indigo-400 hover:underline cursor-pointer"
+                className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
               >
                 + Thêm lựa chọn
               </button>
@@ -192,7 +192,7 @@ export const RoomPollsPanel: React.FC<RoomPollsPanelProps> = ({
             <button
               type="button"
               onClick={() => setCreating(false)}
-              className="rounded-lg border border-slate-600 px-3 py-1.5 text-slate-300 hover:bg-slate-700 cursor-pointer"
+              className="rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-1.5 text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] cursor-pointer"
             >
               Hủy
             </button>

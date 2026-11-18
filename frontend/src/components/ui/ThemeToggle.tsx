@@ -50,12 +50,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
     root.classList.remove('theme-light', 'theme-dark');
-    if (theme === 'light') {
-      root.classList.add('theme-light');
-    } else if (theme === 'dark') {
+    if (resolvedTheme === 'dark') {
       root.classList.add('theme-dark');
+    } else {
+      root.classList.add('theme-light');
     }
-  }, [theme]);
+  }, [resolvedTheme]);
 
   const setTheme = useCallback((next: ThemePreference) => {
     setThemeState(next);

@@ -56,6 +56,7 @@ import {
 import { formatRole } from '../../utils/formatters';
 import { Badge } from '../ui/Badge';
 import { ExpandFullscreenControls } from '../ui/ExpandFullscreenControls';
+import { ThemeToggle, useTheme } from '../ui/ThemeToggle';
 import { useToast } from '../ui/Toast';
 import { ChannelChat } from './ChannelChat';
 import { DeviceSettingsModal } from './DeviceSettingsModal';
@@ -138,6 +139,8 @@ export function MeetingRoom({
   onRegisterSendWhiteboardOp,
 }: MeetingRoomProps) {
   const { user } = useAuth();
+  const { resolvedTheme } = useTheme();
+  const isDarkSurface = resolvedTheme === 'dark';
   const toast = useToast();
 
   const currentUserId = String(user?.userId ?? user?.id ?? '');
@@ -178,6 +181,24 @@ export function MeetingRoom({
     typeof window !== 'undefined' && window.innerWidth >= 1024 ? 'participants' : null
   );
   const [spotlightPeerId, setSpotlightPeerId] = useState<string | null>(null);
+
+  const activateWhiteboardStage = useCallback(() => {
+    setStageLayout('whiteboard');
+    setShowFilmstrip(false);
+    setDrawerTab((cur) => (cur === 'participants' ? null : cur));
+  }, []);
+
+  const toggleWhiteboardStage = useCallback(() => {
+    setStageLayout((cur) => {
+      if (cur === 'whiteboard') {
+        setShowFilmstrip(true);
+        return 'gallery';
+      }
+      setShowFilmstrip(false);
+      setDrawerTab((tab) => (tab === 'participants' ? null : tab));
+      return 'whiteboard';
+    });
+  }, []);
   const [participantSearch, setParticipantSearch] = useState('');
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
@@ -1305,7 +1326,7 @@ export function MeetingRoom({
         toggleRaiseHand();
       } else if (k === 'w') {
         e.preventDefault();
-        setStageLayout((cur) => (cur === 'whiteboard' ? 'gallery' : 'whiteboard'));
+        toggleWhiteboardStage();
       } else if (k === 'c') {
         e.preventDefault();
         setDrawerTab((cur) => {
@@ -1346,6 +1367,7 @@ export function MeetingRoom({
     toggleMicrophone,
     toggleRaiseHand,
     toggleScreenShare,
+    toggleWhiteboardStage,
   ]);
 
   const handleLeave = async () => {
@@ -1459,6 +1481,9 @@ export function MeetingRoom({
       ? myPollVote.optionIndex
       : null;
 
+  const dockNeutralBtn =
+    'bg-slate-200/85 text-slate-800 hover:bg-slate-300/85 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700';
+
   return (
     <div
       ref={meetingRootRef}
@@ -1466,17 +1491,17 @@ export function MeetingRoom({
       data-room-wide={isWide ? 'true' : 'false'}
       className={
         isExpanded
-          ? 'fixed inset-0 z-50 flex h-screen w-screen flex-col bg-[#0b1120] text-slate-100 overflow-hidden'
+          ? 'fixed inset-0 z-50 flex h-screen w-screen flex-col bg-slate-100 text-slate-900 dark:bg-[#0b1120] dark:text-slate-100 overflow-hidden'
           : isFullscreen
-            ? 'flex h-screen w-screen flex-col bg-[#0b1120] text-slate-100 overflow-hidden'
-            : 'flex flex-col rounded-2xl border border-slate-800 bg-[#0b1120] text-slate-100 shadow-lg overflow-hidden h-[calc(100vh-11rem)] min-h-[620px]'
+            ? 'flex h-screen w-screen flex-col bg-slate-100 text-slate-900 dark:bg-[#0b1120] dark:text-slate-100 overflow-hidden'
+            : 'flex flex-col rounded-2xl border border-[var(--lms-border)] bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-[#0b1120] dark:text-slate-100 shadow-lg overflow-hidden h-[calc(100vh-11rem)] min-h-[620px]'
       }
     >
       {/* 1. Slim MS Teams Top Bar */}
-      <header className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800/90 bg-slate-950/95 px-3 py-1.5">
+      <header className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--lms-border)] bg-[var(--lms-surface)]/95 dark:border-slate-800/90 dark:bg-slate-950/95 px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600/20 border border-red-500/40 px-2.5 py-0.5 text-[11px] font-semibold text-red-300">
-            <Radio className="w-3 h-3 animate-pulse text-red-400" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/12 border border-red-500/35 px-2.5 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-600/20 dark:border-red-500/40 dark:text-red-300">
+            <Radio className="w-3 h-3 animate-pulse text-red-600 dark:text-red-400" />
             LIVE · <span className="tabular-nums">{formatElapsedSeconds(elapsedSeconds)}</span>
           </span>
 
@@ -1487,7 +1512,7 @@ export function MeetingRoom({
             </span>
           )}
 
-          <h2 className="truncate text-sm font-bold text-white max-w-[220px] sm:max-w-xs md:max-w-md">
+          <h2 className="truncate text-sm font-bold text-[var(--lms-text)] max-w-[220px] sm:max-w-xs md:max-w-md">
             {meeting.title}
           </h2>
 
@@ -1495,15 +1520,15 @@ export function MeetingRoom({
             type="button"
             onClick={() => void handleCopyInvite()}
             title="Sao chép mã phòng & liên kết mời"
-            className="hidden sm:inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] font-mono text-slate-300 hover:border-indigo-500 hover:text-white cursor-pointer"
+            className="hidden sm:inline-flex items-center gap-1 rounded-md border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/70 px-2 py-0.5 text-[11px] font-mono text-[var(--lms-text-muted)] hover:border-indigo-500 hover:text-[var(--lms-text)] cursor-pointer"
           >
-            {copiedInvite ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+            {copiedInvite ? <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3 h-3" />}
             {meeting.roomCode}
           </button>
 
           <span
             className={`hidden md:inline-flex items-center gap-1 text-[11px] ${
-              wsStatus === 'open' ? 'text-emerald-400' : 'text-amber-400'
+              wsStatus === 'open' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
             }`}
             title={wsStatus === 'open' ? 'Kết nối WebRTC + WebSocket ổn định' : 'Đang đồng bộ kết nối'}
           >
@@ -1515,7 +1540,7 @@ export function MeetingRoom({
         <div className="flex flex-wrap items-center gap-1.5">
           {/* Layout Switcher */}
           <div
-            className="inline-flex items-center rounded-lg border border-slate-800 bg-slate-900 p-0.5 text-xs"
+            className="inline-flex items-center rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/80 dark:border-slate-800 dark:bg-slate-900 p-0.5 text-xs"
             role="group"
             aria-label="Chế độ hiển thị sân khấu"
           >
@@ -1523,12 +1548,13 @@ export function MeetingRoom({
               type="button"
               onClick={() => {
                 setSpotlightPeerId(null);
+                setShowFilmstrip(true);
                 setStageLayout('gallery');
               }}
               className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium cursor-pointer transition ${
                 stageLayout === 'gallery'
                   ? 'bg-indigo-600 text-white'
-                  : 'text-slate-300 hover:text-white'
+                  : 'text-[var(--lms-text-muted)] hover:text-[var(--lms-text)]'
               }`}
               title="Xem dạng lưới tự động"
             >
@@ -1538,11 +1564,14 @@ export function MeetingRoom({
 
             <button
               type="button"
-              onClick={() => setStageLayout('spotlight')}
+              onClick={() => {
+                setShowFilmstrip(true);
+                setStageLayout('spotlight');
+              }}
               className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium cursor-pointer transition ${
                 stageLayout === 'spotlight'
                   ? 'bg-indigo-600 text-white'
-                  : 'text-slate-300 hover:text-white'
+                  : 'text-[var(--lms-text-muted)] hover:text-[var(--lms-text)]'
               }`}
               title="Phóng to người thuyết trình / màn hình chia sẻ"
             >
@@ -1552,11 +1581,11 @@ export function MeetingRoom({
 
             <button
               type="button"
-              onClick={() => setStageLayout('whiteboard')}
+              onClick={activateWhiteboardStage}
               className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium cursor-pointer transition ${
                 stageLayout === 'whiteboard'
                   ? 'bg-indigo-600 text-white'
-                  : 'text-slate-300 hover:text-white'
+                  : 'text-[var(--lms-text-muted)] hover:text-[var(--lms-text)]'
               }`}
               title="Mở bảng vẽ cộng tác ngay trong phòng (W)"
             >
@@ -1569,10 +1598,10 @@ export function MeetingRoom({
             <button
               type="button"
               onClick={() => setShowFilmstrip((v) => !v)}
-              className={`hidden md:inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium cursor-pointer ${
+              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium cursor-pointer ${
                 showFilmstrip
-                  ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
-                  : 'border-indigo-500/60 bg-indigo-600/20 text-indigo-200'
+                  ? 'border-[var(--lms-border)] bg-[var(--lms-surface)] text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)]'
+                  : 'border-indigo-500/55 bg-indigo-500/12 text-indigo-700 dark:border-indigo-500/60 dark:bg-indigo-600/20 dark:text-indigo-200'
               }`}
               title="Ẩn/hiện dải video thành viên"
             >
@@ -1580,8 +1609,10 @@ export function MeetingRoom({
             </button>
           )}
 
+          <ThemeToggle className="!h-7 !px-2 !text-xs" />
+
           <ExpandFullscreenControls
-            darkSurface
+            darkSurface={isDarkSurface}
             isExpanded={isExpanded}
             isFullscreen={isFullscreen}
             onToggleExpand={toggleExpand}
@@ -1595,7 +1626,7 @@ export function MeetingRoom({
             onClick={() => setDrawerTab((cur) => (cur ? null : 'participants'))}
             title={drawerTab ? 'Ẩn thanh bên để mở rộng sân khấu' : 'Mở thanh bên'}
             aria-label="Đóng mở thanh bên phòng học"
-            className="inline-flex items-center rounded-lg border border-slate-700 bg-slate-800 p-1.5 text-slate-200 hover:bg-slate-700 cursor-pointer"
+            className="inline-flex items-center rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] p-1.5 text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] cursor-pointer"
           >
             {drawerTab ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
           </button>
@@ -1608,7 +1639,7 @@ export function MeetingRoom({
         <div className="relative flex flex-1 min-w-0 min-h-0 flex-col overflow-hidden p-2 md:p-3">
           {stageLayout === 'whiteboard' ? (
             <div className="flex flex-1 min-h-0 flex-col lg:flex-row gap-2.5 overflow-hidden">
-              <div className="flex flex-1 min-w-0 min-h-0 rounded-xl overflow-hidden border border-slate-700">
+              <div className="flex flex-1 min-w-0 min-h-0 rounded-xl overflow-hidden border border-[var(--lms-border)]">
                 <WhiteboardCanvas
                   courseId={courseId}
                   meetingId={meeting.meetingId}
@@ -1712,10 +1743,10 @@ export function MeetingRoom({
           ) : (
             <div className={`grid flex-1 min-h-0 gap-2.5 overflow-y-auto ${galleryGridClass}`}>
               {sortedParticipants.length === 0 ? (
-                <div className="col-span-full flex h-full flex-col items-center justify-center rounded-xl border border-slate-800 bg-slate-900/70 p-8 text-center text-slate-300">
-                  <Video className="w-10 h-10 mb-3 text-indigo-400" />
+                <div className="col-span-full flex h-full flex-col items-center justify-center rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-8 text-center text-[var(--lms-text)]">
+                  <Video className="w-10 h-10 mb-3 text-indigo-600 dark:text-indigo-400" />
                   <p className="text-sm font-semibold">Đang đồng bộ sân khấu lớp học WebRTC...</p>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-[var(--lms-text-muted)]">
                     Đang điểm danh tự động. Bật micro, camera hoặc mở bảng trắng bất kỳ lúc nào.
                   </p>
                 </div>
@@ -1741,6 +1772,7 @@ export function MeetingRoom({
                       }
                       onToggleSpotlight={() => {
                         setSpotlightPeerId(participant.peerId);
+                        setShowFilmstrip(true);
                         setStageLayout('spotlight');
                       }}
                     />
@@ -1756,7 +1788,7 @@ export function MeetingRoom({
               {reactions.map((rx) => (
                 <div
                   key={rx.id}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/85 border border-slate-700/70 px-3 py-1.5 text-xs text-white shadow-lg animate-bounce"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[var(--lms-surface)]/95 border border-[var(--lms-border)] px-3 py-1.5 text-xs text-[var(--lms-text)] dark:bg-slate-950/85 dark:border-slate-700/70 dark:text-white shadow-lg animate-bounce"
                 >
                   <ClassroomReactionIcon reactionKey={rx.emoji} className="w-4 h-4" />
                   <span className="font-medium">{rx.userName}</span>
@@ -1767,9 +1799,9 @@ export function MeetingRoom({
 
           {/* Live Captions Overlay */}
           {(captionsEnabled || captionLines.length > 0) && (
-            <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 w-[92%] max-w-2xl -translate-x-1/2 rounded-xl bg-black/80 px-4 py-2 text-center text-xs md:text-sm text-white shadow-xl border border-slate-700/60">
+            <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 w-[92%] max-w-2xl -translate-x-1/2 rounded-xl bg-slate-950/85 px-4 py-2 text-center text-xs md:text-sm text-white shadow-xl border border-slate-700/60">
               {captionLines.length === 0 ? (
-                <span className="text-slate-400">Đang lắng nghe giọng nói (Phụ đề trực tiếp)...</span>
+                <span className="text-slate-300">Đang lắng nghe giọng nói (Phụ đề trực tiếp)...</span>
               ) : (
                 captionLines.map((line) => (
                   <p key={line.id} className="leading-relaxed">
@@ -1784,16 +1816,16 @@ export function MeetingRoom({
 
         {/* Collapsible Right Drawer (Works cleanly inside Normal, Expanded, and Native Fullscreen!) */}
         {drawerTab && (
-          <aside className="flex w-full sm:w-80 xl:w-96 shrink-0 flex-col border-l border-slate-800 bg-slate-900 text-slate-100 h-full min-h-0 overflow-hidden">
+          <aside className="flex w-full sm:w-80 xl:w-96 shrink-0 flex-col border-l border-[var(--lms-border)] bg-[var(--lms-surface)] text-[var(--lms-text)] h-full min-h-0 overflow-hidden">
             {/* Drawer Inner Tabs */}
-            <div className="flex shrink-0 items-center border-b border-slate-800 bg-slate-950/70 px-2 pt-2 gap-1 text-[11px]">
+            <div className="flex shrink-0 items-center border-b border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/70 px-2 pt-2 gap-1 text-[11px]">
               <button
                 type="button"
                 onClick={() => setDrawerTab('participants')}
                 className={`flex-1 inline-flex items-center justify-center gap-1 rounded-t-lg px-2 py-2 font-semibold cursor-pointer ${
                   drawerTab === 'participants'
-                    ? 'bg-slate-900 text-white border-t border-x border-slate-800'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[var(--lms-surface)] text-[var(--lms-text)] border-t border-x border-[var(--lms-border)]'
+                    : 'text-[var(--lms-text-muted)] hover:text-[var(--lms-text)]'
                 }`}
               >
                 <Users className="w-3.5 h-3.5" />
@@ -1808,8 +1840,8 @@ export function MeetingRoom({
                 }}
                 className={`flex-1 inline-flex items-center justify-center gap-1 rounded-t-lg px-2 py-2 font-semibold cursor-pointer ${
                   drawerTab === 'chat'
-                    ? 'bg-slate-900 text-white border-t border-x border-slate-800'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[var(--lms-surface)] text-[var(--lms-text)] border-t border-x border-[var(--lms-border)]'
+                    : 'text-[var(--lms-text-muted)] hover:text-[var(--lms-text)]'
                 }`}
               >
                 <MessageSquare className="w-3.5 h-3.5" />
@@ -1821,8 +1853,8 @@ export function MeetingRoom({
                 onClick={() => setDrawerTab('polls')}
                 className={`flex-1 inline-flex items-center justify-center gap-1 rounded-t-lg px-2 py-2 font-semibold cursor-pointer ${
                   drawerTab === 'polls'
-                    ? 'bg-slate-900 text-white border-t border-x border-slate-800'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[var(--lms-surface)] text-[var(--lms-text)] border-t border-x border-[var(--lms-border)]'
+                    : 'text-[var(--lms-text-muted)] hover:text-[var(--lms-text)]'
                 }`}
               >
                 <BarChart2 className="w-3.5 h-3.5" />
@@ -1834,8 +1866,8 @@ export function MeetingRoom({
                 onClick={() => setDrawerTab('info')}
                 className={`flex-1 inline-flex items-center justify-center gap-1 rounded-t-lg px-2 py-2 font-semibold cursor-pointer ${
                   drawerTab === 'info'
-                    ? 'bg-slate-900 text-white border-t border-x border-slate-800'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[var(--lms-surface)] text-[var(--lms-text)] border-t border-x border-[var(--lms-border)]'
+                    : 'text-[var(--lms-text-muted)] hover:text-[var(--lms-text)]'
                 }`}
               >
                 <Activity className="w-3.5 h-3.5" />
@@ -1846,13 +1878,13 @@ export function MeetingRoom({
             {drawerTab === 'participants' && (
               <div className="flex flex-1 min-h-0 flex-col p-3 gap-2.5 overflow-hidden">
                 <div className="relative shrink-0">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <Search className="w-3.5 h-3.5 text-[var(--lms-text-muted)] absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={participantSearch}
                     onChange={(e) => setParticipantSearch(e.target.value)}
                     placeholder="Tìm tên hoặc vai trò thành viên..."
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
+                    className="w-full rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] pl-8 pr-3 py-1.5 text-xs text-[var(--lms-text)] placeholder:text-[var(--lms-text-muted)] focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
@@ -1864,16 +1896,16 @@ export function MeetingRoom({
                         sendJson({ type: 'moderation.mute_all' });
                         toast.info('Đã gửi lệnh tắt micro toàn bộ thành viên.');
                       }}
-                      className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-[11px] font-medium text-slate-200 hover:bg-slate-700 cursor-pointer"
+                      className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/60 px-2 py-1.5 text-[11px] font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] cursor-pointer"
                     >
-                      <VolumeX className="w-3.5 h-3.5 text-red-400" />
+                      <VolumeX className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />
                       Tắt mic tất cả
                     </button>
                     {raisedCount > 0 && (
                       <button
                         type="button"
                         onClick={() => sendJson({ type: 'moderation.lower_all_hands' })}
-                        className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] font-medium text-amber-300 hover:bg-amber-500/20 cursor-pointer"
+                        className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 cursor-pointer"
                       >
                         <Hand className="w-3.5 h-3.5" />
                         Hạ tất cả tay ({raisedCount})
@@ -1884,7 +1916,7 @@ export function MeetingRoom({
 
                 <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
                   {filteredParticipants.length === 0 ? (
-                    <p className="py-8 text-center text-xs text-slate-400">
+                    <p className="py-8 text-center text-xs text-[var(--lms-text-muted)]">
                       Không tìm thấy thành viên phù hợp.
                     </p>
                   ) : (
@@ -1893,23 +1925,23 @@ export function MeetingRoom({
                       return (
                         <div
                           key={p.peerId}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2"
+                          className="flex items-center justify-between gap-2 rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/50 px-3 py-2"
                         >
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="truncate text-xs font-semibold text-white">
+                              <span className="truncate text-xs font-semibold text-[var(--lms-text)]">
                                 {p.userName}
                               </span>
                               {isSelf && <Badge variant="primary">Bạn</Badge>}
                             </div>
-                            <span className="text-[11px] text-slate-400">
+                            <span className="text-[11px] text-[var(--lms-text-muted)]">
                               {formatRole(p.userRole)}
                             </span>
                           </div>
 
                           <div className="flex items-center gap-1.5 shrink-0">
                             {p.handRaised && (
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
                                 <Hand className="w-3 h-3" />
                               </span>
                             )}
@@ -1920,15 +1952,15 @@ export function MeetingRoom({
                                   sendJson({ type: 'moderation.mute_peer', targetPeerId: p.peerId })
                                 }
                                 title={`Tắt micro của ${p.userName}`}
-                                className="rounded p-1 text-red-400 hover:bg-slate-700 cursor-pointer"
+                                className="rounded p-1 text-red-600 hover:bg-[var(--lms-surface-muted)] dark:text-red-400 cursor-pointer"
                               >
                                 <VolumeX className="w-3.5 h-3.5" />
                               </button>
                             )}
                             {p.mediaState.audio ? (
-                              <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                              <Mic className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                             ) : (
-                              <MicOff className="w-3.5 h-3.5 text-slate-500" />
+                              <MicOff className="w-3.5 h-3.5 text-[var(--lms-text-muted)]" />
                             )}
                           </div>
                         </div>
@@ -1977,13 +2009,13 @@ export function MeetingRoom({
 
             {drawerTab === 'info' && (
               <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3 text-xs">
-                <div className="rounded-xl border border-slate-800 bg-slate-800/60 p-3 space-y-2">
-                  <div className="flex items-center gap-1.5 font-semibold text-white">
-                    <Info className="w-3.5 h-3.5 text-indigo-400" />
+                <div className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/50 p-3 space-y-2">
+                  <div className="flex items-center gap-1.5 font-semibold text-[var(--lms-text)]">
+                    <Info className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     Thông tin phòng học
                   </div>
-                  <p className="text-slate-300">Chủ trì: {meeting.hostName || 'Giảng viên'}</p>
-                  <p className="text-slate-300 font-mono">Mã phòng: {meeting.roomCode}</p>
+                  <p className="text-[var(--lms-text-muted)]">Chủ trì: {meeting.hostName || 'Giảng viên'}</p>
+                  <p className="text-[var(--lms-text-muted)] font-mono">Mã phòng: {meeting.roomCode}</p>
                   <button
                     type="button"
                     onClick={() => void handleCopyInvite()}
@@ -1994,13 +2026,13 @@ export function MeetingRoom({
                   </button>
                 </div>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-800/60 p-3 space-y-2">
-                  <div className="flex items-center gap-1.5 font-semibold text-white">
-                    <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                <div className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/50 p-3 space-y-2">
+                  <div className="flex items-center gap-1.5 font-semibold text-[var(--lms-text)]">
+                    <Activity className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     Thống kê kết nối WebRTC ({peerStats.length} peer)
                   </div>
                   {peerStats.length === 0 ? (
-                    <p className="text-slate-400">
+                    <p className="text-[var(--lms-text-muted)]">
                       Chưa có kết nối P2P nào khác ngoài bạn. Các chỉ số độ trễ sẽ hiển thị khi có thành viên khác tham gia.
                     </p>
                   ) : (
@@ -2008,10 +2040,10 @@ export function MeetingRoom({
                       {peerStats.map((st) => (
                         <div
                           key={st.peerId}
-                          className="flex items-center justify-between rounded-lg bg-slate-900 px-2.5 py-1.5"
+                          className="flex items-center justify-between rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 py-1.5"
                         >
-                          <span className="truncate font-medium text-slate-200">{st.userName}</span>
-                          <span className="shrink-0 tabular-nums text-[11px] text-slate-400">
+                          <span className="truncate font-medium text-[var(--lms-text)]">{st.userName}</span>
+                          <span className="shrink-0 tabular-nums text-[11px] text-[var(--lms-text-muted)]">
                             {st.connectionState} · {st.rttMs !== null ? `${st.rttMs} ms` : '—'}
                           </span>
                         </div>
@@ -2020,17 +2052,17 @@ export function MeetingRoom({
                   )}
                 </div>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-800/60 p-3 space-y-1.5">
-                  <div className="font-semibold text-white mb-1">Phím tắt nhanh</div>
-                  <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-300">
-                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">M</kbd> Micro</span>
-                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">V</kbd> Camera</span>
-                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">S</kbd> Chia sẻ màn hình</span>
-                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">H</kbd> Giơ tay</span>
-                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">W</kbd> Bảng trắng</span>
-                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">C</kbd> Trò chuyện</span>
-                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">F</kbd> Tràn cửa sổ</span>
-                    <span><kbd className="rounded bg-slate-900 px-1.5 py-0.5">Space</kbd> Nhấn để nói</span>
+                <div className="rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface-muted)]/50 p-3 space-y-1.5">
+                  <div className="font-semibold text-[var(--lms-text)] mb-1">Phím tắt nhanh</div>
+                  <div className="grid grid-cols-2 gap-1 text-[11px] text-[var(--lms-text-muted)]">
+                    <span><kbd className="rounded border border-[var(--lms-border)] bg-[var(--lms-surface)] px-1.5 py-0.5 text-[var(--lms-text)]">M</kbd> Micro</span>
+                    <span><kbd className="rounded border border-[var(--lms-border)] bg-[var(--lms-surface)] px-1.5 py-0.5 text-[var(--lms-text)]">V</kbd> Camera</span>
+                    <span><kbd className="rounded border border-[var(--lms-border)] bg-[var(--lms-surface)] px-1.5 py-0.5 text-[var(--lms-text)]">S</kbd> Chia sẻ màn hình</span>
+                    <span><kbd className="rounded border border-[var(--lms-border)] bg-[var(--lms-surface)] px-1.5 py-0.5 text-[var(--lms-text)]">H</kbd> Giơ tay</span>
+                    <span><kbd className="rounded border border-[var(--lms-border)] bg-[var(--lms-surface)] px-1.5 py-0.5 text-[var(--lms-text)]">W</kbd> Bảng trắng</span>
+                    <span><kbd className="rounded border border-[var(--lms-border)] bg-[var(--lms-surface)] px-1.5 py-0.5 text-[var(--lms-text)]">C</kbd> Trò chuyện</span>
+                    <span><kbd className="rounded border border-[var(--lms-border)] bg-[var(--lms-surface)] px-1.5 py-0.5 text-[var(--lms-text)]">F</kbd> Tràn cửa sổ</span>
+                    <span><kbd className="rounded border border-[var(--lms-border)] bg-[var(--lms-surface)] px-1.5 py-0.5 text-[var(--lms-text)]">Space</kbd> Nhấn để nói</span>
                   </div>
                 </div>
               </div>
@@ -2040,16 +2072,16 @@ export function MeetingRoom({
       </div>
 
       {/* 3. MS Teams Bottom Control Dock */}
-      <footer className="relative z-30 flex min-h-14 shrink-0 flex-wrap lg:flex-nowrap items-center justify-between gap-2 border-t border-slate-800/90 bg-slate-950/95 px-3 md:px-4 py-2">
+      <footer className="relative z-30 flex min-h-14 shrink-0 flex-wrap lg:flex-nowrap items-center justify-between gap-2 border-t border-[var(--lms-border)] bg-[var(--lms-surface)]/95 dark:border-slate-800/90 dark:bg-slate-950/95 px-3 md:px-4 py-2">
         {/* Left hint */}
-        <div className="hidden 2xl:flex shrink-0 items-center gap-2 text-[11px] text-slate-400">
+        <div className="hidden 2xl:flex shrink-0 items-center gap-2 text-[11px] text-[var(--lms-text-muted)]">
           {pushToTalkActive ? (
-            <span className="rounded-full bg-emerald-500/20 px-2.5 py-1 font-semibold text-emerald-300">
+            <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
               Đang giữ Space để nói...
             </span>
           ) : (
             <span>
-              Giữ <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-200">Space</kbd> nói nhanh · {videoQuality}
+              Giữ <kbd className="rounded border border-[var(--lms-border)] bg-[var(--lms-surface-muted)] px-1.5 py-0.5 text-[var(--lms-text)]">Space</kbd> nói nhanh · {videoQuality}
             </span>
           )}
         </div>
@@ -2063,7 +2095,7 @@ export function MeetingRoom({
             className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
               mediaState.audio
                 ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                : dockNeutralBtn
             }`}
           >
             {mediaState.audio ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
@@ -2077,7 +2109,7 @@ export function MeetingRoom({
             className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
               mediaState.video
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                : dockNeutralBtn
             }`}
           >
             {mediaState.video ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
@@ -2091,7 +2123,7 @@ export function MeetingRoom({
             className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
               mediaState.screen
                 ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                : dockNeutralBtn
             }`}
           >
             <MonitorUp className="w-4 h-4" />
@@ -2107,7 +2139,7 @@ export function MeetingRoom({
             className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
               handRaised
                 ? 'bg-amber-400 text-slate-950 hover:bg-amber-300'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                : dockNeutralBtn
             }`}
           >
             <Hand className="w-4 h-4" />
@@ -2124,13 +2156,13 @@ export function MeetingRoom({
               className={`inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
                 showReactionPicker
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  : dockNeutralBtn
               }`}
             >
               <Smile className="w-4 h-4" />
             </button>
             {showReactionPicker && (
-              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1.5 shadow-2xl">
+              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full border border-[var(--lms-border)] bg-[var(--lms-surface)] px-2.5 py-1.5 shadow-2xl">
                 {CLASSROOM_REACTIONS.map((reaction) => (
                   <button
                     key={reaction.key}
@@ -2138,7 +2170,7 @@ export function MeetingRoom({
                     title={reaction.label}
                     aria-label={reaction.label}
                     onClick={() => sendReaction(reaction.key)}
-                    className="rounded-full p-1.5 hover:scale-125 hover:bg-slate-800 transition cursor-pointer"
+                    className="rounded-full p-1.5 hover:scale-125 hover:bg-[var(--lms-surface-muted)] transition cursor-pointer"
                   >
                     <ClassroomReactionIcon reactionKey={reaction.key} className="w-4 h-4" />
                   </button>
@@ -2154,7 +2186,7 @@ export function MeetingRoom({
             className={`inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
               captionsEnabled
                 ? 'bg-indigo-600 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                : dockNeutralBtn
             }`}
           >
             <Captions className="w-4 h-4" />
@@ -2163,12 +2195,12 @@ export function MeetingRoom({
 
           <button
             type="button"
-            onClick={() => setStageLayout((cur) => (cur === 'whiteboard' ? 'gallery' : 'whiteboard'))}
+            onClick={toggleWhiteboardStage}
             title="Bảng vẽ cộng tác trong phòng (W)"
             className={`inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
               stageLayout === 'whiteboard'
                 ? 'bg-indigo-600 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                : dockNeutralBtn
             }`}
           >
             <PenTool className="w-4 h-4" />
@@ -2182,10 +2214,10 @@ export function MeetingRoom({
             className={`inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
               isRecording
                 ? 'bg-rose-600 text-white hover:bg-rose-700'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                : dockNeutralBtn
             }`}
           >
-            {isRecording ? <Square className="w-3.5 h-3.5 fill-white" /> : <Circle className="w-3.5 h-3.5 text-rose-400" />}
+            {isRecording ? <Square className="w-3.5 h-3.5 fill-white" /> : <Circle className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />}
             <span className="hidden xl:inline">{isRecording ? 'Dừng ghi' : 'Ghi hình'}</span>
           </button>
 
@@ -2194,13 +2226,13 @@ export function MeetingRoom({
             onClick={() => setSettingsOpen(true)}
             title="Cài đặt Micro, Camera, Loa & Nền ảo"
             aria-label="Cài đặt thiết bị và nền ảo"
-            className="inline-flex items-center gap-1 rounded-xl bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 cursor-pointer"
+            className={`inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${dockNeutralBtn}`}
           >
             <Settings className="w-4 h-4" />
           </button>
 
           {/* Drawer Toggles inside dock so accessible in Fullscreen */}
-          <span className="mx-0.5 h-5 w-px bg-slate-800 hidden sm:inline-block" aria-hidden="true" />
+          <span className="mx-0.5 h-5 w-px bg-[var(--lms-border)] hidden sm:inline-block" aria-hidden="true" />
 
           <button
             type="button"
@@ -2209,7 +2241,7 @@ export function MeetingRoom({
             className={`relative inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
               drawerTab === 'participants'
                 ? 'bg-indigo-600 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                : dockNeutralBtn
             }`}
           >
             <Users className="w-4 h-4" />
@@ -2228,7 +2260,7 @@ export function MeetingRoom({
             className={`relative inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
               drawerTab === 'chat'
                 ? 'bg-indigo-600 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                : dockNeutralBtn
             }`}
           >
             <MessageSquare className="w-4 h-4" />
@@ -2247,12 +2279,12 @@ export function MeetingRoom({
             className={`relative inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition ${
               drawerTab === 'polls'
                 ? 'bg-indigo-600 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                : dockNeutralBtn
             }`}
           >
             <BarChart2 className="w-4 h-4" />
             {activePoll?.isOpen && (
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-400" />
             )}
           </button>
 
@@ -2264,10 +2296,10 @@ export function MeetingRoom({
             }}
             title="Thông số kết nối & Phím tắt"
             aria-label="Thông số kết nối và phím tắt"
-            className={`inline-flex items-center rounded-xl px-2.5 py-2 text-xs cursor-pointer ${
+            className={`inline-flex items-center rounded-xl px-2.5 py-2 text-xs cursor-pointer transition ${
               drawerTab === 'info' || showShortcuts
                 ? 'bg-indigo-600 text-white'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                : dockNeutralBtn
             }`}
           >
             <HelpCircle className="w-4 h-4" />
@@ -2279,7 +2311,7 @@ export function MeetingRoom({
           <button
             type="button"
             onClick={() => void handleLeave()}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-700 cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3 py-2 text-xs font-semibold text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Rời phòng</span>
@@ -2314,15 +2346,15 @@ export function MeetingRoom({
 
       {endConfirmOpen && (
         <div
-          className="fixed inset-0 z-[75] flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-xs"
           role="dialog"
           aria-modal="true"
           aria-label="Xác nhận kết thúc buổi học"
         >
-          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl space-y-4">
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--lms-border)] bg-[var(--lms-surface)] p-5 text-[var(--lms-text)] shadow-2xl space-y-4">
             <div className="space-y-1.5">
-              <h3 className="text-base font-bold text-white">Kết thúc buổi học trực tuyến?</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <h3 className="text-base font-bold text-[var(--lms-text)]">Kết thúc buổi học trực tuyến?</h3>
+              <p className="text-xs text-[var(--lms-text-muted)] leading-relaxed">
                 Tất cả thành viên sẽ rời phòng và hệ thống sẽ chốt dữ liệu điểm danh tự động.
               </p>
             </div>
@@ -2331,7 +2363,7 @@ export function MeetingRoom({
                 type="button"
                 disabled={ending}
                 onClick={() => setEndConfirmOpen(false)}
-                className="rounded-lg border border-slate-700 px-3.5 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800 cursor-pointer"
+                className="rounded-lg border border-[var(--lms-border)] bg-[var(--lms-surface)] px-3.5 py-2 text-xs font-medium text-[var(--lms-text)] hover:bg-[var(--lms-surface-muted)] cursor-pointer"
               >
                 Tiếp tục dạy
               </button>

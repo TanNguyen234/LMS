@@ -26,18 +26,18 @@ export function ClassroomReactionIcon({
 }) {
   switch (reactionKey) {
     case 'heart':
-      return <Heart className={`${className} text-rose-400`} aria-hidden="true" />;
+      return <Heart className={`${className} text-rose-500 dark:text-rose-400`} aria-hidden="true" />;
     case 'clap':
-      return <Award className={`${className} text-amber-400`} aria-hidden="true" />;
+      return <Award className={`${className} text-amber-500 dark:text-amber-400`} aria-hidden="true" />;
     case 'smile':
-      return <Smile className={`${className} text-emerald-400`} aria-hidden="true" />;
+      return <Smile className={`${className} text-emerald-500 dark:text-emerald-400`} aria-hidden="true" />;
     case 'wow':
-      return <Sparkles className={`${className} text-violet-400`} aria-hidden="true" />;
+      return <Sparkles className={`${className} text-violet-500 dark:text-violet-400`} aria-hidden="true" />;
     case 'flame':
-      return <Flame className={`${className} text-orange-400`} aria-hidden="true" />;
+      return <Flame className={`${className} text-orange-500 dark:text-orange-400`} aria-hidden="true" />;
     case 'like':
     default:
-      return <ThumbsUp className={`${className} text-sky-400`} aria-hidden="true" />;
+      return <ThumbsUp className={`${className} text-sky-500 dark:text-sky-400`} aria-hidden="true" />;
   }
 }
 
@@ -96,12 +96,12 @@ export function StageVideoTile({
 
   return (
     <div
-      className={`group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-slate-900 text-white shadow-sm transition-all ${
+      className={`group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-white shadow-sm transition-all ${
         isSpeaking
-          ? 'border-emerald-400 ring-2 ring-emerald-400/50'
+          ? 'border-emerald-500 ring-2 ring-emerald-500/45 dark:border-emerald-400 dark:ring-emerald-400/50'
           : participant.handRaised
-            ? 'border-amber-400/80 ring-1 ring-amber-400/40'
-            : 'border-slate-700/80'
+            ? 'border-amber-400 ring-1 ring-amber-400/40'
+            : 'border-slate-200 dark:border-slate-700/80'
       } ${
         isThumbStrip
           ? 'h-28 w-48 shrink-0 lg:h-32 lg:w-full'
@@ -123,13 +123,13 @@ export function StageVideoTile({
       )}
 
       {!showVideo && (
-        <div className="flex flex-1 items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950">
+        <div className="flex flex-1 items-center justify-center bg-gradient-to-br from-slate-100 via-slate-200/75 to-indigo-50/70 dark:from-slate-800 dark:via-slate-900 dark:to-slate-950">
           <div
-            className={`flex items-center justify-center rounded-full border font-bold text-indigo-100 ${
+            className={`flex items-center justify-center rounded-full border font-bold text-indigo-700 bg-indigo-600/15 border-indigo-500/30 dark:text-indigo-100 dark:bg-indigo-600/30 dark:border-indigo-400/40 ${
               isThumbStrip
-                ? 'h-10 w-10 text-sm bg-indigo-600/30 border-indigo-400/40'
-                : 'h-16 w-16 md:h-20 md:w-20 text-xl md:text-2xl bg-indigo-600/30 border-indigo-400/40'
-            } ${isSpeaking ? 'ring-4 ring-emerald-400/40 animate-pulse' : ''}`}
+                ? 'h-10 w-10 text-sm'
+                : 'h-16 w-16 md:h-20 md:w-20 text-xl md:text-2xl'
+            } ${isSpeaking ? 'ring-4 ring-emerald-500/35 dark:ring-emerald-400/40 animate-pulse' : ''}`}
           >
             {participant.userName.charAt(0).toUpperCase()}
           </div>
@@ -152,7 +152,7 @@ export function StageVideoTile({
             </span>
           )}
           {recentEmoji && (
-            <span className="inline-flex items-center justify-center rounded-full bg-slate-950/85 p-1.5 shadow-lg animate-bounce">
+            <span className="inline-flex items-center justify-center rounded-full bg-white/90 border border-slate-200/80 dark:border-transparent dark:bg-slate-950/85 p-1.5 shadow-lg animate-bounce">
               <ClassroomReactionIcon reactionKey={recentEmoji} className="w-3.5 h-3.5" />
             </span>
           )}
@@ -165,7 +165,7 @@ export function StageVideoTile({
               onClick={() => setFitContain((v) => !v)}
               title={shouldContain ? 'Phóng đầy khung hình' : 'Hiển thị trọn vẹn không cắt viền'}
               aria-label="Chuyển tỷ lệ khung hình video"
-              className="opacity-0 group-hover:opacity-100 focus:opacity-100 rounded-full bg-slate-950/75 px-2 py-1 text-[10px] font-medium text-slate-200 hover:bg-slate-800 transition cursor-pointer"
+              className="opacity-0 group-hover:opacity-100 focus:opacity-100 rounded-full bg-slate-950/75 px-2 py-1 text-[10px] font-medium text-slate-100 hover:bg-slate-800 transition cursor-pointer"
             >
               {shouldContain ? 'Đầy khung' : 'Vừa khung'}
             </button>
@@ -176,7 +176,7 @@ export function StageVideoTile({
               onClick={onMutePeer}
               title={`Tắt micro của ${participant.userName}`}
               aria-label={`Tắt micro của ${participant.userName}`}
-              className="opacity-0 group-hover:opacity-100 focus:opacity-100 rounded-full bg-red-600/85 p-1.5 text-white hover:bg-red-600 transition cursor-pointer"
+              className="opacity-0 group-hover:opacity-100 focus:opacity-100 rounded-full bg-red-600/90 p-1.5 text-white hover:bg-red-600 transition cursor-pointer"
             >
               <VolumeX className="w-3.5 h-3.5" />
             </button>
@@ -190,7 +190,9 @@ export function StageVideoTile({
               className={`rounded-full p-1.5 transition cursor-pointer ${
                 isSpotlight
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-950/75 text-slate-200 hover:bg-indigo-600 hover:text-white'
+                  : showVideo
+                    ? 'bg-slate-950/75 text-slate-200 hover:bg-indigo-600 hover:text-white'
+                    : 'bg-white/90 text-slate-700 border border-slate-200/80 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 dark:border-transparent dark:bg-slate-950/75 dark:text-slate-200 dark:hover:bg-indigo-600'
               }`}
             >
               {isSpotlight ? (
@@ -204,15 +206,25 @@ export function StageVideoTile({
       </div>
 
       {/* Bottom Nameplate */}
-      <div className="relative z-10 flex items-center justify-between gap-2 bg-gradient-to-t from-slate-950/90 via-slate-950/65 to-transparent px-3 py-2 text-xs">
+      <div
+        className={`relative z-10 flex items-center justify-between gap-2 px-3 py-2 text-xs ${
+          showVideo
+            ? 'bg-gradient-to-t from-slate-950/90 via-slate-950/65 to-transparent text-white'
+            : 'bg-white/85 text-slate-800 border-t border-slate-200/70 dark:border-transparent dark:bg-gradient-to-t dark:from-slate-950/90 dark:via-slate-950/65 dark:to-transparent dark:text-white'
+        }`}
+      >
         <div className="flex min-w-0 items-center gap-1.5">
           <span
             className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
               participant.mediaState.audio
                 ? isSpeaking
                   ? 'bg-emerald-500 text-slate-950'
-                  : 'bg-slate-900/90 text-emerald-400'
-                : 'bg-slate-900/90 text-slate-400'
+                  : showVideo
+                    ? 'bg-slate-900/90 text-emerald-400'
+                    : 'bg-emerald-500/15 text-emerald-600 dark:bg-slate-900/90 dark:text-emerald-400'
+                : showVideo
+                  ? 'bg-slate-900/90 text-slate-400'
+                  : 'bg-slate-200/90 text-slate-500 dark:bg-slate-900/90 dark:text-slate-400'
             }`}
           >
             {participant.mediaState.audio ? (
@@ -226,7 +238,11 @@ export function StageVideoTile({
           </span>
         </div>
         {!isThumbStrip && (
-          <span className="shrink-0 text-[11px] text-slate-300">
+          <span
+            className={`shrink-0 text-[11px] ${
+              showVideo ? 'text-slate-300' : 'text-slate-500 dark:text-slate-300'
+            }`}
+          >
             {formatRole(participant.userRole)}
           </span>
         )}

@@ -14,6 +14,8 @@ export interface ExpandableViewResult<T extends HTMLElement> {
   exitExpand: () => void;
 }
 
+const expandedEscapeStack: Array<() => void> = [];
+
 /**
  * Shared hook enabling Focus/Theater expansion and native Browser Fullscreen
  * for learning views, virtual classroom stages, and collaborative whiteboards.
@@ -40,14 +42,27 @@ export function useExpandableView<T extends HTMLElement = HTMLDivElement>(): Exp
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
+    const closeSelf = () => setIsExpanded(false);
+    expandedEscapeStack.push(closeSelf);
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !document.fullscreenElement) {
-        setIsExpanded(false);
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        !document.fullscreenElement &&
+        expandedEscapeStack[expandedEscapeStack.length - 1] === closeSelf
+      ) {
+        event.preventDefault();
+        closeSelf();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      const idx = expandedEscapeStack.lastIndexOf(closeSelf);
+      if (idx !== -1) {
+        expandedEscapeStack.splice(idx, 1);
+      }
       document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
